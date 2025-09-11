@@ -1,5 +1,3 @@
-// src/components/SoldProducts.jsx
-
 import { useState, useEffect } from 'react';
 import {
   Package,
@@ -7,49 +5,55 @@ import {
   Eye,
   Star,
   Clock,
-  DollarSign,
   Tag,
   Shirt,
+  HeartCrack,
 } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { formatPrice, getStatusColor, getConditionIcon, getTimeLeft } from '../utils/productUtils.jsx';
+import { formatPrice, getStatusColor, getConditionIcon } from '../utils/productUtils.jsx';
 import SoldProductDetailModal from '../modals/SoldProductDetailModal';
 
 const SoldProducts = () => {
-  const [soldProducts, setSoldProducts] = useState([]);
+  const [soldExpiredProducts, setSoldExpiredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 4;
 
   useEffect(() => {
-    fetchSoldProducts();
+    fetchSoldExpiredProducts();
   }, []);
 
-  const fetchSoldProducts = async () => {
+  const fetchSoldExpiredProducts = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'products'), where('status', '==', 'sold'));
+      const q = query(collection(db, 'products'), where('status', 'in', ['sold', 'expired']));
       const snapshot = await getDocs(q);
       const fetchedProducts = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
         soldAt: doc.data().soldAt?.toDate?.() || doc.data().soldAt,
+        bidEndTime: doc.data().bidEndTime?.toDate?.() || doc.data().bidEndTime,
       }));
-      setSoldProducts(fetchedProducts);
+      setSoldExpiredProducts(fetchedProducts);
     } catch (error) {
-      console.error('Error fetching sold products:', error);
+      console.error('Error fetching sold and expired products:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredProducts = soldProducts.filter((product) => {
+  const filteredProducts = soldExpiredProducts.filter((product) => {
     const matchesSearch =
       product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category?.toLowerCase().includes(searchTerm.toLowerCase());
+      product.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.finalPrice && product.finalPrice.toString().includes(searchTerm)) ||
+      (product.price && product.price.toString().includes(searchTerm));
     return matchesSearch;
   });
 
@@ -57,6 +61,19 @@ const SoldProducts = () => {
     setSelectedProduct(product);
     setShowDetailModal(true);
   };
+
+  // Pagination Logic
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+
+  const pageNumbers = [];
+  for (let i = 1; i <= totalPages; i++) {
+    pageNumbers.push(i);
+  }
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   if (loading) {
     return (
@@ -84,14 +101,14 @@ const SoldProducts = () => {
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Sold Products</h1>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">Sold & Expired Products</h1>
               <p className="text-lg text-gray-600">
-                View a history of all sold upcycled streetwear items
+                View a history of all sold and expired upcycled streetwear items
               </p>
               <div className="flex items-center space-x-6 mt-4">
                 <div className="flex items-center text-sm text-gray-500">
                   <Package className="h-4 w-4 mr-1" />
-                  {soldProducts.length} Products Sold
+                  {soldExpiredProducts.length} Items
                 </div>
               </div>
             </div>
@@ -105,7 +122,7 @@ const SoldProducts = () => {
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
-                placeholder="Search sold products..."
+                placeholder="Search products by name, price, or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#135918] focus:border-[#135918] outline-none transition-colors"
@@ -116,8 +133,8 @@ const SoldProducts = () => {
 
         {/* Products Grid Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProducts.length > 0 ? (
-            filteredProducts.map((product) => (
+          {currentProducts.length > 0 ? (
+            currentProducts.map((product) => (
               <div
                 key={product.id}
                 className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
@@ -143,9 +160,9 @@ const SoldProducts = () => {
                     </div>
                   )}
                   <span
-                    className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor('sold')}`}
+                    className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(product.status)}`}
                   >
-                    Sold
+                    {product.status.charAt(0).toUpperCase() + product.status.slice(1)}
                   </span>
                 </div>
 
@@ -178,8 +195,17 @@ const SoldProducts = () => {
                         <span className="ml-1">{product.condition}</span>
                       </div>
                       <div className="flex items-center text-gray-500">
-                        <Clock className="h-4 w-4 mr-1" />
-                        Sold on {new Date(product.soldAt).toLocaleDateString()}
+                        {product.status === 'sold' ? (
+                          <>
+                            <Clock className="h-4 w-4 mr-1" />
+                            Sold on {new Date(product.soldAt).toLocaleDateString()}
+                          </>
+                        ) : (
+                          <>
+                            <HeartCrack className="h-4 w-4 mr-1" />
+                            Expired on {new Date(product.bidEndTime).toLocaleDateString()}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -198,11 +224,44 @@ const SoldProducts = () => {
           ) : (
             <div className="bg-white rounded-2xl shadow-sm p-12 text-center col-span-full">
               <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No sold products found</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No sold or expired products found</h3>
               <p className="text-gray-500">Try adjusting your search criteria.</p>
             </div>
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <nav className="flex items-center justify-center space-x-2 mt-8">
+            <button
+              onClick={() => paginate(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            {pageNumbers.map((number) => (
+              <button
+                key={number}
+                onClick={() => paginate(number)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  currentPage === number
+                    ? 'text-white bg-[#135918]'
+                    : 'text-gray-700 bg-white hover:bg-gray-100'
+                }`}
+              >
+                {number}
+              </button>
+            ))}
+            <button
+              onClick={() => paginate(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </nav>
+        )}
 
         {showDetailModal && (
           <SoldProductDetailModal

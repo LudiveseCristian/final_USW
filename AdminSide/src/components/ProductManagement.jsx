@@ -32,7 +32,6 @@ import BidManagementModal from '../modals/BidManagementModal';
 import CategoryModal from '../modals/CategoryModal';
 import { useAlert } from "../contexts/alertContext";
 
-
 const ProductManagement = () => {
   // State variables for UI and data management
   const [products, setProducts] = useState([]);
@@ -48,7 +47,9 @@ const ProductManagement = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false); // New state for category modal
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 8;
 
 
   // Form data state
@@ -78,7 +79,6 @@ const ProductManagement = () => {
     const interval = setInterval(checkExpiredAuctions, 60000); // Check every minute
     return () => clearInterval(interval);
   }, []);
-
   const updateProductStatusForEndingSoon = async (product) => {
     try {
       const now = new Date();
@@ -124,7 +124,6 @@ const ProductManagement = () => {
       setLoading(false);
     }
   };
-
   const checkExpiredAuctions = () => {
     const now = new Date();
     setProducts((prevProducts) =>
@@ -178,7 +177,6 @@ const ProductManagement = () => {
       console.error('Error updating product status:', error);
     }
   };
-
   const uploadImageToFirebase = async (file) => {
     try {
       const timestamp = Date.now();
@@ -193,7 +191,6 @@ const ProductManagement = () => {
           originalName: file.name,
         },
       };
-
       const snapshot = await uploadBytes(storageRef, file, metadata);
       const downloadURL = await getDownloadURL(snapshot.ref);
 
@@ -214,7 +211,6 @@ const ProductManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!formData.name.trim()) {
       alert('Product name is required');
       return;
@@ -250,13 +246,11 @@ const ProductManagement = () => {
     try {
       setUploading(true);
       setUploadProgress(0);
-
       let imageUrls = [...(formData.imageUrls || [])];
 
       if (imageFiles.length > 0) {
         for (let i = 0; i < imageFiles.length; i++) {
           const file = imageFiles[i];
-
           if (!file.type.startsWith('image/')) {
             throw new Error(`File ${file.name} is not an image`);
           }
@@ -267,12 +261,12 @@ const ProductManagement = () => {
 
           const downloadURL = await uploadImageToFirebase(file);
           imageUrls.push(downloadURL);
-
           setUploadProgress(((i + 1) / imageFiles.length) * 100);
         }
       }
 
-      let nextNumericId = editingProduct?.numericId || null;
+      let nextNumericId = editingProduct?.numericId ||
+        null;
       if (!editingProduct) {
         try {
           const allSnap = await getDocs(collection(db, 'products'));
@@ -290,17 +284,22 @@ const ProductManagement = () => {
       const productPayload = {
         ...formData,
         price: parseFloat(formData.price),
-        minimumBid: formData.biddingEnabled ? parseFloat(formData.minimumBid) : null,
-        currentBid: formData.biddingEnabled ? parseFloat(formData.minimumBid) : null,
-        bidEndTime: formData.biddingEnabled ? new Date(formData.bidEndTime) : null,
+        minimumBid: formData.biddingEnabled ?
+          parseFloat(formData.minimumBid) : null,
+        currentBid: formData.biddingEnabled ?
+          parseFloat(formData.minimumBid) : null,
+        bidEndTime: formData.biddingEnabled ?
+          new Date(formData.bidEndTime) : null,
         imageUrls,
-        bids: formData.bids || [],
+        bids: formData.bids ||
+          [],
         numericId: nextNumericId,
-        orderId: formData.orderId?.trim() || null,
-        createdAt: editingProduct ? formData.createdAt : new Date(),
+        orderId: formData.orderId?.trim() ||
+          null,
+        createdAt: editingProduct ?
+          formData.createdAt : new Date(),
         updatedAt: new Date(),
       };
-
       if (editingProduct) {
         await updateDoc(doc(db, 'products', editingProduct.id), productPayload);
         setProducts(
@@ -323,7 +322,6 @@ const ProductManagement = () => {
       setUploadProgress(0);
     }
   };
-
   const handleAcceptBid = async (productId, bidIndex) => {
     try {
       const product = products.find((p) => p.id === productId);
@@ -362,7 +360,6 @@ const ProductManagement = () => {
             : p
         )
       );
-
       try {
         const ordersRef = collection(db, 'orders');
         await addDoc(ordersRef, {
@@ -392,7 +389,6 @@ const ProductManagement = () => {
       alert('Failed to accept bid. Please try again.');
     }
   };
-
   const handleRejectBid = async (productId, bidIndex) => {
     try {
       const product = products.find((p) => p.id === productId);
@@ -436,12 +432,10 @@ const ProductManagement = () => {
       }
     }
   };
-
   const handleViewBids = (product) => {
     setSelectedBidProduct(product);
     setShowBidModal(true);
   };
-
   const resetForm = () => {
     setFormData({
       name: '',
@@ -476,7 +470,6 @@ const ProductManagement = () => {
       setDragActive(false);
     }
   };
-
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -485,7 +478,6 @@ const ProductManagement = () => {
       handleImageFileChange({ target: { files: e.dataTransfer.files } });
     }
   };
-
   const handleImageFileChange = (e) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter((file) => {
@@ -505,7 +497,6 @@ const ProductManagement = () => {
   const removeImageFile = (indexToRemove) => {
     setImageFiles(imageFiles.filter((_, index) => index !== indexToRemove));
   };
-
   const removeImageUrl = (indexToRemove) => {
     setFormData({
       ...formData,
@@ -527,20 +518,18 @@ const ProductManagement = () => {
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
   };
-
   const getBiddingProducts = () => {
     return products.filter((product) => product.biddingEnabled && product.bids?.length > 0);
   };
-
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.category?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'all' || product.status === filterStatus;
-    return matchesSearch && matchesFilter;
+    const isDisplayable = product.status !== 'sold' && product.status !== 'expired';
+    return matchesSearch && matchesFilter && isDisplayable;
   });
-
   const formatPrice = (price) => {
     const numPrice = typeof price === 'string' ? parseFloat(price) : price;
     return `₱${numPrice?.toLocaleString() || '0'}`;
@@ -562,7 +551,6 @@ const ProductManagement = () => {
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
-
   const getConditionIcon = (condition) => {
     switch (condition) {
       case 'Excellent':
@@ -575,6 +563,17 @@ const ProductManagement = () => {
         return <Star className="h-4 w-4 text-gray-400" />;
     }
   };
+  
+  // Pagination logic
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+  const pageNumbers = [];
+  for (let i = 1; i <= totalPages; i++) {
+    pageNumbers.push(i);
+  }
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   // --- Rendered JSX ---
   if (loading) {
@@ -584,7 +583,8 @@ const ProductManagement = () => {
           <div className="h-10 bg-gray-200 rounded-lg w-1/3 mb-8"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
+              <div
+                key={i} className="bg-white rounded-xl p-4 shadow-sm">
                 <div className="h-48 bg-gray-200 rounded-lg mb-4"></div>
                 <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
                 <div className="h-3 bg-gray-200 rounded w-1/2"></div>
@@ -604,7 +604,8 @@ const ProductManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2">Product Management</h1>
-              <p className="text-lg text-gray-600">
+              <p
+                className="text-lg text-gray-600">
                 Manage your upcycled streetwear inventory and bidding
               </p>
               <div className="flex items-center space-x-6 mt-4">
@@ -618,22 +619,22 @@ const ProductManagement = () => {
                 </div>
               </div>
             </div>
-            <div className='pl-60 flex items-center gap-3'>
-            <button
-              onClick={() => setShowCategoryModal(true)} // Set the state to true on click
-              className="bg-[#135918] hover:bg-[#0F4713] text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Add Category</span>
-            </button>
-          </div>
-            <button
-              onClick={() => setShowModal(true)}
-              className="bg-[#135918] hover:bg-[#0F4713] text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Add Product</span>
-            </button>
+            <div className='flex items-center gap-3'>
+              <button
+                onClick={() => setShowCategoryModal(true)} // Set the state to true on click
+                className="bg-[#135918] hover:bg-[#0F4713] text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Add Category</span>
+              </button>
+              <button
+                onClick={() => setShowModal(true)}
+                className="bg-[#135918] hover:bg-[#0F4713] text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Add Product</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -677,7 +678,8 @@ const ProductManagement = () => {
             <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <Search className="absolute
+                    left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <input
                     type="text"
                     placeholder="Search products by name, description, or category..."
@@ -703,13 +705,14 @@ const ProductManagement = () => {
 
             {/* Products Grid Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredProducts.map((product) => (
+              {currentProducts.map((product) => (
                 <div
                   key={product.id}
                   className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
                 >
                   <div className="relative">
-                    {product.imageUrls && product.imageUrls.length > 0 ? (
+                    {product.imageUrls
+                    && product.imageUrls.length > 0 ? (
                       <div className="relative h-48 overflow-hidden">
                         <img
                           src={product.imageUrls[0]}
@@ -720,7 +723,8 @@ const ProductManagement = () => {
                           }}
                         />
                         {product.imageUrls.length > 1 && (
-                          <div className="absolute top-3 right-3 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full flex items-center">
+                          <div
+                            className="absolute top-3 right-3 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full flex items-center">
                             <Eye className="h-3 w-3 mr-1" />
                             {product.imageUrls.length}
                           </div>
@@ -750,7 +754,8 @@ const ProductManagement = () => {
                   </div>
 
                   <div className="p-5">
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between
+                      mb-3">
                       <h3 className="text-lg font-bold text-gray-900 line-clamp-2 flex-1 mr-2">
                         {product.name}
                       </h3>
@@ -794,7 +799,8 @@ const ProductManagement = () => {
                           {product.category}
                         </div>
                         <div className="flex items-center text-gray-500">
-                          <Shirt className="h-4 w-4 mr-1" />
+                          <Shirt className="h-4 w-4
+                            mr-1" />
                           {product.size}
                         </div>
                       </div>
@@ -812,7 +818,8 @@ const ProductManagement = () => {
                         onClick={() => handleEdit(product)}
                         className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-1 transition-colors"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4"
+                        />
                         <span>Edit</span>
                       </button>
                       {product.biddingEnabled && product.bids?.length > 0 && (
@@ -835,6 +842,40 @@ const ProductManagement = () => {
                 </div>
               ))}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <nav className="flex items-center justify-center space-x-2 mt-8">
+                <button
+                  onClick={() => paginate(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                {pageNumbers.map((number) => (
+                  <button
+                    key={number}
+                    onClick={() => paginate(number)}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                      currentPage === number
+                        ? 'text-white bg-[#135918]'
+                        : 'text-gray-700 bg-white hover:bg-gray-100'
+                    }`}
+                  >
+                    {number}
+                  </button>
+                ))}
+                <button
+                  onClick={() => paginate(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </nav>
+            )}
+
           </>
         ) : (
           /* Bidding Management Section */
@@ -845,7 +886,8 @@ const ProductManagement = () => {
                 <div className="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
                   <Gavel className="h-6 w-6 text-blue-600" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold
+                  text-gray-900">
                   {getBiddingProducts().length}
                 </div>
                 <div className="text-sm text-gray-600">Active Auctions</div>
@@ -856,7 +898,8 @@ const ProductManagement = () => {
                   <TrendingUp className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="text-2xl font-bold text-gray-900">
-                  {getBiddingProducts().reduce((sum, product) => sum + (product.bids?.length || 0), 0)}
+                  {getBiddingProducts().reduce((sum, product) => sum + (product.bids?.length ||
+                    0), 0)}
                 </div>
                 <div className="text-sm text-gray-600">Total Bids</div>
               </div>
@@ -876,7 +919,8 @@ const ProductManagement = () => {
                     ).length
                   }
                 </div>
-                <div className="text-sm text-gray-600">Ending Soon</div>
+                <div className="text-sm text-gray-600">Ending
+                  Soon</div>
               </div>
 
               <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
@@ -885,7 +929,8 @@ const ProductManagement = () => {
                 </div>
                 <div className="text-2xl font-bold text-gray-900">
                   {formatPrice(
-                    getBiddingProducts().reduce((sum, product) => sum + (product.currentBid || 0), 0)
+                    getBiddingProducts().reduce((sum, product) => sum + (product.currentBid ||
+                      0), 0)
                   )}
                 </div>
                 <div className="text-sm text-gray-600">Total Value</div>
@@ -915,7 +960,8 @@ const ProductManagement = () => {
                             />
                           )}
                           <div>
-                            <h3 className="text-xl font-bold text-gray-900 mb-1">
+                            <h3 className="text-xl
+                              font-bold text-gray-900 mb-1">
                               {product.name}
                             </h3>
                             <p className="text-gray-600 text-sm mb-2">{product.description}</p>
@@ -926,7 +972,8 @@ const ProductManagement = () => {
                               </span>
                               <span className="flex items-center text-gray-500">
                                 <Users className="h-4 w-4 mr-1" />
-                                {product.bids?.length || 0} bids
+                                {product.bids?.length ||
+                                  0} bids
                               </span>
                             </div>
                           </div>
@@ -968,7 +1015,8 @@ const ProductManagement = () => {
                                       <div className="font-medium text-gray-900">
                                         {bid.bidderName}
                                       </div>
-                                      <div className="text-sm text-gray-500">
+                                      <div className="text-sm
+                                        text-gray-500">
                                         {new Date(bid.timestamp).toLocaleDateString()} at{' '}
                                         {new Date(bid.timestamp).toLocaleTimeString()}
                                       </div>
@@ -995,7 +1043,8 @@ const ProductManagement = () => {
             <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
             <p className="text-gray-500 mb-6">
-              {searchTerm || filterStatus !== 'all'
+              {searchTerm ||
+                filterStatus !== 'all'
                 ? 'Try adjusting your search or filters'
                 : 'Get started by adding your first product'}
             </p>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Search, ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { useAlert } from "../contexts/alertContext";
+import { useAlert } from "../contexts/alertContext"; 
 import AddNewsModal from '../modals/AddNewsModal'; // Import the new modal component
 
 const NewsManagement = () => {
@@ -15,7 +15,7 @@ const NewsManagement = () => {
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(3);
+    const [itemsPerPage] = useState(4);
 
     useEffect(() => {
         fetchNews();
