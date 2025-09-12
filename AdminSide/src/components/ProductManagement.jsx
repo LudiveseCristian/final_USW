@@ -49,7 +49,7 @@ const ProductManagement = () => {
   const [dragActive, setDragActive] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 8;
+  const productsPerPage = 4;
 
 
   // Form data state
@@ -521,14 +521,14 @@ const ProductManagement = () => {
   const getBiddingProducts = () => {
     return products.filter((product) => product.biddingEnabled && product.bids?.length > 0);
   };
-  const filteredProducts = products.filter((product) => {
+ const filteredProducts = soldExpiredProducts.filter((product) => {
     const matchesSearch =
       product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || product.status === filterStatus;
-    const isDisplayable = product.status !== 'sold' && product.status !== 'expired';
-    return matchesSearch && matchesFilter && isDisplayable;
+      product.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.finalPrice && product.finalPrice.toString().includes(searchTerm)) ||
+      (product.price && product.price.toString().includes(searchTerm));
+    return matchesSearch;
   });
   const formatPrice = (price) => {
     const numPrice = typeof price === 'string' ? parseFloat(price) : price;
