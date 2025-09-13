@@ -15,7 +15,7 @@ const NewsManagement = () => {
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(4);
+    const [itemsPerPage] = useState(3);
 
     useEffect(() => {
         fetchNews();

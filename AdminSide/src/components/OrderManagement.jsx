@@ -560,9 +560,9 @@ const OrderManagement = () => {
                                   e.stopPropagation();
                                   handleEmailClick(order.customerEmail);
                                 }}
-                                className="flex-1 px-3 py-2 bg-red-500 hover:bg-red-800 text-gray-100 text-m font-medium rounded-lg transition-colors"
+                                className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-m font-medium rounded-lg transition-colors"
                               >
-                                📧 Email
+                                Email
                               </button>
                             </div>
                           </div>

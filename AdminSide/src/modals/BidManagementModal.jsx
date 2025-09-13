@@ -1,12 +1,84 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useAlert } from "../contexts/alertContext";
 import { X, CheckCircle, XCircle, Users } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal, setSelectedBidProduct, formatPrice, getTimeLeft, handleAcceptBid, handleRejectBid }) => {
+  const [bids, setBids] = useState(selectedBidProduct?.bids || []);
+  const { setAlert } = useAlert();
+
+  useEffect(() => {
+    if (!showBidModal || !selectedBidProduct?.id) {
+      setBids([]);
+      return;
+    }
+
+    const productDocRef = doc(db, 'products', selectedBidProduct.id);
+    const unsubscribe = onSnapshot(productDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const productData = docSnap.data();
+        if (productData.bids) {
+          setBids(productData.bids);
+        } else {
+          setBids([]);
+        }
+      } else {
+        setBids([]);
+      }
+    }, (error) => {
+      console.error("Error listening to bids:", error);
+      setAlert({
+        message: 'Failed to update bids in real-time. Please reopen the modal.',
+        type: 'error',
+      });
+    });
+
+    return () => unsubscribe();
+  }, [showBidModal, selectedBidProduct?.id, setAlert]);
+
   if (!showBidModal || !selectedBidProduct) return null;
 
   const onClose = () => {
     setShowBidModal(false);
     setSelectedBidProduct(null);
+  };
+  
+  const handleAccept = async (productId, bidIndex) => {
+    try {
+      await handleAcceptBid(productId, bidIndex);
+      setAlert({
+        message: 'Bid accepted successfully!',
+        type: 'success',
+        duration: 5000
+      });
+      onClose();
+    } catch (error) {
+      console.error('Error in handleAccept:', error);
+      setAlert({
+        message: 'Failed to accept bid. Please try again.',
+        type: 'error',
+        duration: 5000
+      });
+    }
+  };
+
+  const handleReject = async (productId, bidIndex) => {
+    try {
+      await handleRejectBid(productId, bidIndex);
+      setAlert({
+        message: 'Bid rejected successfully.',
+        type: 'success',
+        duration: 5000
+      });
+    } catch (error) {
+      console.error('Error in handleReject:', error);
+      setAlert({
+        message: 'Failed to reject bid. Please try again.',
+        type: 'error',
+        duration: 5000
+      });
+    }
   };
 
   return (
@@ -53,7 +125,7 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
               <div>
                 <div className="text-sm text-gray-600 mb-1">Total Bids</div>
                 <div className="text-lg font-bold text-blue-600">
-                  {selectedBidProduct.bids?.length || 0}
+                  {bids.length || 0}
                 </div>
               </div>
               <div>
@@ -69,9 +141,9 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
           <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-900 mb-4">All Bids</h3>
 
-            {selectedBidProduct.bids && selectedBidProduct.bids.length > 0 ? (
+            {bids && bids.length > 0 ? (
               <div className="space-y-3">
-                {selectedBidProduct.bids
+                {bids
                   .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
                   .map((bid, index) => (
                     <div key={index} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
@@ -110,14 +182,14 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
 
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => handleAcceptBid(selectedBidProduct.id, index)}
+                            onClick={() => handleAccept(selectedBidProduct.id, index)}
                             className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-1 transition-colors"
                           >
                             <CheckCircle className="h-4 w-4" />
                             <span>Accept</span>
                           </button>
                           <button
-                            onClick={() => handleRejectBid(selectedBidProduct.id, index)}
+                            onClick={() => handleReject(selectedBidProduct.id, index)}
                             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-1 transition-colors"
                           >
                             <XCircle className="h-4 w-4" />

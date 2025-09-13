@@ -9,20 +9,21 @@ const AlertModal = () => {
     const { type, message, onConfirm, confirmText, onCancel } = alert;
 
     const handleConfirm = () => {
-        if (onConfirm) {
+        if (onConfirm && typeof onConfirm === 'function') {
             onConfirm();
         }
         hideAlert();
     };
 
     const handleCancel = () => {
-        if (onCancel) {
+        if (onCancel && typeof onCancel === 'function') {
             onCancel();
         }
         hideAlert();
     };
 
     const isConfirm = type === 'confirm';
+    const isInfo = type === 'info';
     const isError = type === 'error';
     const isSuccess = type === 'success';
 

@@ -175,16 +175,6 @@ const ProductsModal = ({
 
               {/* Product Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Order ID (optional)</label>
-                  <input
-                    type="text"
-                    value={formData.orderId}
-                    onChange={(e) => setFormData({...formData, orderId: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    placeholder="Enter custom Order ID"
-                  />
-                </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Product Name <span className="text-red-500">*</span>
@@ -222,7 +212,7 @@ const ProductsModal = ({
                     step="0.01"
                     min="0"
                     value={formData.price}
-                    onChange={(e) => setFormData({...formData, price: e.target.value})}
+                    onChange={(e) => setFormData({...formData, price: e.target.value, minimumBid: e.target.value})}
                     className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#135918] focus:border-[#135918] outline-none"
                     required
                     placeholder="0.00"
@@ -353,20 +343,8 @@ const ProductsModal = ({
                       Enable Bidding/Auction
                     </label>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-orange-50 p-6 rounded-lg">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Minimum Bid Amount (₱)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.minimumBid}
-                        onChange={(e) => setFormData({...formData, minimumBid: e.target.value})}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
-                        placeholder="0.00"
-                      />
-                    </div>
-
+                  <div className="grid grid-cols-1 md:grid-cols-1 gap-6 bg-orange-50 p-6 rounded-lg">
+                    {/* Minimum bid amount input is removed */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Bidding End Time</label>
                       <input

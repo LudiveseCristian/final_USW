@@ -8,11 +8,14 @@ import {
   Tag,
   Shirt,
   HeartCrack,
+  Trash2,
 } from 'lucide-react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
+import { ref, listAll, deleteObject } from 'firebase/storage';
+import { db, storage } from '../firebase/config';
 import { formatPrice, getStatusColor, getConditionIcon } from '../utils/productUtils.jsx';
 import SoldProductDetailModal from '../modals/SoldProductDetailModal';
+import { useAlert } from "../contexts/alertContext";
 
 const SoldProducts = () => {
   const [soldExpiredProducts, setSoldExpiredProducts] = useState([]);
@@ -20,6 +23,8 @@ const SoldProducts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const { showAlert } = useAlert();
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 4;
@@ -42,8 +47,30 @@ const SoldProducts = () => {
       setSoldExpiredProducts(fetchedProducts);
     } catch (error) {
       console.error('Error fetching sold and expired products:', error);
+      showAlert('error', 'Failed to fetch products. Please try again later.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    try {
+      // 1. Delete product document from Firestore
+      await deleteDoc(doc(db, 'products', productId));
+
+      // 2. Delete images from Firebase Storage
+      const imagesRef = ref(storage, `productImages/${productId}`);
+      const imageList = await listAll(imagesRef);
+      const deletePromises = imageList.items.map((imageRef) => deleteObject(imageRef));
+      await Promise.all(deletePromises);
+
+      // 3. Update the local state to remove the deleted product
+      setSoldExpiredProducts(soldExpiredProducts.filter((p) => p.id !== productId));
+      
+      showAlert('success', 'Product and its images deleted successfully!', 5000);
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      showAlert('error', 'Failed to delete product. Please try again.', 5000);
     }
   };
 
@@ -216,6 +243,13 @@ const SoldProducts = () => {
                     >
                       <Eye className="h-4 w-4" />
                       <span>Details</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProduct(product.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-1 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>

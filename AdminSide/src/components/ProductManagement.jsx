@@ -24,6 +24,7 @@ import {
   doc,
   getDocs,
   getDoc,
+  onSnapshot
 } from 'firebase/firestore';
 import { db, storage } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -49,8 +50,9 @@ const ProductManagement = () => {
   const [dragActive, setDragActive] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 4;
+  const { showAlert } = useAlert();
 
+  const productsPerPage = 4;
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -75,10 +77,29 @@ const ProductManagement = () => {
 
   // --- Effects ---
   useEffect(() => {
-    fetchProducts();
+    // Implement real-time listener for products collection
+    const productsCollection = collection(db, 'products');
+    const unsubscribe = onSnapshot(productsCollection, (snapshot) => {
+      const fetchedProducts = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        bidEndTime: doc.data().bidEndTime?.toDate?.() || doc.data().bidEndTime,
+      }));
+      setProducts(fetchedProducts);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error listening to products collection:', error);
+      setLoading(false);
+      showAlert('error', 'Error fetching products. Please try again.');
+    });
+
     const interval = setInterval(checkExpiredAuctions, 60000); // Check every minute
-    return () => clearInterval(interval);
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    }
   }, []);
+
   const updateProductStatusForEndingSoon = async (product) => {
     try {
       const now = new Date();
@@ -106,24 +127,8 @@ const ProductManagement = () => {
   };
 
   // --- Firebase Data Fetching and Management ---
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      const productsCollection = collection(db, 'products');
-      const snapshot = await getDocs(productsCollection);
-      const fetchedProducts = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        bidEndTime: doc.data().bidEndTime?.toDate?.() || doc.data().bidEndTime,
-      }));
-      setProducts(fetchedProducts);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      alert('Error fetching products. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Removed fetchProducts as onSnapshot handles this now.
+
   const checkExpiredAuctions = () => {
     const now = new Date();
     setProducts((prevProducts) =>
@@ -177,6 +182,7 @@ const ProductManagement = () => {
       console.error('Error updating product status:', error);
     }
   };
+
   const uploadImageToFirebase = async (file) => {
     try {
       const timestamp = Date.now();
@@ -210,118 +216,122 @@ const ProductManagement = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.name.trim()) {
-      alert('Product name is required');
-      return;
-    }
-
-    if (!formData.price || isNaN(formData.price) || parseFloat(formData.price) <= 0) {
-      alert('Please enter a valid price');
-      return;
-    }
-
-    if (formData.biddingEnabled) {
-      if (
-        !formData.minimumBid ||
-        isNaN(formData.minimumBid) ||
-        parseFloat(formData.minimumBid) <= 0
-      ) {
-        alert('Please enter a valid minimum bid amount');
+      e.preventDefault();
+      if (!formData.name.trim()) {
+        showAlert('error', 'Product name is required');
         return;
       }
 
-      if (!formData.bidEndTime) {
-        alert('Please select an end time for bidding');
+      if (!formData.price || isNaN(formData.price) || parseFloat(formData.price) <= 0) {
+        showAlert('error', 'Please enter a valid price');
         return;
       }
 
-      const endTime = new Date(formData.bidEndTime);
-      if (endTime <= new Date()) {
-        alert('Bid end time must be in the future');
-        return;
+      // FIX START: Set minimumBid to price if status is 'available'
+      if (formData.status === 'available') {
+          formData.minimumBid = formData.price;
       }
-    }
+      // FIX END
 
-    try {
-      setUploading(true);
-      setUploadProgress(0);
-      let imageUrls = [...(formData.imageUrls || [])];
+      if (formData.biddingEnabled) {
+        if (
+          !formData.minimumBid ||
+          isNaN(formData.minimumBid) ||
+          parseFloat(formData.minimumBid) <= 0
+        ) {
+          showAlert('error', 'Please enter a valid minimum bid amount');
+          return;
+        }
 
-      if (imageFiles.length > 0) {
-        for (let i = 0; i < imageFiles.length; i++) {
-          const file = imageFiles[i];
-          if (!file.type.startsWith('image/')) {
-            throw new Error(`File ${file.name} is not an image`);
-          }
+        if (!formData.bidEndTime) {
+          showAlert('error', 'Please select an end time for bidding');
+          return;
+        }
 
-          if (file.size > 5 * 1024 * 1024) {
-            throw new Error(`File ${file.name} is too large. Maximum size is 5MB`);
-          }
-
-          const downloadURL = await uploadImageToFirebase(file);
-          imageUrls.push(downloadURL);
-          setUploadProgress(((i + 1) / imageFiles.length) * 100);
+        const endTime = new Date(formData.bidEndTime);
+        if (endTime <= new Date()) {
+          showAlert('error', 'Bid end time must be in the future');
+          return;
         }
       }
 
-      let nextNumericId = editingProduct?.numericId ||
-        null;
-      if (!editingProduct) {
-        try {
-          const allSnap = await getDocs(collection(db, 'products'));
-          const existingIds = allSnap.docs
-            .map((d) => d.data()?.numericId)
-            .filter((n) => typeof n === 'number');
-          const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
-          nextNumericId = maxId + 1;
-        } catch (e) {
-          console.warn('Could not compute next numericId, defaulting to 1');
-          nextNumericId = 1;
+      try {
+        setUploading(true);
+        setUploadProgress(0);
+        let imageUrls = [...(formData.imageUrls || [])];
+
+        if (imageFiles.length > 0) {
+          for (let i = 0; i < imageFiles.length; i++) {
+            const file = imageFiles[i];
+            if (!file.type.startsWith('image/')) {
+              throw new Error(`File ${file.name} is not an image`);
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+              throw new Error(`File ${file.name} is too large. Maximum size is 5MB`);
+            }
+
+            const downloadURL = await uploadImageToFirebase(file);
+            imageUrls.push(downloadURL);
+            setUploadProgress(((i + 1) / imageFiles.length) * 100);
+          }
         }
-      }
 
-      const productPayload = {
-        ...formData,
-        price: parseFloat(formData.price),
-        minimumBid: formData.biddingEnabled ?
-          parseFloat(formData.minimumBid) : null,
-        currentBid: formData.biddingEnabled ?
-          parseFloat(formData.minimumBid) : null,
-        bidEndTime: formData.biddingEnabled ?
-          new Date(formData.bidEndTime) : null,
-        imageUrls,
-        bids: formData.bids ||
-          [],
-        numericId: nextNumericId,
-        orderId: formData.orderId?.trim() ||
-          null,
-        createdAt: editingProduct ?
-          formData.createdAt : new Date(),
-        updatedAt: new Date(),
-      };
-      if (editingProduct) {
-        await updateDoc(doc(db, 'products', editingProduct.id), productPayload);
-        setProducts(
-          products.map((p) => (p.id === editingProduct.id ? { ...p, ...productPayload } : p))
-        );
-        alert('Product updated successfully!');
-      } else {
-        const docRef = await addDoc(collection(db, 'products'), productPayload);
-        setProducts([...products, { id: docRef.id, ...productPayload }]);
-        alert('Product added successfully!');
-      }
+        let nextNumericId = editingProduct?.numericId || null;
+        if (!editingProduct) {
+          try {
+            const allSnap = await getDocs(collection(db, 'products'));
+            const existingIds = allSnap.docs
+              .map((d) => d.data()?.numericId)
+              .filter((n) => typeof n === 'number');
+            const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+            nextNumericId = maxId + 1;
+          } catch (e) {
+            console.warn('Could not compute next numericId, defaulting to 1');
+            nextNumericId = 1;
+          }
+        }
 
-      resetForm();
-      setShowModal(false);
-    } catch (error) {
-      console.error('Error saving product:', error);
-      alert(`Failed to save product: ${error.message}`);
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
-    }
-  };
+        const productPayload = {
+          ...formData,
+          price: parseFloat(formData.price),
+          minimumBid: formData.biddingEnabled ?
+            parseFloat(formData.minimumBid) : null,
+          currentBid: formData.biddingEnabled ?
+            parseFloat(formData.minimumBid) : null,
+          bidEndTime: formData.biddingEnabled ?
+            new Date(formData.bidEndTime) : null,
+          imageUrls,
+          bids: formData.bids || [],
+          numericId: nextNumericId,
+          orderId: formData.orderId?.trim() || null,
+          createdAt: editingProduct ?
+            formData.createdAt : new Date(),
+          updatedAt: new Date(),
+        };
+        if (editingProduct) {
+          await updateDoc(doc(db, 'products', editingProduct.id), productPayload);
+          setProducts(
+            products.map((p) => (p.id === editingProduct.id ? { ...p, ...productPayload } : p))
+          );
+          showAlert('success', 'Product updated successfully!');
+        } else {
+          const docRef = await addDoc(collection(db, 'products'), productPayload);
+          setProducts([...products, { id: docRef.id, ...productPayload }]);
+          showAlert('success', 'Product added successfully!');
+        }
+
+        resetForm();
+        setShowModal(false);
+      } catch (error) {
+        console.error('Error saving product:', error);
+        showAlert('error', `Failed to save product: ${error.message}`);
+      } finally {
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    };
+
   const handleAcceptBid = async (productId, bidIndex) => {
     try {
       const product = products.find((p) => p.id === productId);
@@ -380,15 +390,16 @@ const ProductManagement = () => {
         console.error('Failed to create order document:', orderErr);
       }
 
-      alert(
+      showAlert('sucess', 
         `Bid accepted! Product sold to ${acceptedBid.bidderName} for ₱${acceptedBid.amount.toLocaleString()}`
       );
       setShowBidModal(false);
     } catch (error) {
       console.error('Error accepting bid:', error);
-      alert('Failed to accept bid. Please try again.');
+      showAlert('error', 'Failed to accept bid. Please try again.');
     }
   };
+
   const handleRejectBid = async (productId, bidIndex) => {
     try {
       const product = products.find((p) => p.id === productId);
@@ -399,10 +410,10 @@ const ProductManagement = () => {
         updatedAt: new Date(),
       });
       setProducts(products.map((p) => (p.id === productId ? { ...p, bids: updatedBids } : p)));
-      alert('Bid rejected successfully');
+      showAlert('success', 'Bid rejected successfully');
     } catch (error) {
       console.error('Error rejecting bid:', error);
-      alert('Failed to reject bid. Please try again.');
+      showAlert('error', 'Failed to reject bid. Please try again.');
     }
   };
 
@@ -425,17 +436,19 @@ const ProductManagement = () => {
       try {
         await deleteDoc(doc(db, 'products', productId));
         setProducts(products.filter((p) => p.id !== productId));
-        alert('Product deleted successfully!');
+        showAlert('success', 'Product deleted successfully!');
       } catch (error) {
         console.error('Error deleting product:', error);
-        alert('Failed to delete product. Please try again.');
+        showAlert('error', 'Failed to delete product. Please try again.');
       }
     }
   };
+
   const handleViewBids = (product) => {
     setSelectedBidProduct(product);
     setShowBidModal(true);
   };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -470,6 +483,7 @@ const ProductManagement = () => {
       setDragActive(false);
     }
   };
+
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -478,15 +492,16 @@ const ProductManagement = () => {
       handleImageFileChange({ target: { files: e.dataTransfer.files } });
     }
   };
+
   const handleImageFileChange = (e) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter((file) => {
       if (!file.type.startsWith('image/')) {
-        alert(`${file.name} is not an image file`);
+        showAlert('error', `${file.name} is not an image file`);
         return false;
       }
       if (file.size > 5 * 1024 * 1024) {
-        alert(`${file.name} is too large. Maximum size is 5MB`);
+        showAlert('error', `${file.name} is too large. Maximum size is 5MB`);
         return false;
       }
       return true;
@@ -497,6 +512,7 @@ const ProductManagement = () => {
   const removeImageFile = (indexToRemove) => {
     setImageFiles(imageFiles.filter((_, index) => index !== indexToRemove));
   };
+
   const removeImageUrl = (indexToRemove) => {
     setFormData({
       ...formData,
@@ -518,18 +534,41 @@ const ProductManagement = () => {
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
   };
+
   const getBiddingProducts = () => {
-    return products.filter((product) => product.biddingEnabled && product.bids?.length > 0);
+    return products
+      .filter((product) => product.biddingEnabled && product.bids?.length > 0)
+      .map((product) => {
+        const highestBid = product.bids.reduce((latest, current) => {
+          return new Date(latest.timestamp) > new Date(current.timestamp) ? latest : current;
+        }, product.bids[0]);
+
+        return {
+          ...product,
+          latestBid: highestBid,
+        };
+      });
   };
- const filteredProducts = soldExpiredProducts.filter((product) => {
+  
+  // FIX: Use `products` directly instead of the undefined `soldExpiredProducts`
+  const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (product.finalPrice && product.finalPrice.toString().includes(searchTerm)) ||
       (product.price && product.price.toString().includes(searchTerm));
-    return matchesSearch;
+
+    const matchesStatus =
+      filterStatus === 'all' || product.status === filterStatus;
+      
+    // New condition to filter out sold and expired products
+    const isNotSoldOrExpired = product.status !== 'sold' && product.status !== 'expired';
+    
+    // Combine all filters
+    return matchesSearch && matchesStatus && isNotSoldOrExpired;
   });
+
   const formatPrice = (price) => {
     const numPrice = typeof price === 'string' ? parseFloat(price) : price;
     return `₱${numPrice?.toLocaleString() || '0'}`;
@@ -551,6 +590,7 @@ const ProductManagement = () => {
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
+
   const getConditionIcon = (condition) => {
     switch (condition) {
       case 'Excellent':
@@ -563,7 +603,7 @@ const ProductManagement = () => {
         return <Star className="h-4 w-4 text-gray-400" />;
     }
   };
-  
+
   // Pagination logic
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
@@ -604,8 +644,7 @@ const ProductManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2">Product Management</h1>
-              <p
-                className="text-lg text-gray-600">
+              <p className="text-lg text-gray-600">
                 Manage your upcycled streetwear inventory and bidding
               </p>
               <div className="flex items-center space-x-6 mt-4">
@@ -621,7 +660,7 @@ const ProductManagement = () => {
             </div>
             <div className='flex items-center gap-3'>
               <button
-                onClick={() => setShowCategoryModal(true)} // Set the state to true on click
+                onClick={() => setShowCategoryModal(true)}
                 className="bg-[#135918] hover:bg-[#0F4713] text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-200"
               >
                 <Plus className="h-5 w-5" />
@@ -695,10 +734,7 @@ const ProductManagement = () => {
                 >
                   <option value="all">All Status</option>
                   <option value="available">Available</option>
-                  <option value="sold">Sold</option>
-                  <option value="reserved">Reserved</option>
-                  <option value="expired">Expired</option>
-                  <option value="ending soon">Ending Soon</option>
+                  <option value="upcoming">Upcoming</option>
                 </select>
               </div>
             </div>
@@ -995,38 +1031,41 @@ const ProductManagement = () => {
                       {/* Recent Bids Preview */}
                       {product.bids && product.bids.length > 0 && (
                         <div className="border-t pt-4">
-                          <h4 className="font-semibold text-gray-900 mb-3">Recent Bids</h4>
+                          <h4 className="font-semibold text-gray-900 mb-3">Highest Bidder</h4>
                           <div className="space-y-2">
-                            {product.bids
-                              .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-                              .slice(0, 3)
-                              .map((bid, index) => (
+                            {(() => {
+                              // Find the highest bid based on amount
+                              const highestBid = product.bids.reduce((highest, current) => {
+                                return current.amount > highest.amount ? current : highest;
+                              }, product.bids[0]);
+
+                              return (
                                 <div
-                                  key={index}
+                                  key={highestBid.timestamp} // Using a unique key
                                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                                 >
                                   <div className="flex items-center space-x-3">
                                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                                       <span className="text-blue-600 font-semibold text-sm">
-                                        {bid.bidderName?.charAt(0)?.toUpperCase()}
+                                        {highestBid.bidderName?.charAt(0)?.toUpperCase()}
                                       </span>
                                     </div>
                                     <div>
                                       <div className="font-medium text-gray-900">
-                                        {bid.bidderName}
+                                        {highestBid.bidderName}
                                       </div>
-                                      <div className="text-sm
-                                        text-gray-500">
-                                        {new Date(bid.timestamp).toLocaleDateString()} at{' '}
-                                        {new Date(bid.timestamp).toLocaleTimeString()}
+                                      <div className="text-sm text-gray-500">
+                                        {new Date(highestBid.timestamp).toLocaleDateString()} at{' '}
+                                        {new Date(highestBid.timestamp).toLocaleTimeString()}
                                       </div>
                                     </div>
                                   </div>
                                   <div className="text-lg font-bold text-gray-900">
-                                    {formatPrice(bid.amount)}
+                                    {formatPrice(highestBid.amount)}
                                   </div>
                                 </div>
-                              ))}
+                              );
+                            })()}
                           </div>
                         </div>
                       )}
