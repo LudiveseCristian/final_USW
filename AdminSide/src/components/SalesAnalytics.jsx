@@ -3,8 +3,8 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAlert } from '../contexts/alertContext';
 import ExportModal from '../modals/ExportModal';
-import { 
-  TrendingUp, 
+import {
+  TrendingUp,
   TrendingDown,
   DollarSign,
   Package,
@@ -15,10 +15,8 @@ import {
   Download,
   X
 } from 'lucide-react';
-
-// ✅ Added imports for Recharts
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-
+// ✅ Added imports for Recharts and Pie Chart components
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 // Existing Modals
 const CustomerAnalyticsModal = ({ onClose }) => {
   return (
@@ -111,20 +109,17 @@ const SalesAnalytics = () => {
   
   // State for pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const itemsPerPage = 10;
   const [exportScope, setExportScope] = useState('all');
 
   const { showAlert } = useAlert();
-
   useEffect(() => {
     fetchSalesData();
   }, []);
-
   // Updated useEffect to apply filter based on period or custom dates
   useEffect(() => {
     applyFilter(filterPeriod, startDate, endDate);
   }, [salesData, filterPeriod, startDate, endDate]);
-
   const fetchSalesData = async () => {
     try {
       const ordersRef = collection(db, 'orders');
@@ -169,13 +164,14 @@ const SalesAnalytics = () => {
           finalStartDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
           break;
         default:
-          finalStartDate = new Date(0); // All time
+          finalStartDate = new Date(0);
+          // All time
       }
     }
 
     const filtered = salesData.filter(sale => {
-      const saleDate = sale.date?.seconds 
-        ? new Date(sale.date.seconds * 1000) 
+      const saleDate = sale.date?.seconds
+        ? new Date(sale.date.seconds * 1000)
         : new Date(sale.createdAt?.seconds * 1000 || sale.timestamp?.seconds * 1000 || sale.date);
       
       const isAfterStartDate = finalStartDate ? saleDate >= finalStartDate : true;
@@ -187,7 +183,6 @@ const SalesAnalytics = () => {
     setFilteredData(filtered);
     setCurrentPage(1); // Reset to first page whenever filter changes
   };
-
   const calculateStats = (data) => {
     const totalSales = data.reduce((sum, sale) => sum + (sale.price || 0), 0);
     const totalOrders = data.length;
@@ -199,7 +194,16 @@ const SalesAnalytics = () => {
     }, {});
     const categorySales = data.reduce((acc, sale) => {
       const category = sale.category || 'uncategorized';
-      acc[category] = (acc[category] || 0) + (sale.price || 0);
+      // Group similar categories
+      let groupedCategory;
+      if (['Jeans', 'Skirt', 'Longsleeve'].includes(category)) {
+        groupedCategory = 'Apparel';
+      } else if (['Earrings', 'Watch'].includes(category)) {
+        groupedCategory = 'Accessories';
+      } else {
+        groupedCategory = category;
+      }
+      acc[groupedCategory] = (acc[groupedCategory] || 0) + (sale.price || 0);
       return acc;
     }, {});
     return {
@@ -225,8 +229,7 @@ const SalesAnalytics = () => {
     const sortedCategories = Object.entries(stats.categorySales).sort(([, a], [, b]) => b - a);
     const topCategory = sortedCategories.length > 0 ? sortedCategories[0][0] : null;
     const sortedStatuses = Object.entries(stats.statusCounts).sort(([, a], [, b]) => b - a);
-    const topStatus = sortedStatuses.length > 0 ?
-    sortedStatuses[0][0] : null;
+    const topStatus = sortedStatuses.length > 0 ? sortedStatuses[0][0] : null;
 
     return { topCategory, topStatus };
   };
@@ -267,7 +270,6 @@ const SalesAnalytics = () => {
     setExportScope(scope);
     setShowExportModal(true);
   };
-
   // Pagination navigation functions
   const handlePreviousPage = () => {
     setCurrentPage(prev => Math.max(prev - 1, 1));
@@ -276,7 +278,6 @@ const SalesAnalytics = () => {
   const handleNextPage = () => {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
-
   if (loading) {
     return (
       <div className="p-8">
@@ -292,11 +293,21 @@ const SalesAnalytics = () => {
     );
   }
 
-  // ✅ Added data preparation for the chart
+  // ✅ Added data preparation for the category chart
   const categoryChartData = Object.entries(stats.categorySales).map(([category, sales]) => ({
     name: category,
     sales: sales
   }));
+  
+  // ✅ Added data preparation for the status chart
+  const statusChartData = Object.entries(stats.statusCounts).map(([status, count]) => ({
+    name: status,
+    value: count
+  }));
+
+  // ✅ Added color palettes for the pie charts
+  const PIE_COLORS_STATUS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8A2BE2'];
+  const PIE_COLORS_CATEGORY = ['#8A2BE2', '#FF8042', '#FFBB28', '#00C49F', '#0088FE'];
 
   return (
     <div className="p-8">
@@ -407,62 +418,58 @@ const SalesAnalytics = () => {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* ✅ Updated: Pie Chart for Sales by Status with side legend */}
         <div className="card">
           <h3 className="text-lg font-semibold text-secondary mb-4">Sales by Status</h3>
-          <div className="space-y-4">
-            {Object.entries(stats.statusCounts).map(([status, count]) => (
-              <div key={status} className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{getStatusIcon(status)}</span>
-                  <div>
-                    <p className="font-medium text-secondary capitalize">{status}</p>
-                    <p className="text-sm text-gray-600">{count} order(s)</p>
-                  </div>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(status)}`}>
-                  {stats.totalOrders > 0 ? ((count / stats.totalOrders) * 100).toFixed(1) : 0}%
-                </span>
-              </div>
-            ))}
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart margin={{ right: 80 }}>
+              <Pie
+                data={statusChartData}
+                dataKey="value"
+                nameKey="name"
+                cx="40%"
+                cy="50%"
+                outerRadius={100}
+                fill="#8884d8"
+                label
+              >
+                {statusChartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={PIE_COLORS_STATUS[index % PIE_COLORS_STATUS.length]} />
+                ))}
+              </Pie>
+              <Legend layout="vertical" verticalAlign="middle" align="right" />
+              <Tooltip formatter={(value) => `${value} order(s)`} />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
 
+        {/* ✅ Updated: Pie Chart for Sales by Category with grouped categories and side legend */}
         <div className="card">
           <h3 className="text-lg font-semibold text-secondary mb-4">Sales by Category</h3>
-          <div className="space-y-4">
-            {Object.entries(stats.categorySales)
-              .sort(([,a], [,b]) => b - a)
-              .map(([category, sales]) => (
-                <div key={category} className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-secondary">{category}</p>
-                    <p className="text-sm text-gray-600">{formatPrice(sales)}</p>
-                  </div>
-                  <span className="text-sm font-medium text-primary">
-                    {stats.totalSales > 0 ? ((sales / stats.totalSales) * 100).toFixed(1) : 0}%
-                  </span>
-                </div>
-              ))}
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart margin={{ right: 80 }}>
+              <Pie
+                data={categoryChartData}
+                dataKey="sales"
+                nameKey="name"
+                cx="40%"
+                cy="50%"
+                outerRadius={100}
+                fill="#8884d8"
+                label
+              >
+                {categoryChartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={PIE_COLORS_CATEGORY[index % PIE_COLORS_CATEGORY.length]} />
+                ))}
+              </Pie>
+              <Legend layout="vertical" verticalAlign="middle" align="right" />
+              <Tooltip formatter={(value) => formatPrice(value)} />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
-      
-      {/* ✅ ADDED: Bar Chart for Sales by Category */}
-      <div className="card mb-8">
-        <h3 className="text-lg font-semibold text-secondary mb-4">Sales by Category Chart</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={categoryChartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip formatter={(value) => formatPrice(value)} />
-            <Legend />
-            <Bar dataKey="sales" fill="#8884d8" name="Total Sales" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
 
-      <div className="card">
+<div className="card">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <h3 className="text-lg font-semibold text-secondary mb-2 sm:mb-0">Recent Sales</h3>
           {/* ✅ ADDED: Filter and export controls for the Recent Sales table */}
@@ -508,10 +515,11 @@ const SalesAnalytics = () => {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        {/* ✅ Updated: Added fixed height and overflow to the table container */}
+        <div className="h-[600px] overflow-y-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200">
+              <tr className="border-b border-gray-200 sticky top-0 bg-white">
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Date</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Customer</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Product</th>
@@ -580,7 +588,7 @@ const SalesAnalytics = () => {
               <div>
                 <p className="font-medium text-secondary">Best Performing Category</p>
                 <p className="text-sm text-gray-600">
-                  {insights.topCategory 
+                  {insights.topCategory
                     ? `${insights.topCategory} is your top seller with a total of ${formatPrice(stats.categorySales[insights.topCategory])}.`
                     : 'No category data available.'}
                 </p>
@@ -593,7 +601,7 @@ const SalesAnalytics = () => {
               <div>
                 <p className="font-medium text-secondary">Customer Preference</p>
                 <p className="text-sm text-gray-600">
-                  {insights.topStatus 
+                  {insights.topStatus
                     ? `Items with "${insights.topStatus}" status are most popular, representing ${((stats.statusCounts[insights.topStatus] / stats.totalOrders) * 100).toFixed(1)}% of all orders.`
                     : 'No status data available.'}
                 </p>
@@ -616,21 +624,21 @@ const SalesAnalytics = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-secondary mb-4">Quick Actions</h3>
           <div className="space-y-3">
-            <button 
+            <button
               onClick={handleGenerateReport}
               className="w-full btn-primary flex items-center justify-center space-x-2"
             >
               <FileText className="h-4 w-4" />
               <span>Generate Sales Report</span>
             </button>
-            <button 
+            <button
               onClick={handleViewCustomerAnalytics}
               className="w-full btn-secondary flex items-center justify-center space-x-2"
             >
               <BarChart3 className="h-4 w-4" />
               <span>View Customer Analytics</span>
             </button>
-            <button 
+            <button
               onClick={() => handleExportData('all')}
               className="w-full btn-secondary flex items-center justify-center space-x-2"
             >
@@ -642,20 +650,19 @@ const SalesAnalytics = () => {
       </div>
 
       {showReportModal && (
-        <ReportModal 
-          onClose={() => setShowReportModal(false)} 
+        <ReportModal
+          onClose={() => setShowReportModal(false)}
           onGenerate={() => {
             setShowReportModal(false);
             showAlert('success', 'Sales report generated successfully!');
-          }} 
+          }}
         />
       )}
 
       {showExportModal && (
-        <ExportModal 
+        <ExportModal
           show={showExportModal}
-          onClose={() => setShowExportModal(false)} 
-          // Pass the correct data based on the export scope
+          onClose={() => setShowExportModal(false)}
           data={exportScope === 'all' ? salesData : (exportScope === 'page' ? currentSales : filteredData)}
         />
       )}
