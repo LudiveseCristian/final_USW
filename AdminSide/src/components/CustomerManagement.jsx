@@ -47,58 +47,103 @@ const CustomerManagement = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
   const [dropdownOpen, setDropdownOpen] = useState(null)
+  
 
   useEffect(() => {
-    fetchCustomers()
+    fetchCustomersWithOrderData()
   }, [])
 
-  const fetchCustomers = async () => {
+  const fetchCustomersWithOrderData = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      console.log("Attempting to fetch users from Firebase...")
+      console.log("Fetching users and orders from Firebase...")
 
       if (!db) {
         throw new Error("Firebase database not initialized")
       }
 
+      // Fetch all users
       const usersRef = collection(db, "users")
-      console.log("Users collection reference created")
-
       const usersSnapshot = await getDocs(usersRef)
-      console.log("Firebase response received:", usersSnapshot)
 
-      if (!usersSnapshot.empty) {
-        const usersData = usersSnapshot.docs.map((doc) => {
-          const userData = doc.data()
-          return {
-            id: doc.id,
-            name: `${userData.firstName || ""} ${userData.lastName || ""}`.trim() || "Unknown User",
-            email: userData.email || "No email",
-            phone: userData.phone || userData.contactNumber || "No phone",
-            address: userData.address || userData.location || "No address",
-            status: "active",
-            totalOrders: 0,
-            totalSpent: 0,
-            lastOrder: "Never",
-            preferences: ["Streetwear"],
-            createdAt: userData.createdAt,
-            updatedAt: userData.updatedAt,
-            photoURL: userData.photoURL || "",
-            uid: userData.uid || doc.id,
-          }
-        })
-        console.log("Users fetched from Firebase:", usersData)
-        setCustomers(usersData)
-      } else {
+      // Fetch all orders
+      const ordersRef = collection(db, "orders")
+      const ordersSnapshot = await getDocs(ordersRef)
+
+      if (usersSnapshot.empty) {
         console.log("No users found in Firebase")
         setCustomers([])
         setError("No users found in database.")
+        return
       }
+
+      // Process orders data
+      const ordersData = ordersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+
+      console.log("Orders fetched from Firebase:", ordersData)
+
+      // Process users data and calculate order statistics
+      const usersData = usersSnapshot.docs.map((doc) => {
+        const userData = doc.data()
+        const userId = doc.id
+
+        // Find orders for this user using customerId field
+        const userOrders = ordersData.filter(order => order.customerId === userId)
+        
+        // Calculate statistics
+        const totalOrders = userOrders.length
+        const totalSpent = userOrders.reduce((sum, order) => sum + (order.price || 0), 0)
+        
+        // Get last order date
+        const lastOrderDate = userOrders.length > 0 
+          ? userOrders
+              .map(order => order.date?.toDate ? order.date.toDate() : new Date(order.date))
+              .sort((a, b) => b - a)[0]
+          : null
+
+        const formatLastOrder = (date) => {
+          if (!date) return "Never"
+          const now = new Date()
+          const diffTime = Math.abs(now - date)
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+          
+          if (diffDays === 1) return "Today"
+          if (diffDays === 2) return "Yesterday"
+          if (diffDays <= 7) return `${diffDays - 1} days ago`
+          if (diffDays <= 30) return `${Math.floor(diffDays / 7)} weeks ago`
+          if (diffDays <= 365) return `${Math.floor(diffDays / 30)} months ago`
+          return `${Math.floor(diffDays / 365)} years ago`
+        }
+
+        return {
+          id: userId,
+          name: `${userData.firstName || ""} ${userData.lastName || ""}`.trim() || "Unknown User",
+          email: userData.email || "No email",
+          phone: userData.phone || userData.contactNumber || "No phone",
+          address: userData.address || userData.location || "No address",
+          status: "active", // You can implement logic to determine status based on your requirements
+          totalOrders,
+          totalSpent,
+          lastOrder: formatLastOrder(lastOrderDate),
+          preferences: ["Streetwear"], // You can modify this based on order categories or user data
+          createdAt: userData.createdAt,
+          updatedAt: userData.updatedAt,
+          photoURL: userData.photoURL || "",
+          uid: userData.uid || userId,
+        }
+      })
+
+      console.log("Users with order data processed:", usersData)
+      setCustomers(usersData)
+
     } catch (error) {
-      console.error("Error fetching users:", error)
-      setError(`Failed to load users from Firebase: ${error.message}`)
+      console.error("Error fetching users and orders:", error)
+      setError(`Failed to load data from Firebase: ${error.message}`)
       setCustomers([])
     } finally {
       setLoading(false)
@@ -114,14 +159,21 @@ const CustomerManagement = () => {
       }
 
       const ordersRef = collection(db, "orders")
-      const q = query(ordersRef, where("userId", "==", customerId))
+      const q = query(ordersRef, where("customerId", "==", customerId))
       const ordersSnapshot = await getDocs(q)
 
       if (!ordersSnapshot.empty) {
-        const ordersData = ordersSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
+        const ordersData = ordersSnapshot.docs.map((doc) => {
+          const orderData = doc.data()
+          return {
+            id: doc.id,
+            ...orderData,
+            // Format the date for display
+            formattedDate: orderData.date?.toDate 
+              ? orderData.date.toDate().toLocaleDateString() 
+              : new Date(orderData.date).toLocaleDateString(),
+          }
+        })
         console.log("Orders fetched from Firebase:", ordersData)
         return ordersData
       } else {
@@ -202,6 +254,10 @@ const CustomerManagement = () => {
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedCustomers = sortedAndFilteredCustomers.slice(startIndex, startIndex + itemsPerPage)
 
+  // Calculate overall statistics
+  const totalOrdersOverall = customers.reduce((sum, customer) => sum + customer.totalOrders, 0)
+  const totalSpentOverall = customers.reduce((sum, customer) => sum + customer.totalSpent, 0)
+
   const formatPrice = (price) => {
     return `₱${price.toLocaleString()}`
   }
@@ -220,12 +276,14 @@ const CustomerManagement = () => {
   }
 
   const getOrderStatusColor = (status) => {
-    switch (status) {
-      case "mine":
-        return "bg-blue-100 text-blue-800"
-      case "grab":
+    switch (status?.toLowerCase()) {
+      case "pending":
         return "bg-yellow-100 text-yellow-800"
-      case "steal":
+      case "confirmed":
+        return "bg-blue-100 text-blue-800"
+      case "completed":
+        return "bg-green-100 text-green-800"
+      case "cancelled":
         return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -392,13 +450,11 @@ const CustomerManagement = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Active Users</p>
-              <p className="text-2xl font-bold text-foreground">
-                {customers.filter((c) => c.status === "active").length}
-              </p>
+              <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
+              <p className="text-2xl font-bold text-foreground">{totalOrdersOverall}</p>
             </div>
             <div className="bg-green-100 p-3 rounded-full">
-              <Users className="h-6 w-6 text-green-600" />
+              <Package className="h-6 w-6 text-green-600" />
             </div>
           </div>
         </div>
@@ -406,11 +462,11 @@ const CustomerManagement = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">New This Month</p>
-              <p className="text-2xl font-bold text-foreground">{customers.filter((c) => c.status === "new").length}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
+              <p className="text-2xl font-bold text-foreground">{formatPrice(totalSpentOverall)}</p>
             </div>
             <div className="bg-purple-100 p-3 rounded-full">
-              <Calendar className="h-6 w-6 text-purple-600" />
+              <ShoppingBag className="h-6 w-6 text-purple-600" />
             </div>
           </div>
         </div>
@@ -420,13 +476,13 @@ const CustomerManagement = () => {
             <div>
               <p className="text-sm font-medium text-muted-foreground">Avg Order Value</p>
               <p className="text-2xl font-bold text-foreground">
-                {customers.length > 0
-                  ? formatPrice(Math.round(customers.reduce((sum, c) => sum + c.totalSpent, 0) / customers.length))
+                {totalOrdersOverall > 0
+                  ? formatPrice(Math.round(totalSpentOverall / totalOrdersOverall))
                   : formatPrice(0)}
               </p>
             </div>
             <div className="bg-orange-100 p-3 rounded-full">
-              <ShoppingBag className="h-6 w-6 text-orange-600" />
+              <Calendar className="h-6 w-6 text-orange-600" />
             </div>
           </div>
         </div>
@@ -861,18 +917,29 @@ const CustomerManagement = () => {
                 {customerOrders.length > 0 ? (
                   customerOrders.map((order) => (
                     <div key={order.id} className="border border-border rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold text-foreground">{order.product || "Product Name"}</h4>
-                          <p className="text-sm text-muted-foreground">Order #{order.id}</p>
-                          <p className="text-sm text-muted-foreground">Date: {order.date || "Unknown"}</p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex space-x-4">
+                          {order.productImage && (
+                            <img
+                              src={order.productImage}
+                              alt={order.product}
+                              className="w-16 h-16 object-cover rounded-lg"
+                            />
+                          )}
+                          <div>
+                            <h4 className="font-semibold text-foreground">{order.product}</h4>
+                            <p className="text-sm text-muted-foreground">Category: {order.category}</p>
+                            <p className="text-sm text-muted-foreground">Order ID: {order.id.substring(0, 8)}...</p>
+                            <p className="text-sm text-muted-foreground">Date: {order.formattedDate}</p>
+                            <p className="text-sm text-muted-foreground">Address: {order.address}</p>
+                          </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-primary">{formatPrice(order.price || 0)}</p>
+                          <p className="font-semibold text-primary text-lg">{formatPrice(order.price)}</p>
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${getOrderStatusColor(order.status || "pending")}`}
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${getOrderStatusColor(order.status)}`}
                           >
-                            {(order.status || "pending").toUpperCase()}
+                            {order.status?.toUpperCase() || "PENDING"}
                           </span>
                         </div>
                       </div>
