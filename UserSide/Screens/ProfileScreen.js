@@ -1,27 +1,30 @@
-import React, { useState, useEffect } from "react"
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Image, 
-  Alert, 
-  Modal, 
-  TextInput, 
-  ActivityIndicator, 
-  Dimensions, 
-  Platform, 
-  SafeAreaView 
-} from "react-native"
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons'
-import * as ImagePicker from 'expo-image-picker'
-import { useAuth } from "../AuthContext"
-import { doc, updateDoc, getDoc } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { db, storage } from '../firebase/firebase'
+"use client"
 
-const { width } = Dimensions.get('window')
+import { useState, useEffect } from "react"
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  Dimensions,
+  Platform,
+  SafeAreaView,
+} from "react-native"
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons"
+import * as ImagePicker from "expo-image-picker"
+import { useAuth } from "../AuthContext"
+import { doc, updateDoc, getDoc, collection, onSnapshot, query, where } from "firebase/firestore"
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { db, storage } from "../firebase/firebase"
+import LoadingScreen from "../hooks/LoadingScreen"
+
+const { width, height } = Dimensions.get("window")
 
 export default function ProfileScreen({ navigation }) {
   const { currentUser, signOut, isLoading } = useAuth()
@@ -38,6 +41,13 @@ export default function ProfileScreen({ navigation }) {
   const [contactNumber, setContactNumber] = useState("")
   const [address, setAddress] = useState("")
 
+  const [userBids, setUserBids] = useState([])
+  const [userStats, setUserStats] = useState({
+  totalBids: 0,
+  wonAuctions: 0,
+  successRate: 0
+})
+
   // Request permissions on component mount
   useEffect(() => {
     requestPermissions()
@@ -46,82 +56,103 @@ export default function ProfileScreen({ navigation }) {
   const requestPermissions = async () => {
     const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync()
     const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    
-    if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
-      console.log('Permissions not granted')
+
+    if (cameraStatus !== "granted" || mediaStatus !== "granted") {
+      console.log("Permissions not granted")
     }
   }
 
   // Helper function to capitalize first letter of each word
   const capitalizeWords = (text) => {
     return text
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ')
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ")
   }
 
   // Fetch user profile
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (currentUser?.uid) {
-        try {
-          const userRef = doc(db, 'users', currentUser.uid)
-          const userDoc = await getDoc(userRef)
-          
-          if (userDoc.exists()) {
-            const userData = userDoc.data()
-            setUserProfile(userData)
-            setFirstName(userData.firstName || "")
-            setMiddleName(userData.middleName || "")
-            setLastName(userData.lastName || "")
-            setContactNumber(userData.contactNumber || userData.phone || "")
-            setAddress(userData.address || "")
-          } else {
-            setUserProfile(currentUser)
-            setFirstName(currentUser.firstName || "")
-            setMiddleName(currentUser.middleName || "")
-            setLastName(currentUser.lastName || "")
-            setContactNumber(currentUser.contactNumber || currentUser.phone || "")
-            setAddress(currentUser.address || "")
-          }
-        } catch (error) {
-          console.error("Error fetching profile:", error)
-          setUserProfile(currentUser)
+useEffect(() => {
+  if (!currentUser?.uid) return
+
+  setLoading(true) // start loading before fetching
+
+  const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
+    const allUserBids = []
+    let wonCount = 0
+
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data()
+      const userBid = data.bids?.find(bid => bid.bidderId === currentUser.uid)
+      
+      if (userBid) {
+        const bidInfo = {
+          id: doc.id,
+          myBid: userBid.amount,
+          currentBid: data.currentBid || 0,
+          status: data.status === 'sold' && data.highestBidder === userBid.bidderName 
+            ? 'won' 
+            : data.currentBid > userBid.amount 
+              ? 'outbid' 
+              : 'winning',
+          itemName: data.name
+        }
+        
+        allUserBids.push(bidInfo)
+        
+        if (bidInfo.status === 'won') {
+          wonCount++
         }
       }
-      setLoading(false)
-    }
+    })
 
-    fetchUserProfile()
-  }, [currentUser])
+    setUserBids(allUserBids)
+    
+    // Calculate success rate
+    const totalBids = allUserBids.length
+    const successRate = totalBids > 0 ? Math.round((wonCount / totalBids) * 100) : 0
+
+    setUserStats({
+      totalBids,
+      wonAuctions: wonCount,
+      successRate
+    })
+
+    setLoading(false) // stop loading after processing data
+  }, (error) => {
+    console.error("Error fetching bids: ", error)
+    setLoading(false) // stop loading even if error
+  })
+
+  return () => unsubscribe()
+}, [currentUser?.uid])
+
 
   const uploadImageToFirebase = async (imageUri) => {
     try {
       setUploadingImage(true)
-      
+
       // Create path that matches our security rules
       const filename = `${Date.now()}.jpg`
       const imageRef = ref(storage, `profile-images/${currentUser.uid}/${filename}`)
-      
+
       // Convert image to blob
       const response = await fetch(imageUri)
       const blob = await response.blob()
-      
+
       // Upload to Firebase
       const snapshot = await uploadBytes(imageRef, blob)
       const downloadURL = await getDownloadURL(snapshot.ref)
-      
+
       // Update Firestore
-      const userRef = doc(db, 'users', currentUser.uid)
+      const userRef = doc(db, "users", currentUser.uid)
       await updateDoc(userRef, {
         photoURL: downloadURL,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       })
-      
+
       // Update local state
-      setUserProfile(prev => ({ ...prev, photoURL: downloadURL }))
+      setUserProfile((prev) => ({ ...prev, photoURL: downloadURL }))
       Alert.alert("Success", "Profile picture updated!")
-      
     } catch (error) {
       console.error("Upload error:", error)
       Alert.alert("Error", `Failed to update profile picture: ${error.message}`)
@@ -132,10 +163,10 @@ export default function ProfileScreen({ navigation }) {
 
   const selectImageFromCamera = async () => {
     setImagePickerVisible(false)
-    
+
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: 'images', 
+        mediaTypes: "images",
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -152,10 +183,10 @@ export default function ProfileScreen({ navigation }) {
 
   const selectImageFromLibrary = async () => {
     setImagePickerVisible(false)
-    
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images',
+        mediaTypes: "images",
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -190,10 +221,10 @@ export default function ProfileScreen({ navigation }) {
 
     setUpdating(true)
     try {
-      const userRef = doc(db, 'users', currentUser.uid)
-      
+      const userRef = doc(db, "users", currentUser.uid)
+
       // Create full name with middle name if provided
-      const fullName = middleName.trim() 
+      const fullName = middleName.trim()
         ? `${firstName.trim()} ${middleName.trim()} ${lastName.trim()}`
         : `${firstName.trim()} ${lastName.trim()}`
 
@@ -204,11 +235,11 @@ export default function ProfileScreen({ navigation }) {
         lastName: lastName.trim(),
         contactNumber: contactNumber.trim(),
         address: address.trim(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       }
-      
+
       await updateDoc(userRef, updateData)
-      setUserProfile(prev => ({ ...prev, ...updateData }))
+      setUserProfile((prev) => ({ ...prev, ...updateData }))
       Alert.alert("Success", "Profile updated!")
       setModalVisible(false)
     } catch (error) {
@@ -220,100 +251,92 @@ export default function ProfileScreen({ navigation }) {
   }
 
   const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Logout", style: "destructive", onPress: () => signOut() },
-      ]
-    )
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: () => signOut() },
+    ])
   }
 
-  if (isLoading || loading) {
-    return (
-      <SafeAreaView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#2E6A2E" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </SafeAreaView>
-    )
-  }
+ if (loading || isLoading) {
+  return <LoadingScreen message="Loading profile..." />
+}
 
   const userData = userProfile || currentUser
-  const displayName = userData?.firstName && userData?.lastName 
-    ? (userData?.middleName 
+  const displayName =
+    userData?.firstName && userData?.lastName
+      ? userData?.middleName
         ? `${userData.firstName} ${userData.middleName} ${userData.lastName}`
-        : `${userData.firstName} ${userData.lastName}`)
-    : userData?.name || "User"
+        : `${userData.firstName} ${userData.lastName}`
+      : userData?.name || "User"
 
-  const stats = [
-    { label: "Total Bids", value: "47", icon: "gavel", type: "material" },
-    { label: "Won Auctions", value: "12", icon: "award", type: "feather" },
-    { label: "Success Rate", value: "85%", icon: "trending-up", type: "feather" },
-  ]
+const stats = [
+  { label: "Total Bids", value: userStats.totalBids.toString(), icon: "tshirt-crew-outline", type: "material" },
+  { label: "Won bids", value: userStats.wonAuctions.toString(), icon: "award", type: "feather" },
+  { label: "Success Rate", value: `${userStats.successRate}%`, icon: "trending-up", type: "feather" },
+]
 
   const menuItems = [
-    { 
-      title: "Personal Information", 
-      subtitle: "Update your profile details", 
-      icon: "user", 
-      onPress: () => setModalVisible(true)
+    {
+      title: "Personal Information",
+      subtitle: "Update your profile details",
+      icon: "user",
+      onPress: () => setModalVisible(true),
     },
-    { 
-      title: "My Bids", 
-      subtitle: "View your bidding history", 
-      icon: "list", 
-      onPress: () => navigation.navigate("Bidding")
+    {
+      title: "My Bids",
+      subtitle: "View your bidding history",
+      icon: "list",
+      onPress: () => navigation.navigate("Bidding"),
     },
-    { 
-      title: "Won Items", 
-      subtitle: "Items you've successfully won", 
-      icon: "award", 
-      onPress: () => console.log("Won Items")
+    {
+      title: "Won Items",
+      subtitle: "Items you've successfully won",
+      icon: "award",
+      onPress: () => navigation.navigate("Bidding"),
     },
-    { 
-      title: "Notifications", 
-      subtitle: "Manage notification preferences", 
-      icon: "bell", 
-      onPress: () => console.log("Notifications")
+    {
+      title: "Notifications",
+      subtitle: "Manage notification preferences",
+      icon: "bell",
+      onPress: () => navigation.navigate("Notifications"),
     },
-    { 
-      title: "Help & Support", 
-      subtitle: "Get help and contact support", 
-      icon: "help-circle", 
-      onPress: () => console.log("Help")
+    {
+      title: "Help & Support Chat",
+      subtitle: "Get help and contact support",
+      icon: "help-circle",
+      onPress: () => navigation.navigate("Chats"),
     },
-    { 
-    title: "Logout", 
-    subtitle: "Sign out of your account", 
-    icon: "log-out", 
-    onPress: handleLogout,
-    isLogout: true
+    {
+      title: "Logout",
+      subtitle: "Sign out of your account",
+      icon: "log-out",
+      onPress: handleLogout,
+      isLogout: true,
     },
-    
-  ]
+  ]  
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
+        <Text style={styles.headerDescription}>Manage your account settings and view your bids activity</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Profile Section with Centered Image */}
         <View style={styles.section}>
           <View style={styles.profileCard}>
             {/* Centered Profile Image */}
             <View style={styles.avatarContainer}>
               <Image
-                source={{ 
-                  uri: userData?.photoURL || "https://via.placeholder.com/120x120/CCCCCC/FFFFFF?text=User" 
+                source={{
+                  uri: userData?.photoURL || "https://via.placeholder.com/120x120/CCCCCC/FFFFFF?text=User",
                 }}
                 style={styles.avatar}
               />
-              <TouchableOpacity 
-                style={styles.cameraButton} 
+              <TouchableOpacity
+                style={styles.cameraButton}
                 onPress={() => setImagePickerVisible(true)}
                 disabled={uploadingImage}
               >
@@ -324,32 +347,31 @@ export default function ProfileScreen({ navigation }) {
                 )}
               </TouchableOpacity>
             </View>
-            
+
             {/* Profile Information Below Image */}
             <View style={styles.profileInfo}>
               <Text style={styles.userName}>{displayName}</Text>
               <Text style={styles.userEmail}>{userData?.email}</Text>
-              
+
               {userData?.contactNumber && (
                 <View style={styles.detailRow}>
                   <Feather name="phone" size={16} color="#2E6A2E" />
                   <Text style={styles.userDetail}>{userData.contactNumber}</Text>
                 </View>
               )}
-              
+
               {userData?.address && (
                 <View style={styles.detailRow}>
                   <Feather name="map-pin" size={16} color="#2E6A2E" />
-                  <Text style={styles.userDetail} numberOfLines={2}>{userData.address}</Text>
+                  <Text style={styles.userDetail} numberOfLines={2}>
+                    {userData.address}
+                  </Text>
                 </View>
               )}
             </View>
-            
+
             {/* Edit Button */}
-            <TouchableOpacity 
-              style={styles.editButton} 
-              onPress={() => setModalVisible(true)}
-            >
+            <TouchableOpacity style={styles.editButton} onPress={() => setModalVisible(true)}>
               <Feather name="edit-2" size={20} color="#2E6A2E" />
             </TouchableOpacity>
           </View>
@@ -379,43 +401,28 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           {menuItems.map((item, index) => (
-            <TouchableOpacity 
-              key={index} 
-              style={[styles.menuItem, item.isLogout && styles.logoutItem]} 
+            <TouchableOpacity
+              key={index}
+              style={[styles.menuItem, item.isLogout && styles.logoutItem]}
               onPress={item.onPress}
             >
               <View style={styles.menuLeft}>
                 <View style={[styles.menuIcon, item.isLogout && styles.logoutIcon]}>
-                  <Feather 
-                    name={item.icon} 
-                    size={20} 
-                    color={item.isLogout ? "#E74C3C" : "#666"} 
-                  />
+                  <Feather name={item.icon} size={20} color={item.isLogout ? "#E74C3C" : "#666"} />
                 </View>
                 <View style={styles.menuTextContainer}>
-                  <Text style={[styles.menuTitle, item.isLogout && styles.logoutText]}>
-                    {item.title}
-                  </Text>
-                  <Text style={[styles.menuSubtitle, item.isLogout && styles.logoutSubtext]}>
-                    {item.subtitle}
-                  </Text>
+                  <Text style={[styles.menuTitle, item.isLogout && styles.logoutText]}>{item.title}</Text>
+                  <Text style={[styles.menuSubtitle, item.isLogout && styles.logoutSubtext]}>{item.subtitle}</Text>
                 </View>
               </View>
-              <Feather 
-                name="chevron-right" 
-                size={20} 
-                color={item.isLogout ? "#E74C3C" : "#888"}
-              />
+              <Feather name="chevron-right" size={20} color={item.isLogout ? "#E74C3C" : "#888"} />
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Logout Button */}
         <View style={styles.section}>
-          <TouchableOpacity 
-            style={styles.logoutButtonStandalone} 
-            onPress={handleLogout}
-          >
+          <TouchableOpacity style={styles.logoutButtonStandalone} onPress={handleLogout}>
             <Feather name="log-out" size={20} color="white" />
             <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
@@ -423,36 +430,27 @@ export default function ProfileScreen({ navigation }) {
       </ScrollView>
 
       {/* Image Picker Modal */}
-      <Modal 
-        visible={imagePickerVisible} 
-        animationType="slide" 
+      <Modal
+        visible={imagePickerVisible}
+        animationType="slide"
         transparent={true}
         onRequestClose={() => setImagePickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.imagePickerModal}>
             <Text style={styles.modalTitle}>Choose Profile Picture</Text>
-            
-            <TouchableOpacity 
-              style={styles.pickerOption} 
-              onPress={selectImageFromCamera}
-            >
+
+            <TouchableOpacity style={styles.pickerOption} onPress={selectImageFromCamera}>
               <Feather name="camera" size={24} color="#2E6A2E" />
               <Text style={styles.pickerText}>Take Photo</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.pickerOption} 
-              onPress={selectImageFromLibrary}
-            >
+
+            <TouchableOpacity style={styles.pickerOption} onPress={selectImageFromLibrary}>
               <Feather name="image" size={24} color="#2E6A2E" />
               <Text style={styles.pickerText}>Choose from Gallery</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.cancelOption} 
-              onPress={() => setImagePickerVisible(false)}
-            >
+
+            <TouchableOpacity style={styles.cancelOption} onPress={() => setImagePickerVisible(false)}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -460,9 +458,9 @@ export default function ProfileScreen({ navigation }) {
       </Modal>
 
       {/* Edit Profile Modal */}
-      <Modal 
-        visible={modalVisible} 
-        animationType="slide" 
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
         transparent={true}
         onRequestClose={() => setModalVisible(false)}
       >
@@ -537,14 +535,10 @@ export default function ProfileScreen({ navigation }) {
             </View>
 
             <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setModalVisible(false)}
-                disabled={updating}
-              >
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)} disabled={updating}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.saveButton, updating && styles.disabledButton]}
                 onPress={handleSave}
@@ -565,9 +559,9 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#F8F9FA" 
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFCF3",
   },
   centered: {
     justifyContent: "center",
@@ -575,31 +569,46 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#2E6A2E",
-    paddingTop: Platform.OS === 'ios' ? 10 : 30,
+    paddingTop: 30,
     paddingBottom: 20,
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  headerTitle: { 
-    fontSize: 28, 
-    fontWeight: "bold", 
-    color: "white", 
-    marginLeft: 20,
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "white",
+    marginBottom: 8,
+  },
+  headerDescription: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "400",
+    lineHeight: 18,
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
     color: "#666",
   },
-  section: { 
-    paddingHorizontal: 20, 
-    marginTop: 20 
+  section: {
+    paddingHorizontal: Math.max(20, width * 0.05),
+    marginTop: 20,
   },
-  sectionTitle: { 
-    fontSize: 20, 
-    fontWeight: "bold", 
-    color: "#333", 
-    marginBottom: 15 
+  scrollContent: {
+    paddingBottom: 30,
   },
-  
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 15,
+  },
+
   // Profile Card - Redesigned
   profileCard: {
     backgroundColor: "white",
@@ -617,10 +626,10 @@ const styles = StyleSheet.create({
     position: "relative",
     marginBottom: 20,
   },
-  avatar: { 
-    width: 120, 
-    height: 120, 
-    borderRadius: 60,
+  avatar: {
+    width: Math.min(120, width * 0.3),
+    height: Math.min(120, width * 0.3),
+    borderRadius: Math.min(60, width * 0.15),
     borderWidth: 4,
     borderColor: "#2E6A2E",
   },
@@ -637,20 +646,20 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "white",
   },
-  profileInfo: { 
+  profileInfo: {
     alignItems: "center",
     width: "100%",
   },
-  userName: { 
-    fontSize: 24, 
-    fontWeight: "bold", 
-    color: "#333", 
+  userName: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 6,
     textAlign: "center",
   },
-  userEmail: { 
-    fontSize: 16, 
-    color: "#666", 
+  userEmail: {
+    fontSize: 16,
+    color: "#666",
     marginBottom: 16,
     textAlign: "center",
   },
@@ -661,15 +670,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     justifyContent: "center", // keeps the whole row centered
   },
-  userDetail: { 
-    fontSize: 15, 
-    color: "#555", 
-    marginLeft: 8,   // spacing between icon and text
+  userDetail: {
+    fontSize: 15,
+    color: "#555",
+    marginLeft: 8, // spacing between icon and text
     fontWeight: "500",
-    textAlign: "left", // don’t center inside its box
-    flex: 0,           // prevents stretching
+    textAlign: "left", // don't center inside its box
+    flex: 0, // prevents stretching
   },
-  editButton: { 
+  editButton: {
     position: "absolute",
     top: 20,
     right: 20,
@@ -679,9 +688,9 @@ const styles = StyleSheet.create({
   },
 
   // Stats
-  statsContainer: { 
-    flexDirection: "row", 
-    justifyContent: "space-between" 
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   statCard: {
     backgroundColor: "white",
@@ -705,17 +714,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  statValue: { 
-    fontSize: 22, 
-    fontWeight: "bold", 
-    color: "#333", 
-    marginBottom: 4 
+  statValue: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 4,
   },
-  statLabel: { 
-    fontSize: 13, 
-    color: "#666", 
+  statLabel: {
+    fontSize: 13,
+    color: "#666",
     textAlign: "center",
-    fontWeight: "500"
+    fontWeight: "500",
   },
 
   // Menu
@@ -733,10 +742,10 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  menuLeft: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    flex: 1 
+  menuLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
   },
   menuIcon: {
     width: 44,
@@ -750,39 +759,19 @@ const styles = StyleSheet.create({
   menuTextContainer: {
     flex: 1,
   },
-  menuTitle: { 
-    fontSize: 16, 
-    fontWeight: "600", 
-    color: "#333", 
-    marginBottom: 3 
+  menuTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 3,
   },
-  menuSubtitle: { 
-    fontSize: 14, 
+  menuSubtitle: {
+    fontSize: 14,
     color: "#666",
     lineHeight: 18,
   },
 
-  // Logout Button
-  logoutButtonStandalone: {
-    backgroundColor: "#E74C3C",
-    borderRadius: 15,
-    padding: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-    marginBottom: 20,
-  },
-  logoutButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 10,
-  },
+
 
   // Modals
   modalOverlay: {
@@ -791,7 +780,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  
+
   // Image Picker Modal
   imagePickerModal: {
     backgroundColor: "white",
@@ -903,18 +892,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   logoutItem: {
-  borderWidth: 1,
-  borderColor: "#FFE6E6",
-  backgroundColor: "#FFF5F5",
-},
-logoutIcon: {
-  backgroundColor: "#FFE6E6",
-},
-logoutText: {
-  color: "#E74C3C",
-},
-logoutSubtext: {
-  color: "#E74C3C",
-  opacity: 0.7,
-},
+    borderWidth: 1,
+    borderColor: "#FFE6E6",
+    backgroundColor: "#FFF5F5",
+  },
+  logoutIcon: {
+    backgroundColor: "#FFE6E6",
+  },
+  logoutText: {
+    color: "#E74C3C",
+  },
+  logoutSubtext: {
+    color: "#E74C3C",
+    opacity: 0.7,
+  },
 })

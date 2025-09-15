@@ -599,39 +599,39 @@ const CustomerManagement = () => {
                           <MoreVertical className="h-4 w-4" />
                         </button>
                         {dropdownOpen === customer.id && (
-                          <div className="absolute right-0 mt-2 w-48 bg-popover rounded-md shadow-lg z-10 border border-border">
+                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-border">
                             <div className="py-1">
                               <button
                                 onClick={() => handleViewCustomer(customer)}
-                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
+                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-gray-100 hover:text-gray-900 w-full text-left transition-colors"
                               >
                                 <Eye className="h-4 w-4 mr-3" />
                                 View Details
                               </button>
                               <button
                                 onClick={() => handleEditProfile(customer)}
-                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
+                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-gray-100 hover:text-gray-900 w-full text-left transition-colors"
                               >
                                 <Edit className="h-4 w-4 mr-3" />
                                 Edit Profile
                               </button>
                               <button
                                 onClick={() => handleViewOrders(customer)}
-                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
+                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-gray-100 hover:text-gray-900 w-full text-left transition-colors"
                               >
                                 <Package className="h-4 w-4 mr-3" />
                                 View Orders
                               </button>
                               <button
                                 onClick={() => handleSendEmail(customer)}
-                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
+                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-gray-100 hover:text-gray-900 w-full text-left transition-colors"
                               >
                                 <Send className="h-4 w-4 mr-3" />
                                 Send Email
                               </button>
                               <button
                                 onClick={() => confirmDeleteCustomer(customer)}
-                                className="flex items-center px-4 py-2 text-sm text-destructive hover:bg-destructive/10 w-full text-left transition-colors"
+                                className="flex items-center px-4 py-2 text-sm text-destructive hover:bg-red-50 w-full text-left transition-colors"
                               >
                                 <Trash className="h-4 w-4 mr-3" />
                                 Delete User
@@ -809,28 +809,28 @@ const CustomerManagement = () => {
                 <div className="flex space-x-3 pt-4">
                   <button
                     onClick={() => handleSendEmail(selectedCustomer)}
-                    className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center space-x-2"
+                    className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center space-x-2 text-white"
                   >
                     <Send className="h-4 w-4" />
                     <span>Send Email</span>
                   </button>
                   <button
                     onClick={() => handleViewOrders(selectedCustomer)}
-                    className="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors flex items-center justify-center space-x-2"
+                    className="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors flex items-center justify-center space-x-2 text-white"
                   >
                     <Package className="h-4 w-4" />
                     <span>View Orders</span>
                   </button>
                   <button
                     onClick={() => handleEditProfile(selectedCustomer)}
-                    className="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors flex items-center justify-center space-x-2"
+                    className="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors flex items-center justify-center space-x-2 text-white"
                   >
                     <Edit className="h-4 w-4" />
                     <span>Edit Profile</span>
                   </button>
                   <button
                     onClick={() => confirmDeleteCustomer(selectedCustomer)}
-                    className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2"
+                    className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 text-red-600 bg-red-50 hover:bg-red-100"
                   >
                     <Trash className="h-4 w-4" />
                     <span>Delete</span>
@@ -963,13 +963,13 @@ const CustomerManagement = () => {
               <div className="flex space-x-3 pt-6">
                 <button
                   onClick={() => setShowEditModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors font-medium"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-foreground hover:bg-gray-200 transition-colors font-medium "
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors font-medium"
+                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors font-medium text-white"
                 >
                   Save Changes
                 </button>
@@ -1030,13 +1030,13 @@ const CustomerManagement = () => {
               <div className="flex space-x-3 pt-6">
                 <button
                   onClick={() => setShowEmailModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors font-medium"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-foreground hover:bg-gray-200 transition-colors font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSendEmailSubmit}
-                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center space-x-2 font-medium"
+                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center space-x-2 font-medium text-white "
                 >
                   <Send className="h-4 w-4" />
                   <span>Send Email</span>

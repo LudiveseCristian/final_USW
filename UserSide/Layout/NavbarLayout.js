@@ -1,23 +1,28 @@
+"use client"
+
 import React, { useCallback, useState } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator } from "react-native"
 import { useNavigation, useRoute } from "@react-navigation/native"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
+import { useCartCount } from "../hooks/useCartCounts"
 
 const { width } = Dimensions.get("window")
 
 // Memoized tab configuration
 const tabs = [
   { name: "Home", icon: "home", route: "Home" },
-  { name: "News", icon: "newspaper", route: "News" },
-  { name: "Bidding", icon: "gavel", route: "Bidding" },
+  { name: "Drops", icon: "tag", route: "News" },
+  { name: "Bidding", icon: "tshirt-crew", route: "Bidding" },
   { name: "Cart", icon: "cart", route: "Cart" },
   { name: "Profile", icon: "account", route: "Profile" },
 ]
 
-function NavBarLayout({ children, cartItemCount = 0 }) {
+function NavBarLayout({ children }) {
   const navigation = useNavigation()
   const route = useRoute()
   const [isNavigating, setIsNavigating] = useState(false)
+
+  const { cartCount, loading: cartLoading } = useCartCount()
 
   // Optimized navigation function
   const navigateTo = useCallback(
@@ -40,12 +45,10 @@ function NavBarLayout({ children, cartItemCount = 0 }) {
   // Function to render notification badge
   const renderNotificationBadge = (count) => {
     if (count <= 0) return null
-    
+
     return (
       <View style={styles.notificationBadge}>
-        <Text style={styles.badgeText}>
-          {count > 99 ? '99+' : count.toString()}
-        </Text>
+        <Text style={styles.badgeText}>{count > 99 ? "99+" : count.toString()}</Text>
       </View>
     )
   }
@@ -60,8 +63,8 @@ function NavBarLayout({ children, cartItemCount = 0 }) {
         <View style={styles.bottomNav}>
           {tabs.map((tab) => {
             const isActive = route.name === tab.route
-            const showBadge = tab.name === "Cart" && cartItemCount > 0
-            
+            const showBadge = tab.name === "Cart" && cartCount > 0
+
             return (
               <TouchableOpacity
                 key={tab.name}
@@ -73,7 +76,7 @@ function NavBarLayout({ children, cartItemCount = 0 }) {
                 <View style={[styles.iconContainer, isActive && styles.activeIconContainer]}>
                   <MaterialCommunityIcons name={tab.icon} size={22} color={isActive ? "#2E6A2E" : "#888"} />
                   {/* Notification Badge */}
-                  {showBadge && renderNotificationBadge(cartItemCount)}
+                  {showBadge && renderNotificationBadge(cartCount)}
                 </View>
                 <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]}>{tab.name}</Text>
                 {/* Indicator below the text */}
@@ -163,7 +166,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#2E6A2E",
     borderRadius: 2,
   },
-  // New styles for notification badge
   notificationBadge: {
     position: "absolute",
     top: -2,

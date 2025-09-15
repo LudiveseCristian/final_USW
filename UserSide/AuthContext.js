@@ -4,7 +4,7 @@ import { createContext, useState, useEffect, useContext, useMemo, useCallback } 
 import { onAuthStateChanged } from "firebase/auth"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { auth, db } from "./firebase/firebase"
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 const AuthContext = createContext()
 
@@ -17,14 +17,14 @@ export const AuthProvider = ({ children }) => {
   const [hasCompletedAppOnboarding, setHasCompletedAppOnboardingState] = useState(false)
 
   // Keys for AsyncStorage
-  const ONBOARDING_SEEN_KEY = '@onboarding_seen'
-  const APP_ONBOARDING_KEY = '@app_onboarding_completed'
+  const ONBOARDING_SEEN_KEY = "@onboarding_seen"
+  const APP_ONBOARDING_KEY = "@app_onboarding_completed"
 
   useEffect(() => {
     // Initialize app onboarding status on app start
     const initializeApp = async () => {
       await initializeOnboardingStatus()
-      
+
       // Firebase auth listener
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
         setIsLoading(true)
@@ -42,12 +42,12 @@ export const AuthProvider = ({ children }) => {
                 email: user.email,
                 ...firestoreData,
               })
-              
-              // Check app onboarding status from Firestore or AsyncStorage
-              const appOnboardingCompleted = firestoreData.hasCompletedAppOnboarding !== undefined 
-                ? firestoreData.hasCompletedAppOnboarding 
-                : await checkLocalAppOnboardingStatus()
-              
+
+              const appOnboardingCompleted =
+                firestoreData.hasCompletedAppOnboarding !== undefined
+                  ? firestoreData.hasCompletedAppOnboarding
+                  : await checkLocalAppOnboardingStatus()
+
               setHasCompletedAppOnboardingState(appOnboardingCompleted)
             } else {
               const newUserData = {
@@ -56,8 +56,7 @@ export const AuthProvider = ({ children }) => {
                 name: user.email.split("@")[0], // Use email prefix as fallback name
               }
               setCurrentUser(newUserData)
-              
-              // New users haven't completed app onboarding
+
               setHasCompletedAppOnboardingState(false)
             }
             setIsLoggedIn(true)
@@ -70,17 +69,18 @@ export const AuthProvider = ({ children }) => {
             }
             setCurrentUser(fallbackUserData)
             setIsLoggedIn(true)
-            
+
             // Check local app onboarding status as fallback
             const localAppOnboardingStatus = await checkLocalAppOnboardingStatus()
             setHasCompletedAppOnboardingState(localAppOnboardingStatus)
           }
         } else {
+          // User logged out - DON'T reset onboarding status
           setCurrentUser(null)
           setUserData(null)
           setIsLoggedIn(false)
-          setHasSeenOnboardingState(false)
-          setHasCompletedAppOnboardingState(false)
+          // Keep hasSeenOnboarding and hasCompletedAppOnboarding as they are
+          // DON'T reset these values on logout
         }
 
         setIsLoading(false)
@@ -97,11 +97,18 @@ export const AuthProvider = ({ children }) => {
     try {
       const seenOnboarding = await AsyncStorage.getItem(ONBOARDING_SEEN_KEY)
       const completedAppOnboarding = await AsyncStorage.getItem(APP_ONBOARDING_KEY)
-      
-      setHasSeenOnboardingState(seenOnboarding === 'true')
-      setHasCompletedAppOnboardingState(completedAppOnboarding === 'true')
+
+      setHasSeenOnboardingState(seenOnboarding === "true")
+      setHasCompletedAppOnboardingState(completedAppOnboarding === "true")
+
+      console.log("Onboarding status initialized:", {
+        hasSeenOnboarding: seenOnboarding === "true",
+        hasCompletedAppOnboarding: completedAppOnboarding === "true",
+      })
     } catch (error) {
-      console.error('Error initializing onboarding status:', error)
+      console.error("Error initializing onboarding status:", error)
+      setHasSeenOnboardingState(false)
+      setHasCompletedAppOnboardingState(false)
     }
   }
 
@@ -109,9 +116,9 @@ export const AuthProvider = ({ children }) => {
   const checkLocalAppOnboardingStatus = async () => {
     try {
       const appOnboardingStatus = await AsyncStorage.getItem(APP_ONBOARDING_KEY)
-      return appOnboardingStatus === 'true'
+      return appOnboardingStatus === "true"
     } catch (error) {
-      console.error('Error checking local app onboarding status:', error)
+      console.error("Error checking local app onboarding status:", error)
       return false
     }
   }
@@ -124,9 +131,8 @@ export const AuthProvider = ({ children }) => {
   const signOut = useCallback(async () => {
     try {
       await auth.signOut()
-      // Clear local onboarding status
-      await AsyncStorage.multiRemove([ONBOARDING_SEEN_KEY, APP_ONBOARDING_KEY])
-      // onAuthStateChanged will handle state updates
+      console.log("User signed out - onboarding status preserved")
+      // onAuthStateChanged will handle other state updates
     } catch (error) {
       console.error("Error signing out:", error)
     }
@@ -142,58 +148,63 @@ export const AuthProvider = ({ children }) => {
     try {
       setHasSeenOnboardingState(seen)
       await AsyncStorage.setItem(ONBOARDING_SEEN_KEY, seen.toString())
+      console.log("Onboarding seen status updated:", seen)
     } catch (error) {
-      console.error('Error saving onboarding seen state:', error)
+      console.error("Error saving onboarding seen state:", error)
     }
   }, [])
 
   // Set app onboarding completion status
-  const setHasCompletedAppOnboarding = useCallback(async (completed) => {
-    try {
-      setHasCompletedAppOnboardingState(completed)
-      
-      // Save to AsyncStorage
-      await AsyncStorage.setItem(APP_ONBOARDING_KEY, completed.toString())
-      
-      // Save to Firestore if user is logged in
-      if (currentUser?.uid) {
-        try {
-          const userDocRef = doc(db, "users", currentUser.uid)
-          await updateDoc(userDocRef, {
-            hasCompletedAppOnboarding: completed,
-            appOnboardingCompletedAt: completed ? new Date() : null
-          })
-        } catch (firestoreError) {
-          console.log('Could not update Firestore, but local storage updated:', firestoreError)
-        }
-      }
-    } catch (error) {
-      console.error('Error saving app onboarding state:', error)
-    }
-  }, [currentUser])
+  const setHasCompletedAppOnboarding = useCallback(
+    async (completed) => {
+      try {
+        setHasCompletedAppOnboardingState(completed)
 
-  // Method to reset onboarding (for testing or admin purposes)
+        // Save to AsyncStorage
+        await AsyncStorage.setItem(APP_ONBOARDING_KEY, completed.toString())
+        console.log("App onboarding completion status updated:", completed)
+
+        // Save to Firestore if user is logged in
+        if (currentUser?.uid) {
+          try {
+            const userDocRef = doc(db, "users", currentUser.uid)
+            await updateDoc(userDocRef, {
+              hasCompletedAppOnboarding: completed,
+              appOnboardingCompletedAt: completed ? new Date() : null,
+            })
+          } catch (firestoreError) {
+            console.log("Could not update Firestore, but local storage updated:", firestoreError)
+          }
+        }
+      } catch (error) {
+        console.error("Error saving app onboarding state:", error)
+      }
+    },
+    [currentUser],
+  )
+
   const resetOnboarding = useCallback(async () => {
     try {
+      console.log("RESETTING ONBOARDING - This should only be used for testing!")
       setHasSeenOnboardingState(false)
       setHasCompletedAppOnboardingState(false)
-      
+
       await AsyncStorage.multiRemove([ONBOARDING_SEEN_KEY, APP_ONBOARDING_KEY])
-      
+
       // Update Firestore if possible
       if (currentUser?.uid) {
         try {
           const userDocRef = doc(db, "users", currentUser.uid)
           await updateDoc(userDocRef, {
             hasCompletedAppOnboarding: false,
-            appOnboardingCompletedAt: null
+            appOnboardingCompletedAt: null,
           })
         } catch (firestoreError) {
-          console.log('Could not update Firestore, but local storage updated:', firestoreError)
+          console.log("Could not update Firestore, but local storage updated:", firestoreError)
         }
       }
     } catch (error) {
-      console.error('Error resetting onboarding:', error)
+      console.error("Error resetting onboarding:", error)
     }
   }, [currentUser])
 
@@ -211,21 +222,21 @@ export const AuthProvider = ({ children }) => {
       updateUserData, // Method to update user data
       setHasSeenOnboarding,
       setHasCompletedAppOnboarding,
-      resetOnboarding,
+      resetOnboarding, // Only use this for testing/admin purposes
     }),
     [
-      isLoggedIn, 
-      isLoading, 
-      currentUser, 
-      userData, 
+      isLoggedIn,
+      isLoading,
+      currentUser,
+      userData,
       hasSeenOnboarding,
       hasCompletedAppOnboarding,
-      signIn, 
-      signOut, 
+      signIn,
+      signOut,
       updateUserData,
       setHasSeenOnboarding,
       setHasCompletedAppOnboarding,
-      resetOnboarding
+      resetOnboarding,
     ],
   )
 

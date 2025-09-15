@@ -1,3 +1,5 @@
+"use client"
+
 import { useEffect, useState } from "react"
 import {
   View,
@@ -6,9 +8,9 @@ import {
   StyleSheet,
   Image,
   Dimensions,
-  Platform,
   StatusBar,
   Animated,
+  SafeAreaView, // Added SafeAreaView import
 } from "react-native"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { LinearGradient } from "expo-linear-gradient"
@@ -23,12 +25,13 @@ const welcomeVideo = require("../assets/images/Welcome/USWvideo.mp4")
 
 const { width, height } = Dimensions.get("window")
 
+const isSmallScreen = width < 375
+const isMediumScreen = width >= 375 && width < 414
+const isLargeScreen = width >= 414
+
 export default function WelcomeScreen({ navigation }) {
   // Get auth context for onboarding
   const { setHasCompletedAppOnboarding, currentUser } = useAuth()
-
-  console.log('WelcomeScreen - currentUser object:', currentUser)
-  console.log('WelcomeScreen - currentUser.firstName:', currentUser?.firstName)
 
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0))
@@ -37,7 +40,7 @@ export default function WelcomeScreen({ navigation }) {
   const [buttonScaleAnim] = useState(new Animated.Value(0.9))
   const [pulseAnim] = useState(new Animated.Value(1))
   const [textSlideAnim] = useState(new Animated.Value(30))
-  
+
   // Show welcome message with user name
   const [welcomeText, setWelcomeText] = useState("")
 
@@ -48,35 +51,28 @@ export default function WelcomeScreen({ navigation }) {
     player.muted = true
   })
 
+  useEffect(() => {
+    // Set personalized welcome text
+    const getFirstName = () => {
 
-    useEffect(() => {
-      // Set personalized welcome text
-        const getFirstName = () => {
-          console.log('Getting first name from:', currentUser) // Debug line
-          
-          if (currentUser?.firstName) {   
-            console.log('Found firstName:', currentUser.firstName)
-            return currentUser.firstName
-          }
-          if (currentUser?.name) {
-            const firstName = currentUser.name.split(' ')[0]
-            console.log('Using name split:', firstName)
-            return firstName
-          }
-          if (currentUser?.email) {
-            const emailName = currentUser.email.split('@')[0]
-            console.log('Fallback to email:', emailName)
-            return emailName
-          }
-          return 'there'
-        }
+      if (currentUser?.firstName) {
+        return currentUser.firstName
+      }
+      if (currentUser?.name) {
+        const firstName = currentUser.name.split(" ")[0]
+        return firstName
+      }
+      if (currentUser?.email) {
+        const emailName = currentUser.email.split("@")[0]
+        return emailName
+      }
+      return "there"
+    }
 
-      const userName = getFirstName()
-  
-  // ADD THIS LINE:
-  setWelcomeText(`Welcome back, ${userName}!`)
+    const userName = getFirstName()
 
-  // Sequential entrance animations...
+    // ADD THIS LINE:
+    setWelcomeText(`Welcome back, ${userName}!`)
 
     // Sequential entrance animations
     const entranceAnimation = Animated.sequence([
@@ -161,7 +157,7 @@ export default function WelcomeScreen({ navigation }) {
       }),
     ]).start(async () => {
       console.log("Start Bidding pressed")
-      
+
       // Complete app onboarding when user manually proceeds
       await setHasCompletedAppOnboarding(true)
       navigation.replace("Home")
@@ -169,72 +165,76 @@ export default function WelcomeScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.fullScreenContainer}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.fullScreenContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Background Video */}
-      <VideoView
-        style={styles.backgroundVideo}
-        player={player}
-        allowsFullscreen={false}
-        allowsPictureInPicture={false}
-        contentFit="cover"
-      />
+        {/* Background Video */}
+        <VideoView
+          style={styles.backgroundVideo}
+          player={player}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+          contentFit="cover"
+        />
 
-      {/* Gradient Overlay */}
-      <LinearGradient colors={["rgba(0, 0, 0, 0.45)", "rgba(0, 0, 0, 1)"]} style={styles.gradientOverlay}>
-        <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-          {/* Logo with animations */}
-          <Animated.View
-            style={[
-              styles.logoContainer,
-              {
-                transform: [{ scale: logoScaleAnim }],
-              },
-            ]}
-          >
-            <View style={styles.logoGlow}>
-              <Image source={USWLogo} style={styles.logo} resizeMode="contain" />
-            </View>
-          </Animated.View>
-
-          {/* Content Area with slide animations */}
-          <Animated.View style={[styles.contentArea, { transform: [{ translateY: slideUpAnim }] }]}>
-            <Animated.View style={[styles.textContainer, { transform: [{ translateY: textSlideAnim }] }]}>
-              {/* Personalized Welcome Message */}
-              <Text style={styles.welcomeText}>{welcomeText}</Text>
-              
-              <Text style={styles.descriptionText}>
-                Fresh finds are waiting! Place your <Text style={styles.highlightText}>bids</Text>, grab the{" "}
-                <Text style={styles.highlightText}>deals</Text>, and shop smart with style.
-              </Text>
-
-              {/* Auto-proceed notice */}
-              <Text style={styles.autoText}>
-                Automatically starting in a moment...
-              </Text>
-            </Animated.View>
-
-            {/* Animated Start Bidding Button */}
+        {/* Gradient Overlay */}
+        <LinearGradient colors={["rgba(0, 0, 0, 0.45)", "rgba(0, 0, 0, 1)"]} style={styles.gradientOverlay}>
+          <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+            {/* Logo with animations */}
             <Animated.View
-              style={[styles.buttonContainer, { transform: [{ scale: buttonScaleAnim }, { scale: pulseAnim }] }]}
+              style={[
+                styles.logoContainer,
+                {
+                  transform: [{ scale: logoScaleAnim }],
+                },
+              ]}
             >
-              <TouchableOpacity style={styles.startButton} onPress={handleStartBidding} activeOpacity={0.9}>
-                <LinearGradient colors={["#135918", "#1a7a1f", "#2E6A2E"]} style={styles.buttonGradient}>
-                  <MaterialCommunityIcons name="gavel" size={20} color="#FFFCF3" />
-                  <Text style={styles.startButtonText}>Start Bidding!</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={18} color="#a5eea8ff" />
-                </LinearGradient>
-              </TouchableOpacity>
+              <View style={styles.logoGlow}>
+                <Image source={USWLogo} style={styles.logo} resizeMode="contain" />
+              </View>
+            </Animated.View>
+
+            {/* Content Area with slide animations */}
+            <Animated.View style={[styles.contentArea, { transform: [{ translateY: slideUpAnim }] }]}>
+              <Animated.View style={[styles.textContainer, { transform: [{ translateY: textSlideAnim }] }]}>
+                {/* Personalized Welcome Message */}
+                <Text style={styles.welcomeText}>{welcomeText}</Text>
+
+                <Text style={styles.descriptionText}>
+                  Fresh finds are waiting! Place your <Text style={styles.highlightText}>bids</Text>, grab the{" "}
+                  <Text style={styles.highlightText}>deals</Text>, and shop smart with style.
+                </Text>
+
+                {/* Auto-proceed notice */}
+                <Text style={styles.autoText}>Automatically starting in a moment...</Text>
+              </Animated.View>
+
+              {/* Animated Start Bidding Button */}
+              <Animated.View
+                style={[styles.buttonContainer, { transform: [{ scale: buttonScaleAnim }, { scale: pulseAnim }] }]}
+              >
+                <TouchableOpacity style={styles.startButton} onPress={handleStartBidding} activeOpacity={0.9}>
+                  <LinearGradient colors={["#135918", "#1a7a1f", "#2E6A2E"]} style={styles.buttonGradient}>
+                    <MaterialCommunityIcons name="gavel" size={20} color="#FFFCF3" />
+                    <Text style={styles.startButtonText}>Start Bidding!</Text>
+                    <MaterialCommunityIcons name="arrow-right" size={18} color="#a5eea8ff" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </Animated.View>
           </Animated.View>
-        </Animated.View>
-      </LinearGradient>
-    </View>
+        </LinearGradient>
+      </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "black",
+  },
   fullScreenContainer: {
     flex: 1,
     backgroundColor: "black",
@@ -259,18 +259,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     width: "100%",
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 20 : 60,
+    paddingTop: 20,
     paddingBottom: 40,
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : isMediumScreen ? 20 : 24,
   },
   logoContainer: {
     alignItems: "center",
     justifyContent: "center",
-    marginTop: height * 0.05,
+    marginTop: height * (isSmallScreen ? 0.03 : 0.05),
   },
   logo: {
-    width: width * 0.5,
-    height: width * 0.5,
+    width: isSmallScreen ? width * 0.4 : isMediumScreen ? width * 0.45 : width * 0.5,
+    height: isSmallScreen ? width * 0.4 : isMediumScreen ? width * 0.45 : width * 0.5,
   },
   contentArea: {
     alignItems: "center",
@@ -279,13 +279,13 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     width: "100%",
-    marginBottom: 40,
+    marginBottom: isSmallScreen ? 30 : 40,
   },
   welcomeText: {
-    fontSize: 28,
+    fontSize: isSmallScreen ? 22 : isMediumScreen ? 25 : 28,
     color: "#a5eea8ff",
     textAlign: "left",
-    marginLeft: 20,
+    marginLeft: isSmallScreen ? 16 : 20,
     marginBottom: 15,
     fontWeight: "bold",
     textShadowColor: "rgba(0, 0, 0, 0.7)",
@@ -293,12 +293,12 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   descriptionText: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 18 : isMediumScreen ? 21 : 24,
     color: "#FFFCF3",
     textAlign: "left",
-    lineHeight: 32,
+    lineHeight: isSmallScreen ? 26 : isMediumScreen ? 29 : 32,
     fontWeight: "400",
-    marginLeft: 20,
+    marginLeft: isSmallScreen ? 16 : 20,
     marginBottom: 15,
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 1, height: 1 },
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   autoText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: "#FFFCF3",
     textAlign: "center",
     fontStyle: "italic",
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   buttonContainer: {
-    width: "90%",
+    width: isSmallScreen ? "95%" : "90%",
   },
   startButton: {
     borderRadius: 12,
@@ -332,13 +332,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 18,
+    paddingVertical: isSmallScreen ? 16 : 18,
     paddingHorizontal: 20,
     gap: 8,
   },
   startButtonText: {
     color: "#FFFCF3",
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontWeight: "bold",
   },
-})  
+})

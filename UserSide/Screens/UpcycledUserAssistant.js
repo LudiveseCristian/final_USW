@@ -11,7 +11,8 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  Animated
+  Animated,
+  Image
 } from 'react-native';
 import {
   getFirestore,
@@ -492,7 +493,10 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
           onPress={() => setIsOpen(true)}
           style={styles.chatButton}
         >
-          <Icon name="chat" size={24} color="white" />
+           <Image
+           source={require("../assets/LogoBot.png")}
+          style={{ width: 80, height: 80,  }} 
+          />
           {(userStats.activeBids > 0 || userStats.pendingPayments > 0) && (
             <View style={styles.notificationBadge}>
               <Text style={styles.badgeText}>
@@ -519,11 +523,11 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
             <View style={styles.header}>
               <View style={styles.headerLeft}>
                 <View style={styles.avatarContainer}>
-                  <Icon name="shopping-bag" size={16} color="white" />
+                  <Icon name="assistant" size={16} color="white" />
                 </View>
                 <View>
-                  <Text style={styles.headerTitle}>Shopping Assistant</Text>
-                  <Text style={styles.headerSubtitle}>AI-Powered Style Guide</Text>
+                  <Text style={styles.headerTitle}>Upcycled Assistance</Text>
+                  <Text style={styles.headerSubtitle}>AI-Powered Guide for Sustainable Streetwear</Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -632,14 +636,11 @@ const styles = StyleSheet.create({
   chatButton: {
     width: 60,
     height: 60,
-    backgroundColor: '#135918',
+    backgroundColor: 'transparent',
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowColor: 'transparent',
     elevation: 5,
   },
   notificationBadge: {
@@ -675,7 +676,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#135918',
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingBottom: 15,
     paddingHorizontal: 20,
   },
