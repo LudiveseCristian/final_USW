@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAlert } from "../contexts/alertContext";
 import { X, CheckCircle, XCircle, Users } from 'lucide-react';
@@ -81,6 +82,10 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
     }
   };
 
+  const sortedAndSlicedBids = bids 
+    ? [...bids].sort((a, b) => b.amount - a.amount).slice(0, 3) 
+    : [];
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -139,13 +144,11 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
 
           {/* Bids List */}
           <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">All Bids</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Top 3 Bids</h3>
 
-            {bids && bids.length > 0 ? (
+            {sortedAndSlicedBids && sortedAndSlicedBids.length > 0 ? (
               <div className="space-y-3">
-                {bids
-                  .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-                  .map((bid, index) => (
+                {sortedAndSlicedBids.map((bid, index) => (
                     <div key={index} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
                       <div className="flex items-center space-x-4">
                         <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -198,7 +201,7 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
                         </div>
                       </div>
                     </div>
-                  ))}
+                ))}
               </div>
             ) : (
               <div className="text-center py-8">

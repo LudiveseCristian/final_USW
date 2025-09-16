@@ -9,6 +9,7 @@ import {
   Shirt,
   HeartCrack,
   Trash2,
+  X,
 } from 'lucide-react';
 import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { ref, listAll, deleteObject } from 'firebase/storage';
@@ -25,6 +26,10 @@ const SoldProducts = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const { showAlert } = useAlert();
 
+  // New state for confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productToDeleteId, setProductToDeleteId] = useState(null);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 4;
@@ -36,7 +41,7 @@ const SoldProducts = () => {
   const fetchSoldExpiredProducts = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'products'), where('status', 'in', ['sold', 'expired']));
+      const q = query(collection(db, 'products'), where('status', '==', 'sold'));
       const snapshot = await getDocs(q);
       const fetchedProducts = snapshot.docs.map((doc) => ({
         id: doc.id,
@@ -53,25 +58,40 @@ const SoldProducts = () => {
     }
   };
 
-  const handleDeleteProduct = async (productId) => {
+  const handleDeleteProduct = (productId) => {
+    setProductToDeleteId(productId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDeleteId) return;
+
     try {
       // 1. Delete product document from Firestore
-      await deleteDoc(doc(db, 'products', productId));
+      await deleteDoc(doc(db, 'products', productToDeleteId));
 
       // 2. Delete images from Firebase Storage
-      const imagesRef = ref(storage, `productImages/${productId}`);
+      const imagesRef = ref(storage, `productImages/${productToDeleteId}`);
       const imageList = await listAll(imagesRef);
       const deletePromises = imageList.items.map((imageRef) => deleteObject(imageRef));
       await Promise.all(deletePromises);
 
       // 3. Update the local state to remove the deleted product
-      setSoldExpiredProducts(soldExpiredProducts.filter((p) => p.id !== productId));
+      setSoldExpiredProducts(soldExpiredProducts.filter((p) => p.id !== productToDeleteId));
       
       showAlert('success', 'Product and its images deleted successfully!', 5000);
     } catch (error) {
       console.error('Error deleting product:', error);
       showAlert('error', 'Failed to delete product. Please try again.', 5000);
+    } finally {
+      setShowDeleteModal(false);
+      setProductToDeleteId(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setProductToDeleteId(null);
   };
 
   const filteredProducts = soldExpiredProducts.filter((product) => {
@@ -128,9 +148,9 @@ const SoldProducts = () => {
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Sold & Expired Products</h1>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">Sold Products</h1>
               <p className="text-lg text-gray-600">
-                View a history of all sold and expired upcycled streetwear items
+                View a history of all sold upcycled streetwear items
               </p>
               <div className="flex items-center space-x-6 mt-4">
                 <div className="flex items-center text-sm text-gray-500">
@@ -198,9 +218,18 @@ const SoldProducts = () => {
                     <h3 className="text-lg font-bold text-gray-900 line-clamp-2 flex-1 mr-2">
                       {product.name}
                     </h3>
-                    <span className="text-xl font-bold text-gray-900">
-                      {formatPrice(product.finalPrice || product.price)}
-                    </span>
+                    {/* ✅ UPDATED: Conditional display of prices based on product status */}
+                    <div className="flex flex-col items-end">
+                      {product.status === 'sold' && product.finalPrice && (
+                        <div className="text-sm text-gray-700">
+                          Sold for: <span className="font-bold">{formatPrice(product.finalPrice)}</span>
+                        </div>
+                      )}
+                      <div className="text-sm text-gray-500">
+                        Starting price: <span className="font-bold">{formatPrice(product.price)}</span>
+                      </div>
+                    </div>
+                    {/* ❌ END OF UPDATED SECTION */}
                   </div>
                   <p className="text-gray-600 text-sm line-clamp-2 mb-4">
                     {product.description}
@@ -222,17 +251,10 @@ const SoldProducts = () => {
                         <span className="ml-1">{product.condition}</span>
                       </div>
                       <div className="flex items-center text-gray-500">
-                        {product.status === 'sold' ? (
-                          <>
-                            <Clock className="h-4 w-4 mr-1" />
-                            Sold on {new Date(product.soldAt).toLocaleDateString()}
-                          </>
-                        ) : (
-                          <>
-                            <HeartCrack className="h-4 w-4 mr-1" />
-                            Expired on {new Date(product.bidEndTime).toLocaleDateString()}
-                          </>
-                        )}
+                        <>
+                          <Clock className="h-4 w-4 mr-1" />
+                          Sold on {new Date(product.soldAt).toLocaleDateString()}
+                        </>
                       </div>
                     </div>
                   </div>
@@ -258,7 +280,7 @@ const SoldProducts = () => {
           ) : (
             <div className="bg-white rounded-2xl shadow-sm p-12 text-center col-span-full">
               <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No sold or expired products found</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No sold products found</h3>
               <p className="text-gray-500">Try adjusting your search criteria.</p>
             </div>
           )}
@@ -304,6 +326,40 @@ const SoldProducts = () => {
             product={selectedProduct}
             formatPrice={formatPrice}
           />
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black bg-opacity-50">
+            <div className="relative w-full max-w-md p-6 mx-4 my-8 bg-white rounded-lg shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900">Confirm Deletion</h3>
+                <button
+                  onClick={cancelDelete}
+                  className="text-gray-400 transition-colors hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="mb-6 text-gray-600">
+                <p>Are you sure you want to delete this product? This action cannot be undone and will permanently remove the product and its images from the database.</p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={cancelDelete}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 transition-colors rounded-lg bg-gray-100 hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-red-500 hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

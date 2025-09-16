@@ -30,11 +30,10 @@ import HomeScreen from "./Screens/HomeScreen"
 import NewsScreen from "./Screens/NewsScreen"
 import BiddingScreen from "./Screens/BiddingScreen"
 import ProfileScreen from "./Screens/ProfileScreen"
-import CartScreen from "./Screens/CartScreen"
+import WinningBiddingScreen from "./Screens/WinbiddingScreen"
 import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant"
-import CheckoutScreen from "./Screens/CheckoutScreen"
 import NotificationScreen from "./Screens/NotificationScreen"
-import ChatScreen from "./Screens/TrackingOrder"
+import OrderTrackingScreen from "./Screens/OrderTrackingScreen"
 
 
 // Import your NavBarLayout
@@ -145,18 +144,11 @@ function MainAppStack() {
       <Stack.Screen name="Cart">
         {(props) => (
           <NavBarLayout>
-            <CartScreen {...props} />
+            <WinningBiddingScreen {...props} />
           </NavBarLayout>
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="Checkout">
-        {(props) => (
-          <NavBarLayout>
-            <CheckoutScreen {...props} />
-          </NavBarLayout>
-        )}
-      </Stack.Screen>
 
       <Stack.Screen name="Profile">
         {(props) => (
@@ -174,10 +166,10 @@ function MainAppStack() {
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="Chats">
+      <Stack.Screen name="OrderTracking">
         {(props) => (
           <NavBarLayout>
-            <ChatScreen {...props} />
+            <OrderTrackingScreen {...props} />
           </NavBarLayout>
         )}
       </Stack.Screen>

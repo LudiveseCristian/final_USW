@@ -165,8 +165,9 @@ const Dashboard = () => {
     }
   };
 
-  const formatPrice = (price) => {
-    return `₱${price.toLocaleString()}`;
+const formatPrice = (price) => {
+    if (price === null || price === undefined || isNaN(price)) return "₱0";
+    return `₱${Number(price).toLocaleString()}`;
   };
 
   // ✅ ADDED: Define the missing functions

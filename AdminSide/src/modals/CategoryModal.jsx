@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { X, Loader2, List } from 'lucide-react';
+import { X, Loader2, List, Trash2 } from 'lucide-react';
 
 // Import Toast components
 import { ToastContainer, toast } from 'react-toastify';
@@ -26,7 +27,11 @@ const CategoryModal = ({ showModal, setShowModal, fetchCategories }) => {
     setLoadingCategories(true);
     try {
       const querySnapshot = await getDocs(collection(db, 'categories'));
-      const categoriesList = querySnapshot.docs.map(doc => doc.data().name);
+      // ✅ FIX: Change to also return the document ID to allow for deletion
+      const categoriesList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name,
+      }));
       setExistingCategories(categoriesList);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -43,8 +48,19 @@ const CategoryModal = ({ showModal, setShowModal, fetchCategories }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!categoryName.trim()) {
+    const trimmedCategoryName = categoryName.trim();
+
+    if (!trimmedCategoryName) {
       setError('Category name cannot be empty.');
+      return;
+    }
+
+    // ✅ FIX: Check for duplication before adding
+    const isDuplicate = existingCategories.some(
+      (cat) => cat.name.toLowerCase() === trimmedCategoryName.toLowerCase()
+    );
+    if (isDuplicate) {
+      setError(`Category "${trimmedCategoryName}" already exists.`);
       return;
     }
 
@@ -53,10 +69,10 @@ const CategoryModal = ({ showModal, setShowModal, fetchCategories }) => {
 
     try {
       await addDoc(collection(db, 'categories'), {
-        name: categoryName,
+        name: trimmedCategoryName,
         createdAt: new Date(),
       });
-      
+
       // Replaced alert() with a success toast notification
       toast.success('Category added successfully!', {
         position: "top-right",
@@ -69,15 +85,40 @@ const CategoryModal = ({ showModal, setShowModal, fetchCategories }) => {
       });
 
       // Fetch the updated list of categories to display it
-      fetchExistingCategories(); 
-      
+      fetchExistingCategories();
+
       // Clear the input field for the next category
-      setCategoryName(''); 
+      setCategoryName('');
     } catch (err) {
       console.error('Error adding category:', err);
       setError('Failed to add category. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ NEW: Function to handle category removal
+  const handleRemoveCategory = async (categoryId, categoryName) => {
+    if (window.confirm(`Are you sure you want to delete the category "${categoryName}"? This cannot be undone.`)) {
+      setLoading(true);
+      try {
+        await deleteDoc(doc(db, 'categories', categoryId));
+        toast.info(`Category "${categoryName}" removed.`, {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+        });
+        fetchExistingCategories(); // Refresh the list
+      } catch (err) {
+        console.error('Error removing category:', err);
+        setError('Failed to remove category. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -100,7 +141,7 @@ const CategoryModal = ({ showModal, setShowModal, fetchCategories }) => {
           </button>
 
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Add New Category</h2>
-          
+
           {error && (
             <div className="bg-red-100 text-red-700 p-3 rounded-lg text-sm mb-4">
               {error}
@@ -121,7 +162,7 @@ const CategoryModal = ({ showModal, setShowModal, fetchCategories }) => {
                 disabled={loading}
               />
             </div>
-            
+
             <button
               type="submit"
               className="w-full bg-[#135918] hover:bg-[#0F4713] text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 transition-all duration-200"
@@ -149,13 +190,21 @@ const CategoryModal = ({ showModal, setShowModal, fetchCategories }) => {
               <p className="text-gray-500">Loading categories...</p>
             ) : existingCategories.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {existingCategories.map((cat, index) => (
-                  <span 
-                    key={index} 
-                    className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-1 rounded-full"
+                {existingCategories.map((cat) => (
+                  // ✅ MODIFIED: Added a remove button for each category
+                  <div
+                    key={cat.id}
+                    className="flex items-center bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-1 rounded-full border border-gray-200"
                   >
-                    {cat}
-                  </span>
+                    <span>{cat.name}</span>
+                    <button
+                      onClick={() => handleRemoveCategory(cat.id, cat.name)}
+                      className="ml-2 text-gray-500 hover:text-red-500 transition-colors"
+                      aria-label={`Remove category ${cat.name}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 ))}
               </div>
             ) : (

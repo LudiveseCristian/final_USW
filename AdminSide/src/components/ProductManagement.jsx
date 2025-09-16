@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import {
   Plus,
@@ -75,7 +76,6 @@ const ProductManagement = () => {
     orderId: '',
   });
 
-  // --- Effects ---
   useEffect(() => {
     // Implement real-time listener for products collection
     const productsCollection = collection(db, 'products');
@@ -227,11 +227,9 @@ const ProductManagement = () => {
         return;
       }
 
-      // FIX START: Set minimumBid to price if status is 'available'
       if (formData.status === 'available') {
           formData.minimumBid = formData.price;
       }
-      // FIX END
 
       if (formData.biddingEnabled) {
         if (
@@ -550,7 +548,6 @@ const ProductManagement = () => {
       });
   };
   
-  // FIX: Use `products` directly instead of the undefined `soldExpiredProducts`
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -563,10 +560,9 @@ const ProductManagement = () => {
       filterStatus === 'all' || product.status === filterStatus;
       
     // New condition to filter out sold and expired products
-    const isNotSoldOrExpired = product.status !== 'sold' && product.status !== 'expired';
-    
+    const isNotSold = product.status !== 'sold';
     // Combine all filters
-    return matchesSearch && matchesStatus && isNotSoldOrExpired;
+    return matchesSearch && matchesStatus && isNotSold;
   });
 
   const formatPrice = (price) => {
@@ -735,6 +731,8 @@ const ProductManagement = () => {
                   <option value="all">All Status</option>
                   <option value="available">Available</option>
                   <option value="upcoming">Upcoming</option>
+                  <option value="expired">Expired</option>
+
                 </select>
               </div>
             </div>
@@ -796,8 +794,8 @@ const ProductManagement = () => {
                         {product.name}
                       </h3>
                       <span className="text-xl font-bold text-[#135918]">
-                        {product.biddingEnabled && product.currentBid
-                          ? formatPrice(product.currentBid)
+                        {product.biddingEnabled && product.minimumBid
+                          ? formatPrice(product.minimumBid)
                           : formatPrice(product.price)}
                       </span>
                     </div>
@@ -809,8 +807,8 @@ const ProductManagement = () => {
                     {product.biddingEnabled && (
                       <div className="mb-4 p-3 bg-orange-50 rounded-lg">
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-600">Minimum Bid:</span>
-                          <span className="font-semibold">{formatPrice(product.minimumBid)}</span>
+                          <span className="text-gray-600">Highest Bid:</span>
+                          <span className="font-semibold">{formatPrice(product.currentBid)}</span>
                         </div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-gray-600">Bids:</span>

@@ -1,10 +1,8 @@
-// src/modals/SoldProductDetailModal.jsx
 import {
   X,
   Tag,
   Shirt,
   Star,
-  DollarSign,
   Clock,
   Calendar,
   Image as ImageIcon,
@@ -80,9 +78,16 @@ const SoldProductDetailModal = ({ showModal, setShowModal, product, formatPrice 
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h4 className="text-2xl font-bold text-gray-900">{product.name}</h4>
-              <span className="text-3xl font-extrabold text-[#135918]">
-                {formatPrice(product.finalPrice || product.price)}
-              </span>
+              <div className="flex flex-col items-end">
+                {product.status === 'sold' && (
+                  <div className="text-xl font-bold text-gray-900">
+                    Sold for: <span className="font-extrabold text-[#135918]">{formatPrice(product.finalPrice)}</span>
+                  </div>
+                )}
+                <div className="text-sm text-gray-500 mt-1">
+                  Starting price: <span className="font-bold">{formatPrice(product.price)}</span>
+                </div>
+              </div>
             </div>
 
             <p className="text-gray-600 leading-relaxed">{product.description}</p>
@@ -120,7 +125,6 @@ const SoldProductDetailModal = ({ showModal, setShowModal, product, formatPrice 
                       className={`flex justify-between items-center py-2 ${index < sortedBids.length - 1 ? 'border-b border-gray-200' : ''}`}
                     >
                       <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 mr-2 text-gray-400" />
                         <span className="font-semibold text-gray-700">{formatPrice(bid.amount)}</span>
                       </div>
                       <div className="text-right text-sm text-gray-500">

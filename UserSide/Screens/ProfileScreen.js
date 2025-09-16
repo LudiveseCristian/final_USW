@@ -304,7 +304,7 @@ const stats = [
       title: "Help & Support Chat",
       subtitle: "Get help and contact support",
       icon: "help-circle",
-      onPress: () => navigation.navigate("Chats"),
+      onPress: () => navigation.navigate("OrderTracking"),
     },
     {
       title: "Logout",

@@ -13,7 +13,7 @@ const tabs = [
   { name: "Home", icon: "home", route: "Home" },
   { name: "Drops", icon: "tag", route: "News" },
   { name: "Bidding", icon: "tshirt-crew", route: "Bidding" },
-  { name: "Cart", icon: "cart", route: "Cart" },
+  { name: "Won", icon: "party-popper", route: "Cart" },
   { name: "Profile", icon: "account", route: "Profile" },
 ]
 
@@ -63,7 +63,7 @@ function NavBarLayout({ children }) {
         <View style={styles.bottomNav}>
           {tabs.map((tab) => {
             const isActive = route.name === tab.route
-            const showBadge = tab.name === "Cart" && cartCount > 0
+            const showBadge = tab.name === "Won" && cartCount > 0
 
             return (
               <TouchableOpacity
