@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
 } from "react-native"
 import Feather from "react-native-vector-icons/Feather"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
@@ -19,6 +20,9 @@ import Text_SignUp from "../assets/images/SignUp/Text-SignUp.png"
 import { createUserWithEmailAndPassword } from "firebase/auth"
 import { doc, setDoc } from "firebase/firestore"
 import { auth, db } from "../firebase/firebase"
+import TermsModal from "../hooks/Modal/TermsModal"
+import { SafeAreaView } from "react-native-safe-area-context"
+import LoadingScreen from "../hooks/LoadingScreen"; 
 
 const { width } = Dimensions.get("window")
 
@@ -34,6 +38,8 @@ export default function SignUpScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isTermsModalVisible, setIsTermsModalVisible] = useState(false);
 
   // State for input focus
   const [isEmailFocused, setIsEmailFocused] = useState(false)
@@ -45,7 +51,12 @@ export default function SignUpScreen({ navigation }) {
   const [isPasswordFocused, setIsPasswordFocused] = useState(false)
   const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] = useState(false)
 
+
   const { registerUser } = useAuth()
+
+  if (isLoading ) {
+      return <LoadingScreen message="Loading bids..." />
+    }
 
   // Helper function to capitalize first letter of each word
   const capitalizeWords = (text) => {
@@ -156,8 +167,8 @@ export default function SignUpScreen({ navigation }) {
   const handleSignUp = useCallback(async () => {
     console.log("Sign Up pressed with:", { email, firstName, middleName, lastName, phone, address, password, confirmPassword })
 
-    if (!email || !firstName || !lastName || !phone || !address || !password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all required fields marked with *")
+    if (!email || !firstName || !lastName || !phone || !address || !password || !confirmPassword ) {
+      Alert.alert("Error", "Please fill in all required fields marked with * and agree to the Terms and Conditions")
       return
     }
 
@@ -476,12 +487,35 @@ export default function SignUpScreen({ navigation }) {
             )}
           </View>
 
+          {/* Terms and Conditions Agreement */}
+          <SafeAreaView>
+          <View style={styles.termsContainer}>
+            <TouchableOpacity
+              style={styles.checkbox}
+              onPress={() => setAgreedToTerms(!agreedToTerms)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name={agreedToTerms ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                size={24}
+                color={agreedToTerms ? '#2E6A2E' : '#888'}
+              />
+            </TouchableOpacity>
+            <View style={styles.termsTextContainer}>
+              <Text style={styles.termsText}>I have read and agree to the </Text>
+              <TouchableOpacity onPress={() => setIsTermsModalVisible(true)}>
+                <Text style={styles.termsLink}>Terms and Conditions</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          </SafeAreaView>
+
           {/* Sign Up Button */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.signUpButton, isLoading && styles.signUpButtonLoading]}
+              style={[styles.signUpButton, (isLoading || !agreedToTerms) && styles.signUpButtonDisabled]}
               onPress={handleSignUp}
-              disabled={isLoading}
+              disabled={isLoading || !agreedToTerms}
               activeOpacity={0.8}
             >
               {isLoading ? (
@@ -507,6 +541,12 @@ export default function SignUpScreen({ navigation }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+        <TermsModal
+        visible={isTermsModalVisible}
+        onClose={() => setIsTermsModalVisible(false)}
+      />
+
     </View>
   )
 }
@@ -671,8 +711,8 @@ const styles = StyleSheet.create({
     elevation: 6,
     gap: 8,
   },
-  signUpButtonLoading: {
-    backgroundColor: "#666",
+  signUpButtonDisabled: {
+    backgroundColor: "#B0B0B0",
   },
   loadingContainer: {
     flexDirection: "row",
@@ -698,5 +738,31 @@ const styles = StyleSheet.create({
     color: "#2E6A2E",
     fontWeight: "bold",
     textDecorationLine: "underline",
+  },
+   termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
+    marginTop: -5,
+  },
+  checkbox: {
+    padding: 5,
+    marginRight: 8,
+  },
+  termsTextContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  termsText: {
+    fontSize: 14,
+    color: '#4A4A4A',
+  },
+  termsLink: {
+    fontSize: 14,
+    color: '#2E6A2E',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
   },
 })

@@ -2,7 +2,7 @@
 import "react-native-gesture-handler" // Must be at the top
 import React from "react"
 import { NavigationContainer } from "@react-navigation/native"
-import { createStackNavigator } from "@react-navigation/stack"
+import { createStackNavigator,  } from "@react-navigation/stack"
 
 import { AuthProvider, useAuth } from "./AuthContext"
 import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native"

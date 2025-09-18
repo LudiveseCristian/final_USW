@@ -1,506 +1,556 @@
-"use client"
-
 import { useState, useEffect } from "react"
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  SafeAreaView,
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  Image, 
+  Modal, 
   Dimensions,
-  Platform,
-  ActivityIndicator,
-  Alert,
-  Modal,
   TextInput,
+  RefreshControl
 } from "react-native"
-import { Feather } from "@expo/vector-icons"
-import { useAuth } from "../AuthContext"
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, addDoc } from "firebase/firestore"
+import Icon from "react-native-vector-icons/MaterialIcons"
+import { collection, onSnapshot } from "firebase/firestore"
 import { db } from "../firebase/firebase"
+import { useAuth } from "../AuthContext"
 import LoadingScreen from "../hooks/LoadingScreen"
-
-const { width, height } = Dimensions.get("window")
+import { SafeAreaView } from "react-native-safe-area-context"
 
 export default function OrderTrackingScreen({ navigation }) {
   const { currentUser } = useAuth()
   const [orders, setOrders] = useState([])
+  const [filteredOrders, setFilteredOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [activeTab, setActiveTab] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
+
+  // Modal states
+  const [imageModalVisible, setImageModalVisible] = useState(false)
+  const [selectedImages, setSelectedImages] = useState([])
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [orderDetailModal, setOrderDetailModal] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
-  const [detailsModalVisible, setDetailsModalVisible] = useState(false)
-  const [reviewModalVisible, setReviewModalVisible] = useState(false)
-  const [reviewData, setReviewData] = useState({
-    rating: 0,
-    comment: "",
-    orderId: null,
+
+  // Statistics
+  const [stats, setStats] = useState({
+    all: 0,
+    pending: 0,
+    shipped: 0,
+    delivered: 0,
+    rated: 0
   })
-  const [submittingReview, setSubmittingReview] = useState(false)
 
   useEffect(() => {
     if (!currentUser?.uid) return
 
-    const ordersQuery = query(
-      collection(db, "orders"),
-      where("customerId", "==", currentUser.uid),
-    )
+    const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
+      const userOrders = []
 
-    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
-      const ordersList = []
-      snapshot.docs.forEach((doc) => {
-        ordersList.push({
-          id: doc.id,
-          ...doc.data(),
-        })
+      snapshot.docs.forEach((d) => {
+        const data = d.data()
+        
+        // Check if current user won this auction
+        const userBid = data.bids?.find((bid) => bid.bidderId === currentUser.uid)
+        
+        if (
+          (userBid && data.status === "sold" && data.highestBidder === userBid.bidderName) ||
+          data.winnerBidderId === currentUser.uid
+        ) {
+          userOrders.push({
+            id: d.id,
+            title: data.name,
+            category: data.category || "Uncategorized",
+            winningBid: userBid?.amount || 0,
+            orderStatus: data.orderStatus || 'pending',
+            orderDate: data.orderDate || new Date().toISOString(),
+            shippingDate: data.shippingDate || null,
+            deliveryDate: data.deliveryDate || null,
+            ratedAt: data.ratedAt || null,
+            trackingNumber: data.trackingNumber || '',
+            userRating: data.userRating || null,
+            userReview: data.userReview || '',
+            images: data.imageUrls || [],
+            description: data.description || "No description available",
+            length: data.length || "N/A",
+            width: data.width || "N/A",
+            raw: data,
+          })
+        }
       })
-        ordersList.sort((a, b) => {
-        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt)
-        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt)
-        return dateB - dateA // Descending order
-      })
-      setOrders(ordersList)
+
+      // Sort by order date (newest first)
+      userOrders.sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
+      
+      setOrders(userOrders)
+      
+      // Calculate statistics
+      const newStats = {
+        all: userOrders.length,
+        pending: userOrders.filter(o => o.orderStatus === 'pending').length,
+        shipped: userOrders.filter(o => o.orderStatus === 'shipped').length,
+        delivered: userOrders.filter(o => o.orderStatus === 'delivered').length,
+        rated: userOrders.filter(o => o.orderStatus === 'rated').length
+      }
+      setStats(newStats)
+      
       setLoading(false)
+      setRefreshing(false)
     })
 
     return () => unsubscribe()
   }, [currentUser?.uid])
 
-  const getOrderStatus = (status) => {
-    const statusMap = {
-      pending: {
-        label: "Order Pending",
-        icon: "clock",
-        color: "#FFA500",
-        bgColor: "#FFF8DC",
-        description: "Your order is being reviewed"
-      },
-      confirmed: {
-        label: "Order Confirmed",
-        icon: "check-circle",
-        color: "#4CAF50",
-        bgColor: "#F0F8F0",
-        description: "Your order has been confirmed"
-      },
-      preparing: {
-        label: "Preparing Order",
-        icon: "package",
-        color: "#2196F3",
-        bgColor: "#E3F2FD",
-        description: "Your order is being prepared"
-      },
-      grab: {
-        label: "Ready for Pickup",
-        icon: "truck",
-        color: "#FF9800",
-        bgColor: "#FFF3E0",
-        description: "Your order is ready for pickup"
-      },
-      shipping: {
-        label: "Out for Delivery",
-        icon: "navigation",
-        color: "#9C27B0",
-        bgColor: "#F3E5F5",
-        description: "Your order is on the way"
-      },
-      delivered: {
-        label: "Delivered",
-        icon: "check",
-        color: "#4CAF50",
-        bgColor: "#E8F5E8",
-        description: "Order delivered successfully"
-      },
-      completed: {
-        label: "Completed",
-        icon: "star",
-        color: "#4CAF50",
-        bgColor: "#E8F5E8",
-        description: "Order completed"
-      },
-      cancelled: {
-        label: "Cancelled",
-        icon: "x-circle",
-        color: "#F44336",
-        bgColor: "#FFEBEE",
-        description: "Order has been cancelled"
-      },
-      declined: {
-        label: "Declined",
-        icon: "x-circle",
-        color: "#F44336",
-        bgColor: "#FFEBEE",
-        description: "Order has been declined"
-      }
+  useEffect(() => {
+    let filtered = orders
+
+    // Filter by tab
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(order => order.orderStatus === activeTab)
     }
-    return statusMap[status] || statusMap.pending
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(order =>
+        order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    setFilteredOrders(filtered)
+  }, [orders, activeTab, searchTerm])
+
+  const onRefresh = () => {
+    setRefreshing(true)
   }
 
-  const getStatusProgress = (status) => {
-    const statusOrder = ["pending", "confirmed", "preparing", "grab", "shipping", "delivered"]
-    const currentIndex = statusOrder.indexOf(status)
-    return currentIndex >= 0 ? ((currentIndex + 1) / statusOrder.length) * 100 : 0
+  const openImageViewer = (images, index = 0) => {
+    if (images && images.length > 0) {
+      setSelectedImages(images)
+      setCurrentImageIndex(index)
+      setImageModalVisible(true)
+    }
   }
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return "N/A"
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
+  const openOrderDetail = (order) => {
+    setSelectedOrder(order)
+    setOrderDetailModal(true)
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A"
+    const date = new Date(dateString)
     return date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      hour: '2-digit',
+      minute: '2-digit'
     })
   }
 
-  const handleOrderDetails = (order) => {
-    setSelectedOrder(order)
-    setDetailsModalVisible(true)
-  }
-
-  const handleWriteReview = (order) => {
-    setReviewData({
-      rating: 0,
-      comment: "",
-      orderId: order.id,
-    })
-    setReviewModalVisible(true)
-  }
-
-  const submitReview = async () => {
-    if (reviewData.rating === 0) {
-      Alert.alert("Rating Required", "Please select a rating before submitting.")
-      return
-    }
-
-    setSubmittingReview(true)
-    try {
-      // Add review to reviews collection
-      await addDoc(collection(db, "reviews"), {
-        orderId: reviewData.orderId,
-        customerId: currentUser.uid,
-        customerName: currentUser.name || "Anonymous",
-        rating: reviewData.rating,
-        comment: reviewData.comment,
-        createdAt: new Date(),
-      })
-
-      // Update order status to completed with review
-      const orderRef = doc(db, "orders", reviewData.orderId)
-      await updateDoc(orderRef, {
-        status: "completed",
-        reviewSubmitted: true,
-        lastUpdated: new Date(),
-      })
-
-      Alert.alert("Review Submitted", "Thank you for your feedback!")
-      setReviewModalVisible(false)
-      setReviewData({ rating: 0, comment: "", orderId: null })
-    } catch (error) {
-      console.error("Error submitting review:", error)
-      Alert.alert("Error", "Failed to submit review. Please try again.")
-    } finally {
-      setSubmittingReview(false)
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending':
+        return "#FFA726"
+      case 'shipped':
+        return "#42A5F5"
+      case 'delivered':
+        return "#66BB6A"
+      case 'rated':
+        return "#AB47BC"
+      default:
+        return "#9E9E9E"
     }
   }
 
-  const renderStarRating = (rating, onPress = null) => {
-    return (
-      <View style={styles.starContainer}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <TouchableOpacity
-            key={star}
-            onPress={() => onPress && onPress(star)}
-            disabled={!onPress}
-          >
-            <Feather
-              name="star"
-              size={24}
-              color={star <= rating ? "#FFD700" : "#E0E0E0"}
-              style={star <= rating ? styles.filledStar : styles.emptyStar}
-            />
-          </TouchableOpacity>
-        ))}
-      </View>
-    )
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'pending':
+        return "schedule"
+      case 'shipped':
+        return "local-shipping"
+      case 'delivered':
+        return "inventory"
+      case 'rated':
+        return "star"
+      default:
+        return "schedule"
+    }
   }
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'pending':
+        return "Order Placed"
+      case 'shipped':
+        return "In Transit"
+      case 'delivered':
+        return "Delivered"
+      case 'rated':
+        return "Completed"
+      default:
+        return "Unknown"
+    }
+  }
+
+  const tabs = [
+    { id: 'all', label: 'All', count: stats.all, icon: 'list' },
+    { id: 'pending', label: 'Pending', count: stats.pending, icon: 'schedule' },
+    { id: 'shipped', label: 'Shipped', count: stats.shipped, icon: 'local-shipping' },
+    { id: 'delivered', label: 'Delivered', count: stats.delivered, icon: 'inventory' },
+    { id: 'rated', label: 'Completed', count: stats.rated, icon: 'star' }
+  ]
 
   if (loading) {
-    return <LoadingScreen message="Loading your orders..." />
+    return <LoadingScreen message="Loading your order tracking..." />
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Feather name="arrow-left" size={24} color="white" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>My Orders</Text>
-          <Text style={styles.headerDescription}>
-            Track your order status and history
-          </Text>
-        </View>
-      </View>
+  const PesoSymbol = ({ size = 16, color = "#2E6A2E" }) => (
+    <Text style={{ fontSize: size, color, fontWeight: "bold" }}>₱</Text>
+  )
 
-      {orders.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconContainer}>
-            <Feather name="package" size={80} color="#E0E0E0" />
-          </View>
-          <Text style={styles.emptyTitle}>No Orders Yet</Text>
-          <Text style={styles.emptyMessage}>
-            Your order history will appear here once you make your first purchase.
+  const PesoAmount = ({ amount, style }) => (
+    <View style={styles.pesoAmountContainer}>
+      <PesoSymbol size={style?.fontSize || 16} color={style?.color || "#2E6A2E"} />
+      <Text style={[style, { marginLeft: 2 }]}>{amount.toLocaleString()}</Text>
+    </View>
+  )
+
+  const renderImageViewer = () => (
+    <Modal
+      visible={imageModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setImageModalVisible(false)}
+    >
+      <View style={styles.imageModalContainer}>
+        <View style={styles.imageModalHeader}>
+          <Text style={styles.imageCounter}>
+            {currentImageIndex + 1} of {selectedImages.length}
           </Text>
-          <TouchableOpacity style={styles.shopButton} onPress={() => navigation.navigate("Home")}>
-            <Feather name="shopping-bag" size={20} color="white" />
-            <Text style={styles.shopButtonText}>Start Shopping</Text>
+          <TouchableOpacity style={styles.closeButton} onPress={() => setImageModalVisible(false)}>
+            <Icon name="close" size={24} color="white" />
           </TouchableOpacity>
         </View>
-      ) : (
-        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          {orders.map((order) => {
-            const statusInfo = getOrderStatus(order.status)
-            const progress = getStatusProgress(order.status)
-            const canReview = order.status === "delivered" && !order.reviewSubmitted
 
-            return (
-              <View key={order.id} style={styles.orderCard}>
-                {/* Order Header */}
-                <View style={styles.orderHeader}>
-                  <View style={styles.orderHeaderLeft}>
-                    <Text style={styles.orderId}>#{order.id.slice(-8)}</Text>
-                    <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: statusInfo.bgColor }]}>
-                    <Feather name={statusInfo.icon} size={14} color={statusInfo.color} />
-                    <Text style={[styles.statusText, { color: statusInfo.color }]}>
-                      {statusInfo.label}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Progress Bar */}
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${progress}%`, backgroundColor: statusInfo.color },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.progressText}>{statusInfo.description}</Text>
-                </View>
-
-                {/* Order Items Preview */}
-                <View style={styles.itemsPreview}>
-                  {order.items && order.items.length > 0 ? (
-                    <View style={styles.itemsList}>
-                      {order.items.slice(0, 2).map((item, idx) => (
-                        <View key={idx} style={styles.itemPreview}>
-                          <Image source={{ uri: item.image }} style={styles.itemImage} />
-                          <View style={styles.itemDetails}>
-                            <Text style={styles.itemTitle} numberOfLines={1}>
-                              {item.title}
-                            </Text>
-                            <Text style={styles.itemPrice}>₱{item.price?.toLocaleString()}</Text>
-                          </View>
-                        </View>
-                      ))}
-                      {order.items.length > 2 && (
-                        <Text style={styles.moreItems}>+{order.items.length - 2} more items</Text>
-                      )}
-                    </View>
-                  ) : (
-                    <Text style={styles.noItems}>No items information available</Text>
-                  )}
-                </View>
-
-                {/* Order Total */}
-                <View style={styles.orderTotal}>
-                  <Text style={styles.totalLabel}>Total Amount:</Text>
-                  <Text style={styles.totalAmount}>₱{order.totalAmount?.toLocaleString()}</Text>
-                </View>
-
-                {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    style={styles.detailsButton}
-                    onPress={() => handleOrderDetails(order)}
-                  >
-                    <Feather name="eye" size={16} color="#2E6A2E" />
-                    <Text style={styles.detailsButtonText}>View Details</Text>
-                  </TouchableOpacity>
-
-                  {canReview && (
-                    <TouchableOpacity
-                      style={styles.reviewButton}
-                      onPress={() => handleWriteReview(order)}
-                    >
-                      <Feather name="star" size={16} color="white" />
-                      <Text style={styles.reviewButtonText}>Write Review</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {order.status === "cancelled" || order.status === "declined" ? (
-                    <TouchableOpacity style={styles.reorderButton} onPress={() => navigation.navigate("Home")}>
-                      <Feather name="refresh-cw" size={16} color="white" />
-                      <Text style={styles.reorderButtonText}>Shop Again</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              </View>
-            )
-          })}
-          <View style={styles.bottomPadding} />
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(event) => {
+            const { width } = Dimensions.get("window")
+            const index = Math.round(event.nativeEvent.contentOffset.x / width)
+            setCurrentImageIndex(index)
+          }}
+          style={styles.imageScrollView}
+        >
+          {selectedImages.map((imageUrl, index) => (
+            <View key={index} style={styles.imageSlideContainer}>
+              <Image source={{ uri: imageUrl }} style={styles.fullScreenImage} resizeMode="contain" />
+            </View>
+          ))}
         </ScrollView>
-      )}
 
-      {/* Order Details Modal */}
-      <Modal
-        visible={detailsModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setDetailsModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Order Details</Text>
-                <TouchableOpacity onPress={() => setDetailsModalVisible(false)}>
-                  <Feather name="x" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
+        {selectedImages.length > 1 && (
+          <View style={styles.imageDots}>
+            {selectedImages.map((_, index) => (
+              <View key={index} style={[styles.dot, currentImageIndex === index && styles.activeDot]} />
+            ))}
+          </View>
+        )}
+      </View>
+    </Modal>
+  )
 
-              {selectedOrder && (
-                <View style={styles.modalContent}>
-                  <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Order Information</Text>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Order ID:</Text>
-                      <Text style={styles.detailValue}>#{selectedOrder.id.slice(-8)}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Date:</Text>
-                      <Text style={styles.detailValue}>{formatDate(selectedOrder.createdAt)}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Status:</Text>
-                      <Text style={[styles.detailValue, { color: getOrderStatus(selectedOrder.status).color }]}>
-                        {getOrderStatus(selectedOrder.status).label}
-                      </Text>
-                    </View>
+  const renderOrderDetailModal = () => (
+    <Modal
+      visible={orderDetailModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setOrderDetailModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.orderDetailContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Order Details</Text>
+            <TouchableOpacity onPress={() => setOrderDetailModal(false)}>
+              <Icon name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {selectedOrder && (
+              <>
+                {/* Product Images */}
+                {selectedOrder.images.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.sectionTitle}>Product Images</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRow}>
+                      {selectedOrder.images.map((image, index) => (
+                        <TouchableOpacity key={index} onPress={() => openImageViewer(selectedOrder.images, index)}>
+                          <Image source={{ uri: image }} style={styles.modalThumbnail} />
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
                   </View>
+                )}
 
-                  <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Delivery Address</Text>
-                    <Text style={styles.addressText}>{selectedOrder.customerAddress}</Text>
-                    <Text style={styles.contactText}>Phone: {selectedOrder.customerPhone}</Text>
+                {/* Product Details */}
+                <View style={styles.modalSection}>
+                  <Text style={styles.sectionTitle}>Product Details</Text>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Title:</Text>
+                    <Text style={styles.detailValue}>{selectedOrder.title}</Text>
                   </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Category:</Text>
+                    <Text style={styles.detailValue}>{selectedOrder.category}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Description:</Text>
+                    <Text style={styles.detailValue}>{selectedOrder.description}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Dimensions:</Text>
+                    <Text style={styles.detailValue}>{selectedOrder.length}″ x {selectedOrder.width}″</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Winning Bid:</Text>
+                    <PesoAmount amount={selectedOrder.winningBid} style={styles.detailValue} />
+                  </View>
+                </View>
 
-                  <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Items Ordered</Text>
-                    {selectedOrder.items?.map((item, idx) => (
-                      <View key={idx} style={styles.modalItemCard}>
-                        <Image source={{ uri: item.image }} style={styles.modalItemImage} />
-                        <View style={styles.modalItemDetails}>
-                          <Text style={styles.modalItemTitle}>{item.title}</Text>
-                          <Text style={styles.modalItemCategory}>{item.category}</Text>
-                          <Text style={styles.modalItemPrice}>₱{item.price?.toLocaleString()}</Text>
+                {/* Order Timeline */}
+                <View style={styles.modalSection}>
+                  <Text style={styles.sectionTitle}>Order Timeline</Text>
+                  <View style={styles.timelineContainer}>
+                    <View style={[styles.timelineItem, { opacity: 1 }]}>
+                      <View style={[styles.timelineIcon, { backgroundColor: getStatusColor('pending') }]}>
+                        <Icon name="schedule" size={16} color="white" />
+                      </View>
+                      <View style={styles.timelineContent}>
+                        <Text style={styles.timelineTitle}>Order Placed</Text>
+                        <Text style={styles.timelineDate}>{formatDate(selectedOrder.orderDate)}</Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.timelineItem, { opacity: selectedOrder.shippingDate ? 1 : 0.3 }]}>
+                      <View style={[styles.timelineIcon, { backgroundColor: getStatusColor('shipped') }]}>
+                        <Icon name="local-shipping" size={16} color="white" />
+                      </View>
+                      <View style={styles.timelineContent}>
+                        <Text style={styles.timelineTitle}>Shipped</Text>
+                        <Text style={styles.timelineDate}>
+                          {selectedOrder.shippingDate ? formatDate(selectedOrder.shippingDate) : 'Pending'}
+                        </Text>
+                        {selectedOrder.trackingNumber && (
+                          <Text style={styles.trackingText}>Tracking: {selectedOrder.trackingNumber}</Text>
+                        )}
+                      </View>
+                    </View>
+
+                    <View style={[styles.timelineItem, { opacity: selectedOrder.deliveryDate ? 1 : 0.3 }]}>
+                      <View style={[styles.timelineIcon, { backgroundColor: getStatusColor('delivered') }]}>
+                        <Icon name="inventory" size={16} color="white" />
+                      </View>
+                      <View style={styles.timelineContent}>
+                        <Text style={styles.timelineTitle}>Delivered</Text>
+                        <Text style={styles.timelineDate}>
+                          {selectedOrder.deliveryDate ? formatDate(selectedOrder.deliveryDate) : 'Pending'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {selectedOrder.userRating && (
+                      <View style={[styles.timelineItem, { opacity: 1 }]}>
+                        <View style={[styles.timelineIcon, { backgroundColor: getStatusColor('rated') }]}>
+                          <Icon name="star" size={16} color="white" />
+                        </View>
+                        <View style={styles.timelineContent}>
+                          <Text style={styles.timelineTitle}>Rated & Reviewed</Text>
+                          <Text style={styles.timelineDate}>
+                            {selectedOrder.ratedAt ? formatDate(selectedOrder.ratedAt) : formatDate(selectedOrder.deliveryDate)}
+                          </Text>
+                          <View style={styles.ratingContainer}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Icon
+                                key={star}
+                                name={star <= selectedOrder.userRating ? "star" : "star-border"}
+                                size={16}
+                                color="#FFD700"
+                                style={styles.starIcon}
+                              />
+                            ))}
+                          </View>
+                          {selectedOrder.userReview && (
+                            <Text style={styles.reviewText}>"{selectedOrder.userReview}"</Text>
+                          )}
                         </View>
                       </View>
-                    ))}
+                    )}
+                  </View>
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  )
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFCF3" }}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTitleContainer}>
+            <Icon name="track-changes" size={32} color="white" />
+            <Text style={styles.headerTitle}>Order Tracking</Text>
+          </View>
+          <Text style={styles.headerSubtitle}>Track your winning auction orders</Text>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputContainer}>
+            <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by title, order ID, or tracking number..."
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+              placeholderTextColor="#999"
+            />
+            {searchTerm !== '' && (
+              <TouchableOpacity onPress={() => setSearchTerm('')} style={styles.clearButton}>
+                <Icon name="clear" size={20} color="#666" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Tabs */}
+        <View style={styles.tabContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScrollContent}>
+            {tabs.map((tab) => (
+              <TouchableOpacity
+                key={tab.id}
+                style={[styles.tab, activeTab === tab.id && styles.activeTab]}
+                onPress={() => setActiveTab(tab.id)}
+              >
+                <Icon 
+                  name={tab.icon} 
+                  size={20} 
+                  color={activeTab === tab.id ? "white" : "#2E6A2E"} 
+                />
+                <Text style={[styles.tabText, activeTab === tab.id && styles.activeTabText]}>
+                  {tab.label}
+                </Text>
+                {tab.count > 0 && (
+                  <View style={[styles.badge, activeTab === tab.id && styles.activeBadge]}>
+                    <Text style={[styles.badgeText, activeTab === tab.id && styles.activeBadgeText]}>
+                      {tab.count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Orders List */}
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2E6A2E" />
+          }
+        >
+          {filteredOrders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="inbox" size={64} color="#ccc" />
+              <Text style={styles.emptyStateTitle}>
+                {searchTerm ? 'No matching orders' : `No ${activeTab === 'all' ? '' : activeTab + ' '}orders found`}
+              </Text>
+              <Text style={styles.emptyStateText}>
+                {searchTerm 
+                  ? 'Try adjusting your search terms.' 
+                  : 'Your orders will appear here when you win auctions.'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.ordersContainer}>
+              {filteredOrders.map((order, index) => (
+                <View key={order.id} style={[styles.orderCard, index % 2 === 0 && styles.evenCard]}>
+                  <View style={styles.orderHeader}>
+                    <View style={styles.orderStatus}>
+                      <Icon 
+                        name={getStatusIcon(order.orderStatus)} 
+                        size={20} 
+                        color={getStatusColor(order.orderStatus)} 
+                      />
+                      <Text style={[styles.statusText, { color: getStatusColor(order.orderStatus) }]}>
+                        {getStatusText(order.orderStatus)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => openOrderDetail(order)} style={styles.detailButton}>
+                      <Icon name="info-outline" size={20} color="#666" />
+                    </TouchableOpacity>
                   </View>
 
-                  <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Payment Summary</Text>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Subtotal:</Text>
-                      <Text style={styles.detailValue}>₱{selectedOrder.subtotal?.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Shipping:</Text>
-                      <Text style={styles.detailValue}>₱{selectedOrder.shippingFee?.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Service Fee:</Text>
-                      <Text style={styles.detailValue}>₱{selectedOrder.serviceFee?.toLocaleString()}</Text>
-                    </View>
-                    <View style={[styles.detailRow, styles.totalRow]}>
-                      <Text style={styles.totalLabel}>Total:</Text>
-                      <Text style={styles.totalValue}>₱{selectedOrder.totalAmount?.toLocaleString()}</Text>
+                  <View style={styles.orderContent}>
+                    <TouchableOpacity onPress={() => openImageViewer(order.images, 0)} activeOpacity={0.8}>
+                      <Image 
+                        source={{ uri: order.images[0] || 'https://via.placeholder.com/80x80/CCCCCC/FFFFFF?text=No+Image' }} 
+                        style={styles.orderImage} 
+                      />
+                      {order.images.length > 1 && (
+                        <View style={styles.imageCount}>
+                          <Text style={styles.imageCountText}>{order.images.length}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    <View style={styles.orderInfo}>
+                      <Text style={styles.orderTitle} numberOfLines={2}>{order.title}</Text>
+                      <Text style={styles.orderCategory}>{order.category}</Text>
+                      <PesoAmount amount={order.winningBid} style={styles.orderPrice} />
+                      
+                      <View style={styles.orderMeta}>
+                        <View style={styles.metaRow}>
+                          <Icon name="event" size={14} color="#666" />
+                          <Text style={styles.metaText}>{formatDate(order.orderDate)}</Text>
+                        </View>
+                        {order.trackingNumber && (
+                          <View style={styles.metaRow}>
+                            <Icon name="local-shipping" size={14} color="#666" />
+                            <Text style={styles.metaText}>{order.trackingNumber}</Text>
+                          </View>
+                        )}
+                        {order.userRating && (
+                          <View style={styles.metaRow}>
+                            <Icon name="star" size={14} color="#FFD700" />
+                            <Text style={styles.metaText}>{order.userRating}/5 stars</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </View>
                 </View>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Review Modal */}
-      <Modal
-        visible={reviewModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setReviewModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Write a Review</Text>
-              <TouchableOpacity onPress={() => setReviewModalVisible(false)}>
-                <Feather name="x" size={24} color="#666" />
-              </TouchableOpacity>
+              ))}
             </View>
+          )}
 
-            <View style={styles.reviewContent}>
-              <Text style={styles.reviewQuestion}>How was your order experience?</Text>
-              
-              {renderStarRating(reviewData.rating, (rating) =>
-                setReviewData({ ...reviewData, rating })
-              )}
+          <View style={styles.bottomPadding} />
+        </ScrollView>
 
-              <Text style={styles.commentLabel}>Share your thoughts (optional):</Text>
-              <TextInput
-                style={styles.commentInput}
-                multiline
-                numberOfLines={4}
-                placeholder="Tell us about your experience..."
-                value={reviewData.comment}
-                onChangeText={(text) => setReviewData({ ...reviewData, comment: text })}
-                textAlignVertical="top"
-              />
-
-              <View style={styles.reviewButtons}>
-                <TouchableOpacity
-                  style={styles.cancelReviewButton}
-                  onPress={() => setReviewModalVisible(false)}
-                >
-                  <Text style={styles.cancelReviewText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.submitReviewButton, submittingReview && styles.disabledButton]}
-                  onPress={submitReview}
-                  disabled={submittingReview}
-                >
-                  {submittingReview ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <>
-                      <Feather name="send" size={16} color="white" />
-                      <Text style={styles.submitReviewText}>Submit Review</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        {renderImageViewer()}
+        {renderOrderDetailModal()}
+      </View>
     </SafeAreaView>
   )
 }
@@ -512,284 +562,250 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#2E6A2E",
-    paddingTop: Platform.OS === "ios" ? 0 : 20,
-    paddingBottom: 25,
-    paddingHorizontal: Math.max(20, width * 0.05),
-    paddingTop: 30,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 15,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: Math.min(28, width * 0.07),
-    fontWeight: "bold",
-    color: "white",
-    marginBottom: 4,
-  },
-  headerDescription: {
-    fontSize: Math.min(16, width * 0.04),
-    color: "rgba(255, 255, 255, 0.9)",
-    fontWeight: "400",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Math.max(40, width * 0.1),
-  },
-  emptyIconContainer: {
-    backgroundColor: "white",
-    borderRadius: 50,
-    padding: 20,
-    marginBottom: 24,
+    paddingTop: 20,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 5,
   },
-  emptyTitle: {
-    fontSize: Math.min(24, width * 0.06),
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  emptyMessage: {
-    fontSize: Math.min(16, width * 0.04),
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  shopButton: {
-    backgroundColor: "#2E6A2E",
+  headerTitleContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    gap: 12,
+    marginBottom: 5,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "white",
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.9)",
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: "#333",
+  },
+  clearButton: {
+    padding: 5,
+  },
+  tabContainer: {
+    paddingVertical: 10,
+  },
+  tabScrollContent: {
+    paddingHorizontal: 15,
+    gap: 10,
+  },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "white",
     borderRadius: 25,
+    borderWidth: 2,
+    borderColor: "#2E6A2E",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    gap: 6,
   },
-  shopButtonText: {
-    color: "white",
-    fontSize: Math.min(16, width * 0.04),
+  activeTab: {
+    backgroundColor: "#2E6A2E",
+  },
+  tabText: {
+    fontSize: 14,
     fontWeight: "600",
-    marginLeft: 8,
+    color: "#2E6A2E",
   },
-  scrollContainer: {
+  activeTabText: {
+    color: "white",
+  },
+  badge: {
+    backgroundColor: "#2E6A2E",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activeBadge: {
+    backgroundColor: "white",
+  },
+  badgeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  activeBadgeText: {
+    color: "#2E6A2E",
+  },
+  scrollView: {
     flex: 1,
-    paddingHorizontal: Math.max(20, width * 0.05),
-    paddingTop: 20,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#666",
+    marginTop: 20,
+    textAlign: "center",
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 12,
+    lineHeight: 24,
+  },
+  ordersContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
   },
   orderCard: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: Math.max(16, width * 0.04),
-    marginBottom: 16,
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 15,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 5,
+  },
+  evenCard: {
+    backgroundColor: "#FAFAFA",
   },
   orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  orderHeaderLeft: {
-    flex: 1,
-  },
-  orderId: {
-    fontSize: Math.min(18, width * 0.045),
-    fontWeight: "bold",
-    color: "#135918",
-    marginBottom: 4,
-  },
-  orderDate: {
-    fontSize: Math.min(14, width * 0.035),
-    color: "#666",
-  },
-  statusBadge: {
+  orderStatus: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
+    gap: 8,
   },
   statusText: {
-    fontSize: Math.min(12, width * 0.03),
+    fontSize: 16,
     fontWeight: "600",
   },
-  progressContainer: {
-    marginBottom: 16,
+  detailButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "#F5F5F5",
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: "#E0E0E0",
-    borderRadius: 2,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: Math.min(14, width * 0.035),
-    color: "#666",
-    fontStyle: "italic",
-  },
-  itemsPreview: {
-    marginBottom: 16,
-  },
-  itemsList: {
-    gap: 8,
-  },
-  itemPreview: {
+  orderContent: {
     flexDirection: "row",
-    alignItems: "center",
     gap: 12,
   },
-  itemImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: "#f0f0f0",
+  orderImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    backgroundColor: "#F0F0F0",
   },
-  itemDetails: {
-    flex: 1,
-  },
-  itemTitle: {
-    fontSize: Math.min(16, width * 0.04),
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
-  },
-  itemPrice: {
-    fontSize: Math.min(14, width * 0.035),
-    color: "#2E6A2E",
-    fontWeight: "bold",
-  },
-  moreItems: {
-    fontSize: Math.min(14, width * 0.035),
-    color: "#666",
-    fontStyle: "italic",
-    marginTop: 4,
-  },
-  noItems: {
-    fontSize: Math.min(14, width * 0.035),
-    color: "#999",
-    fontStyle: "italic",
-  },
-  orderTotal: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-    marginBottom: 16,
-  },
-  totalLabel: {
-    fontSize: Math.min(16, width * 0.04),
-    fontWeight: "600",
-    color: "#333",
-  },
-  totalAmount: {
-    fontSize: Math.min(18, width * 0.045),
-    fontWeight: "bold",
-    color: "#2E6A2E",
-  },
-  actionButtons: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  detailsButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: "#2E6A2E",
-    borderRadius: 8,
-    gap: 6,
-  },
-  detailsButtonText: {
-    color: "#2E6A2E",
-    fontSize: Math.min(14, width * 0.035),
-    fontWeight: "600",
-  },
-  reviewButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    backgroundColor: "#FFD700",
-    borderRadius: 8,
-    gap: 6,
-  },
-  reviewButtonText: {
-    color: "white",
-    fontSize: Math.min(14, width * 0.035),
-    fontWeight: "600",
-  },
-  reorderButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
+  imageCount: {
+    position: "absolute",
+    top: -5,
+    right: -5,
     backgroundColor: "#2E6A2E",
-    borderRadius: 8,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageCountText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  orderInfo: {
+    flex: 1,
+  },
+  orderTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  orderCategory: {
+    fontSize: 12,
+    color: "#2E6A2E",
+    fontWeight: "500",
+    marginBottom: 6,
+  },
+  orderPrice: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#2E6A2E",
+    marginBottom: 8,
+  },
+  orderMeta: {
+    gap: 4,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
-  reorderButtonText: {
-    color: "white",
-    fontSize: Math.min(14, width * 0.035),
-    fontWeight: "600",
+  metaText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  pesoAmountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   bottomPadding: {
-    height: 20,
+    height: 30,
   },
-  // Modal styles
+
+  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: "flex-end",
   },
-  modalContainer: {
+  orderDetailContainer: {
     backgroundColor: "white",
-    borderRadius: 20,
-    margin: 20,
-    width: "90%",
-    maxHeight: "80%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "90%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -797,7 +813,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
+    borderBottomColor: "#F0F0F0",
   },
   modalTitle: {
     fontSize: 20,
@@ -807,163 +823,145 @@ const styles = StyleSheet.create({
   modalContent: {
     padding: 20,
   },
-  detailSection: {
-    marginBottom: 20,
+  modalSection: {
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "600",
     color: "#333",
     marginBottom: 12,
   },
+  imageRow: {
+    flexDirection: "row",
+  },
+  modalThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 10,
+    backgroundColor: "#F0F0F0",
+  },
   detailRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 8,
+    alignItems: "flex-start",
   },
   detailLabel: {
     fontSize: 14,
+    fontWeight: "600",
     color: "#666",
-    flex: 1,
+    width: 100,
+    marginRight: 10,
   },
   detailValue: {
     fontSize: 14,
     color: "#333",
-    fontWeight: "600",
-  },
-  addressText: {
-    fontSize: 14,
-    color: "#333",
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  contactText: {
-    fontSize: 14,
-    color: "#666",
-  },
-  modalItemCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: "#F9F9F9",
-    borderRadius: 8,
-  },
-  modalItemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  modalItemDetails: {
     flex: 1,
   },
-  modalItemTitle: {
+  timelineContainer: {
+    paddingLeft: 10,
+  },
+  timelineItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  timelineIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  timelineContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  timelineTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
     marginBottom: 2,
   },
-  modalItemCategory: {
-    fontSize: 12,
+  timelineDate: {
+    fontSize: 14,
     color: "#666",
     marginBottom: 4,
   },
-  modalItemPrice: {
-    fontSize: 14,
+  trackingText: {
+    fontSize: 12,
     color: "#2E6A2E",
-    fontWeight: "bold",
+    fontWeight: "500",
   },
-  totalRow: {
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-    paddingTop: 8,
-    marginTop: 8,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  totalValue: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#2E6A2E",
-  },
-  // Review modal styles
-  reviewContent: {
-    padding: 20,
-  },
-  reviewQuestion: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  starContainer: {
+  ratingContainer: {
     flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-    gap: 8,
+    marginTop: 4,
+    marginBottom: 4,
   },
-  filledStar: {
-    marginHorizontal: 2,
+  starIcon: {
+    marginRight: 2,
   },
-  emptyStar: {
-    marginHorizontal: 2,
-  },
-  commentLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-  },
-  commentInput: {
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: "#333",
-    backgroundColor: "#F9F9F9",
-    marginBottom: 20,
-    minHeight: 100,
-  },
-  reviewButtons: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  cancelReviewButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-    backgroundColor: "#F0F0F0",
-    borderRadius: 8,
-  },
-  cancelReviewText: {
-    fontSize: 16,
+  reviewText: {
+    fontSize: 12,
     color: "#666",
+    fontStyle: "italic",
+    marginTop: 4,
+    lineHeight: 16,
+  },
+
+  // Image Modal Styles
+  imageModalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+  },
+  imageModalHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    zIndex: 1000,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  imageCounter: {
+    color: "white",
+    fontSize: 16,
     fontWeight: "600",
   },
-  submitReviewButton: {
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  imageScrollView: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+  },
+  imageSlideContainer: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
     justifyContent: "center",
-    paddingVertical: 12,
-    backgroundColor: "#2E6A2E",
-    borderRadius: 8,
+    alignItems: "center",
+  },
+  fullScreenImage: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height * 0.8,
+  },
+  imageDots: {
+    position: "absolute",
+    bottom: 50,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 6,
   },
-  submitReviewText: {
-    fontSize: 16,
-    color: "white",
-    fontWeight: "bold",
-  },
-  disabledButton: {
-    opacity: 0.7,
-  },
-})
+
+  })

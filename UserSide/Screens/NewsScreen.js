@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
@@ -19,7 +18,7 @@ import Feather from "react-native-vector-icons/Feather"
 import { collection, getDocs, query, orderBy } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
-
+import { SafeAreaView } from "react-native-safe-area-context"
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window")
 const cardWidth = (screenWidth - 48) / 2 // 2 columns with padding
 

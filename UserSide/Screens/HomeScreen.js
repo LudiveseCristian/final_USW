@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
-  SafeAreaView,
   Modal,
   TextInput,
   Alert,
@@ -19,6 +18,7 @@ import { collection, getDocs, query, orderBy, onSnapshot, doc, getDoc, updateDoc
 import { db } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { useAuth } from "../AuthContext"
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get("window")
 
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   headerGradient: {
-    paddingTop: 40,
+    paddingTop: 30,
     paddingBottom: 40,
     paddingHorizontal: 20,
     position: 'relative',
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 20,
-    paddingVertical: 30,
+    paddingVertical: 5,
   },
   sectionHeader: {
     flexDirection: "row",
