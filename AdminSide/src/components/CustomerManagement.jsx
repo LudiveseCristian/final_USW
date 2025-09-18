@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, where } from "firebase/firestore"
+import EmailModal from "../modals/EmailModal"
 import { db } from "../firebase/config"
 import {
   Users,
@@ -21,6 +22,12 @@ import {
   ChevronDown,
   MoreVertical,
 } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, Button, Pagination, LoadingSpinner, EmptyState, StatusBadge } from './ui'
+import DeleteCustomerModal from "../modals/custumerPage/DeleteCustomerModal"
+import ErrorModal from "../modals/custumerPage/ErrorModal"
+import SuccessModal from "../modals/custumerPage/SuccessModal"
+import OrdersModal from "../modals/custumerPage/OrdersModal"
+import CustomerDetailModal from "../modals/custumerPage/CustomerDetailModal"
 
 const CustomerManagement = () => {
   const [customers, setCustomers] = useState([])
@@ -45,60 +52,105 @@ const CustomerManagement = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deletingCustomer, setDeletingCustomer] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(10)
+  const [itemsPerPage] = useState(5)
   const [dropdownOpen, setDropdownOpen] = useState(null)
+  
 
   useEffect(() => {
-    fetchCustomers()
+    fetchCustomersWithOrderData()
   }, [])
 
-  const fetchCustomers = async () => {
+  const fetchCustomersWithOrderData = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      console.log("Attempting to fetch users from Firebase...")
+      console.log("Fetching users and orders from Firebase...")
 
       if (!db) {
         throw new Error("Firebase database not initialized")
       }
 
+      // Fetch all users
       const usersRef = collection(db, "users")
-      console.log("Users collection reference created")
-
       const usersSnapshot = await getDocs(usersRef)
-      console.log("Firebase response received:", usersSnapshot)
 
-      if (!usersSnapshot.empty) {
-        const usersData = usersSnapshot.docs.map((doc) => {
-          const userData = doc.data()
-          return {
-            id: doc.id,
-            name: `${userData.firstName || ""} ${userData.lastName || ""}`.trim() || "Unknown User",
-            email: userData.email || "No email",
-            phone: userData.phone || userData.contactNumber || "No phone",
-            address: userData.address || userData.location || "No address",
-            status: "active",
-            totalOrders: 0,
-            totalSpent: 0,
-            lastOrder: "Never",
-            preferences: ["Streetwear"],
-            createdAt: userData.createdAt,
-            updatedAt: userData.updatedAt,
-            photoURL: userData.photoURL || "",
-            uid: userData.uid || doc.id,
-          }
-        })
-        console.log("Users fetched from Firebase:", usersData)
-        setCustomers(usersData)
-      } else {
+      // Fetch all orders
+      const ordersRef = collection(db, "orders")
+      const ordersSnapshot = await getDocs(ordersRef)
+
+      if (usersSnapshot.empty) {
         console.log("No users found in Firebase")
         setCustomers([])
         setError("No users found in database.")
+        return
       }
+
+      // Process orders data
+      const ordersData = ordersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+
+      console.log("Orders fetched from Firebase:", ordersData)
+
+      // Process users data and calculate order statistics
+      const usersData = usersSnapshot.docs.map((doc) => {
+        const userData = doc.data()
+        const userId = doc.id
+
+        // Find orders for this user using customerId field
+        const userOrders = ordersData.filter(order => order.customerId === userId)
+        
+        // Calculate statistics
+        const totalOrders = userOrders.length
+        const totalSpent = userOrders.reduce((sum, order) => sum + (order.price || 0), 0)
+        
+        // Get last order date
+        const lastOrderDate = userOrders.length > 0 
+          ? userOrders
+              .map(order => order.date?.toDate ? order.date.toDate() : new Date(order.date))
+              .sort((a, b) => b - a)[0]
+          : null
+
+        const formatLastOrder = (date) => {
+          if (!date) return "Never"
+          const now = new Date()
+          const diffTime = Math.abs(now - date)
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+          
+          if (diffDays === 1) return "Today"
+          if (diffDays === 2) return "Yesterday"
+          if (diffDays <= 7) return `${diffDays - 1} days ago`
+          if (diffDays <= 30) return `${Math.floor(diffDays / 7)} weeks ago`
+          if (diffDays <= 365) return `${Math.floor(diffDays / 30)} months ago`
+          return `${Math.floor(diffDays / 365)} years ago`
+        }
+
+        return {
+          id: userId,
+          name: `${userData.firstName || ""} ${userData.lastName || ""}`.trim() || "Unknown User",
+          email: userData.email || "No email",
+          phone: userData.phone || userData.contactNumber || "No phone",
+          address: userData.address || userData.location || "No address",
+          status: "active", // You can implement logic to determine status based on your requirements
+          totalOrders,
+          totalSpent,
+          lastOrder: formatLastOrder(lastOrderDate),
+          preferences: ["Streetwear"], // You can modify this based on order categories or user data
+          createdAt: userData.createdAt,
+          updatedAt: userData.updatedAt,
+          photoURL: userData.photoURL || "",
+          uid: userData.uid || userId,
+        }
+      })
+
+      console.log("Users with order data processed:", usersData)
+      setCustomers(usersData)
+
     } catch (error) {
-      console.error("Error fetching users:", error)
-      setError(`Failed to load users from Firebase: ${error.message}`)
+      console.error("Error fetching users and orders:", error)
+      setError(`Failed to load data from Firebase: ${error.message}`)
       setCustomers([])
     } finally {
       setLoading(false)
@@ -114,14 +166,21 @@ const CustomerManagement = () => {
       }
 
       const ordersRef = collection(db, "orders")
-      const q = query(ordersRef, where("userId", "==", customerId))
+      const q = query(ordersRef, where("customerId", "==", customerId))
       const ordersSnapshot = await getDocs(q)
 
       if (!ordersSnapshot.empty) {
-        const ordersData = ordersSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
+        const ordersData = ordersSnapshot.docs.map((doc) => {
+          const orderData = doc.data()
+          return {
+            id: doc.id,
+            ...orderData,
+            // Format the date for display
+            formattedDate: orderData.date?.toDate 
+              ? orderData.date.toDate().toLocaleDateString() 
+              : new Date(orderData.date).toLocaleDateString(),
+          }
+        })
         console.log("Orders fetched from Firebase:", ordersData)
         return ordersData
       } else {
@@ -202,6 +261,10 @@ const CustomerManagement = () => {
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedCustomers = sortedAndFilteredCustomers.slice(startIndex, startIndex + itemsPerPage)
 
+  // Calculate overall statistics
+  const totalOrdersOverall = customers.reduce((sum, customer) => sum + customer.totalOrders, 0)
+  const totalSpentOverall = customers.reduce((sum, customer) => sum + customer.totalSpent, 0)
+
   const formatPrice = (price) => {
     return `₱${price.toLocaleString()}`
   }
@@ -220,12 +283,14 @@ const CustomerManagement = () => {
   }
 
   const getOrderStatusColor = (status) => {
-    switch (status) {
-      case "mine":
-        return "bg-blue-100 text-blue-800"
-      case "grab":
+    switch (status?.toLowerCase()) {
+      case "pending":
         return "bg-yellow-100 text-yellow-800"
-      case "steal":
+      case "confirmed":
+        return "bg-blue-100 text-blue-800"
+      case "completed":
+        return "bg-green-100 text-green-800"
+      case "cancelled":
         return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -247,12 +312,6 @@ const CustomerManagement = () => {
     setCustomerOrders(orders)
   }
 
-  const handleEditProfile = (customer) => {
-    setEditingCustomer({ ...customer })
-    setShowEditModal(true)
-    setDropdownOpen(null)
-  }
-
   const handleSendEmail = (customer) => {
     setSelectedCustomer(customer)
     setEmailData({ subject: "", message: "" })
@@ -264,43 +323,6 @@ const CustomerManagement = () => {
     setDeletingCustomer(customer)
     setShowDeleteModal(true)
     setDropdownOpen(null)
-  }
-
-  const handleSaveEdit = async () => {
-    if (editingCustomer) {
-      try {
-        console.log("Updating user in Firebase:", editingCustomer.id)
-        const userRef = doc(db, "users", editingCustomer.id)
-
-        const nameParts = editingCustomer.name.trim().split(" ")
-        const firstName = nameParts[0] || ""
-        const lastName = nameParts.slice(1).join(" ") || ""
-
-        await updateDoc(userRef, {
-          firstName: firstName,
-          lastName: lastName,
-          email: editingCustomer.email,
-          phone: editingCustomer.phone,
-          contactNumber: editingCustomer.phone,
-          address: editingCustomer.address,
-          updatedAt: new Date().toISOString(),
-        })
-        console.log("User updated in Firebase successfully")
-
-        setCustomers((prev) => prev.map((c) => (c.id === editingCustomer.id ? editingCustomer : c)))
-
-        setShowEditModal(false)
-        setEditingCustomer(null)
-        setModalTitle("Success")
-        setModalMessage("User profile updated successfully!")
-        setShowSuccessModal(true)
-      } catch (error) {
-        console.error("Error updating user:", error)
-        setModalTitle("Error")
-        setModalMessage(`Failed to update user: ${error.message}`)
-        setShowErrorModal(true)
-      }
-    }
   }
 
   const handleSendEmailSubmit = () => {
@@ -346,17 +368,16 @@ const CustomerManagement = () => {
 
   if (loading) {
     return (
-      <div className="p-8 bg-[#FFFCF3] min-h-screen">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
-          <div className="bg-gray-200 rounded h-96"></div>
+      <div className="p-8 bg-cream min-h-screen">
+        <div className="flex items-center justify-center h-96">
+          <LoadingSpinner size="lg" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 bg-[#FFFCF3] min-h-screen">
+    <div className="p-8 bg-cream min-h-screen">
       {error && (
         <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg">
           <div className="flex items-center justify-between">
@@ -370,8 +391,8 @@ const CustomerManagement = () => {
 
       <div className="mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">User Management</h1>
-          <p className="text-muted-foreground">Manage your user profiles and track their activity</p>
+          <h1 className="text-3xl font-bold text-green-800 text-foreground mb-2">User Management</h1>
+          <p className="text-muted-foreground text-green-700">Manage your user profiles and track their activity</p>
         </div>
       </div>
 
@@ -392,13 +413,11 @@ const CustomerManagement = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Active Users</p>
-              <p className="text-2xl font-bold text-foreground">
-                {customers.filter((c) => c.status === "active").length}
-              </p>
+              <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
+              <p className="text-2xl font-bold text-foreground">{totalOrdersOverall}</p>
             </div>
             <div className="bg-green-100 p-3 rounded-full">
-              <Users className="h-6 w-6 text-green-600" />
+              <Package className="h-6 w-6 text-green-600" />
             </div>
           </div>
         </div>
@@ -406,11 +425,11 @@ const CustomerManagement = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">New This Month</p>
-              <p className="text-2xl font-bold text-foreground">{customers.filter((c) => c.status === "new").length}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
+              <p className="text-2xl font-bold text-foreground">{formatPrice(totalSpentOverall)}</p>
             </div>
             <div className="bg-purple-100 p-3 rounded-full">
-              <Calendar className="h-6 w-6 text-purple-600" />
+              <ShoppingBag className="h-6 w-6 text-purple-600" />
             </div>
           </div>
         </div>
@@ -420,13 +439,13 @@ const CustomerManagement = () => {
             <div>
               <p className="text-sm font-medium text-muted-foreground">Avg Order Value</p>
               <p className="text-2xl font-bold text-foreground">
-                {customers.length > 0
-                  ? formatPrice(Math.round(customers.reduce((sum, c) => sum + c.totalSpent, 0) / customers.length))
+                {totalOrdersOverall > 0
+                  ? formatPrice(Math.round(totalSpentOverall / totalOrdersOverall))
                   : formatPrice(0)}
               </p>
             </div>
             <div className="bg-orange-100 p-3 rounded-full">
-              <ShoppingBag className="h-6 w-6 text-orange-600" />
+              <Calendar className="h-6 w-6 text-orange-600" />
             </div>
           </div>
         </div>
@@ -609,13 +628,6 @@ const CustomerManagement = () => {
                                 View Details
                               </button>
                               <button
-                                onClick={() => handleEditProfile(customer)}
-                                className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
-                              >
-                                <Edit className="h-4 w-4 mr-3" />
-                                Edit Profile
-                              </button>
-                              <button
                                 onClick={() => handleViewOrders(customer)}
                                 className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
                               >
@@ -695,7 +707,7 @@ const CustomerManagement = () => {
                         onClick={() => setCurrentPage(page)}
                         className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors ${
                           isCurrentPage
-                            ? "z-10 bg-primary border-primary text-primary-foreground"
+                            ? "z-10 bg-[#15440d] border-[#ffffff] text-white hover:bg-[#15440d] rounded-xl"
                             : "bg-card border-border text-foreground hover:bg-accent"
                         }`}
                       >
@@ -718,440 +730,54 @@ const CustomerManagement = () => {
       </div>
 
       {/* Customer Detail Modal */}
-      {showCustomerModal && selectedCustomer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl border border-gray-200">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
-                <h2 className="text-xl font-semibold text-foreground">User Details</h2>
-                <button
-                  onClick={() => setShowCustomerModal(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                {/* Customer Info */}
-                <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                    {selectedCustomer.photoURL ? (
-                      <img
-                        src={selectedCustomer.photoURL || "/placeholder.svg"}
-                        alt={selectedCustomer.name}
-                        className="w-16 h-16 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-primary font-semibold text-xl">
-                        {selectedCustomer.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">{selectedCustomer.name}</h3>
-                    <p className="text-muted-foreground">{selectedCustomer.email}</p>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedCustomer.status)}`}
-                    >
-                      {selectedCustomer.status.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Contact Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">Phone</label>
-                    <p className="text-foreground">{selectedCustomer.phone}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">Address</label>
-                    <p className="text-foreground">{selectedCustomer.address}</p>
-                  </div>
-                </div>
-
-                {/* Order History */}
-                <div>
-                  <h4 className="text-lg font-semibold text-foreground mb-3">Order History</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-muted/50 p-4 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Total Orders</p>
-                      <p className="text-2xl font-bold text-foreground">{selectedCustomer.totalOrders}</p>
-                    </div>
-                    <div className="bg-muted/50 p-4 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Total Spent</p>
-                      <p className="text-2xl font-bold text-primary">{formatPrice(selectedCustomer.totalSpent)}</p>
-                    </div>
-                    <div className="bg-muted/50 p-4 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Last Order</p>
-                      <p className="text-2xl font-bold text-foreground">{selectedCustomer.lastOrder}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Preferences */}
-                <div>
-                  <h4 className="text-lg font-semibold text-foreground mb-3">Preferences</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedCustomer.preferences.map((pref, index) => (
-                      <span key={index} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">
-                        {pref}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex space-x-3 pt-4">
-                  <button
-                    onClick={() => handleSendEmail(selectedCustomer)}
-                    className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center space-x-2"
-                  >
-                    <Send className="h-4 w-4" />
-                    <span>Send Email</span>
-                  </button>
-                  <button
-                    onClick={() => handleViewOrders(selectedCustomer)}
-                    className="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors flex items-center justify-center space-x-2"
-                  >
-                    <Package className="h-4 w-4" />
-                    <span>View Orders</span>
-                  </button>
-                  <button
-                    onClick={() => handleEditProfile(selectedCustomer)}
-                    className="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors flex items-center justify-center space-x-2"
-                  >
-                    <Edit className="h-4 w-4" />
-                    <span>Edit Profile</span>
-                  </button>
-                  <button
-                    onClick={() => confirmDeleteCustomer(selectedCustomer)}
-                    className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2"
-                  >
-                    <Trash className="h-4 w-4" />
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <CustomerDetailModal
+        show={showCustomerModal}
+        onClose={() => setShowCustomerModal(false)}
+        selectedCustomer={selectedCustomer}
+        onSendEmail={handleSendEmail}
+        onViewOrders={handleViewOrders}
+        onDeleteCustomer={confirmDeleteCustomer}
+      />
 
       {/* Orders Modal */}
-      {showOrdersModal && selectedCustomer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl border border-gray-200">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
-                <h2 className="text-xl font-semibold text-foreground">Order History - {selectedCustomer.name}</h2>
-                <button
-                  onClick={() => setShowOrdersModal(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+      <OrdersModal
+        show={showOrdersModal}
+        onClose={() => setShowOrdersModal(false)}
+        selectedCustomer={selectedCustomer}
+        customerOrders={customerOrders}
+      />
 
-              <div className="space-y-4">
-                {customerOrders.length > 0 ? (
-                  customerOrders.map((order) => (
-                    <div key={order.id} className="border border-border rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold text-foreground">{order.product || "Product Name"}</h4>
-                          <p className="text-sm text-muted-foreground">Order #{order.id}</p>
-                          <p className="text-sm text-muted-foreground">Date: {order.date || "Unknown"}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-primary">{formatPrice(order.price || 0)}</p>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${getOrderStatusColor(order.status || "pending")}`}
-                          >
-                            {(order.status || "pending").toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No orders found for this user</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Profile Modal */}
-      {showEditModal && editingCustomer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full shadow-xl border border-gray-200">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6 border-b border-gray-200 pb-4">
-                <h2 className="text-xl font-semibold text-foreground">Edit User Profile</h2>
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={editingCustomer.name}
-                    onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={editingCustomer.email}
-                    onChange={(e) => setEditingCustomer({ ...editingCustomer, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">Phone</label>
-                  <input
-                    type="text"
-                    value={editingCustomer.phone}
-                    onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">Address</label>
-                  <input
-                    type="text"
-                    value={editingCustomer.address}
-                    onChange={(e) => setEditingCustomer({ ...editingCustomer, address: e.target.value })}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">Status</label>
-                  <select
-                    value={editingCustomer.status}
-                    onChange={(e) => setEditingCustomer({ ...editingCustomer, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="new">New</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors font-medium"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Send Email Modal */}
+      {/* Email Modal */}
       {showEmailModal && selectedCustomer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full shadow-xl border border-gray-200">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
-                <h2 className="text-xl font-semibold text-foreground">Send Email to {selectedCustomer.name}</h2>
-                <button
-                  onClick={() => setShowEmailModal(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">To</label>
-                  <input
-                    type="email"
-                    value={selectedCustomer.email}
-                    disabled
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-muted text-muted-foreground"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">Subject</label>
-                  <input
-                    type="text"
-                    value={emailData.subject}
-                    onChange={(e) => setEmailData({ ...emailData, subject: e.target.value })}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                    placeholder="Enter email subject..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">Message</label>
-                  <textarea
-                    value={emailData.message}
-                    onChange={(e) => setEmailData({ ...emailData, message: e.target.value })}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent h-32 resize-none"
-                    placeholder="Enter your message..."
-                  />
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={() => setShowEmailModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSendEmailSubmit}
-                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center space-x-2 font-medium"
-                >
-                  <Send className="h-4 w-4" />
-                  <span>Send Email</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+            <EmailModal
+                recipient={selectedCustomer.email}
+                onClose={() => setShowEmailModal(false)}
+            />
+        )}
 
       {/* Success Modal */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full border border-gray-200">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-green-600">{modalTitle}</h2>
-                <button
-                  onClick={() => setShowSuccessModal(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="mb-6">
-                <p className="text-foreground">{modalMessage}</p>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setShowSuccessModal(false)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SuccessModal
+        show={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title={modalTitle}
+        message={modalMessage}
+      />
 
       {/* Error Modal */}
-      {showErrorModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full border border-gray-200">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-destructive">{modalTitle}</h2>
-                <button
-                  onClick={() => setShowErrorModal(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="mb-6">
-                <p className="text-foreground">{modalMessage}</p>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setShowErrorModal(false)}
-                  className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors"
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ErrorModal
+          show={showErrorModal}
+          onClose={() => setShowErrorModal(false)}
+          title={modalTitle}
+          message={modalMessage}
+        />
 
       {/* Delete Confirmation Modal */}
-      {showDeleteModal && deletingCustomer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full border border-gray-200">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-destructive">Confirm Delete</h2>
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="mb-6">
-                <p className="text-foreground">
-                  Are you sure you want to delete user <strong>"{deletingCustomer.name}"</strong>? This action cannot be
-                  undone.
-                </p>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteCustomer}
-                  className="flex-1 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors font-medium flex items-center justify-center space-x-2"
-                >
-                  <Trash className="h-4 w-4" />
-                  <span>Delete</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+        <DeleteCustomerModal 
+          show={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteCustomer}
+          customer={deletingCustomer || { name: '' }}
+        />
     </div>
   )
 }

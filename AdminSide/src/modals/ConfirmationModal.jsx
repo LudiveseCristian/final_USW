@@ -1,4 +1,3 @@
-// src/modals/ConfirmationModal.jsx
 import { AlertTriangle, X } from 'lucide-react';
 
 /**
@@ -32,7 +31,7 @@ const ConfirmationModal = ({ showModal, setShowModal, title, message, onConfirm,
 
   return (
     <div
-      className="fixed inset-0 bg-gray-900 bg-opacity-70 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900 bg-opacity-60 backdrop-blur-sm"
       aria-modal="true"
       role="dialog"
       onClick={(e) => {
@@ -42,35 +41,38 @@ const ConfirmationModal = ({ showModal, setShowModal, title, message, onConfirm,
         }
       }}
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-auto transform transition-all animate-fadeIn">
+      <div className="bg-white rounded-xl max-w-sm w-full shadow-2xl">
         <div className="p-8">
-          <div className="flex items-center justify-between pb-4 border-b border-gray-200 mb-6">
-            <div className="flex items-center space-x-4">
-              <div className="flex-shrink-0">
-                <AlertTriangle className="h-7 w-7 text-yellow-500" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">{title || 'Confirm Action'}</h3>
-              </div>
-            </div>
+          {/* Header */}
+          <div className="flex items-center justify-between pb-6 border-b border-gray-200 mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">
+              {title || 'Confirm Action'}
+            </h2>
             <button
               onClick={handleCancel}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
             >
               <X className="h-6 w-6" />
             </button>
           </div>
-          <p className="text-sm text-gray-600 leading-relaxed mb-6">{message}</p>
-          <div className="flex justify-end space-x-3">
+          {/* Content */}
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-4">
+              <AlertTriangle className="h-10 w-10 text-yellow-500" />
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed mt-2">{message}</p>
+          </div>
+          {/* Action Buttons */}
+          <div className="flex space-x-4 pt-6 justify-end">
             <button
               onClick={handleCancel}
-              className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
+              className="px-6 py-3 rounded-xl font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirm}
-              className="px-5 py-2 text-sm font-medium text-white rounded-lg shadow-sm transition-colors bg-red-600 hover:bg-red-700"
+              className="px-6 py-3 rounded-xl font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors"
             >
               Confirm
             </button>

@@ -7,7 +7,8 @@ import SalesAnalytics from './components/SalesAnalytics';
 import CustomerManagement from './components/CustomerManagement';
 import OrderManagement from './components/OrderManagement';
 import NewsManagement from './components/NewsManagement';
-import SoldProducts from './components/SoldProducts';
+import SoldProducts from './components/SoldProducts'; 
+import FeedbackManagement from './components/FeedbackManagement';
 import Sidebar from './Layout/Sidebar';
 import { auth } from './firebase/config';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -15,7 +16,7 @@ import MessageChatbot from './ai/UpcycledAdminAssistant';
 
 // Import the new Alert components and context
 import AlertModal from './modals/AlertModal';
-import { AlertProvider, useAlert } from './contexts/alertContext';
+import { AlertProvider, useAlert } from './contexts/AlertContext';
 // New wrapper component to use the context
 const AppContent = () => {
   const [user, setUser] = useState(null);
@@ -27,17 +28,6 @@ const AppContent = () => {
       setUser(user);
       setLoading(false);
     });
-
-    // // 🚨 Logout when user leaves or refreshes page
-    // const handleUnload = () => {
-    //   signOut(auth);
-    // };
-    // window.addEventListener("beforeunload", handleUnload);
-
-    // return () => {
-    //   unsubscribe();
-    //   window.removeEventListener("beforeunload", handleUnload);
-    // };
   }, []);
 
   if (loading) {
@@ -68,6 +58,7 @@ const AppContent = () => {
           <Route path="/orders" element={<OrderManagement />} />
           <Route path="/sales" element={<SalesAnalytics />} />
           <Route path="/customers" element={<CustomerManagement />} />
+          <Route path="/feedback" element={<FeedbackManagement />} />
         </Routes>
       </main>
 

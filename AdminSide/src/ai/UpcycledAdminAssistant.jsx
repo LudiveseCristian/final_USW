@@ -39,7 +39,6 @@ const UpcycledAdminAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isBotTyping, setIsBotTyping] = useState(false);
   const chatEndRef = useRef(null);
-
   // Admin data states
   const [adminStats, setAdminStats] = useState({
     totalCustomers: 0,
@@ -54,8 +53,6 @@ const UpcycledAdminAssistant = () => {
     topProducts: [],
     recentCustomers: []
   });
-
-  // Your Gemini API key - Get this free from https://makersuite.google.com/app/apikey
   const GEMINI_API_KEY = import.meta.env.REACT_APP_GEMINI_API_KEY || "AIzaSyAJaYkB3G69TzOWQ66bwVMmlQHR5ug3Jt0";
   const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -96,7 +93,7 @@ const UpcycledAdminAssistant = () => {
       // Customers
       const customersQuery = query(collection(db, 'users'));
       const customersSnap = await getDocs(customersQuery);
-      
+
       // Recent customers (last 7 days)
       const recentCustomersQuery = query(
         collection(db, 'users'),
@@ -158,7 +155,6 @@ const UpcycledAdminAssistant = () => {
           soldItems++;
         }
       });
-
 
       // Top products
       const topProducts = Object.entries(productSales)
@@ -268,8 +264,7 @@ const UpcycledAdminAssistant = () => {
   // Call Gemini AI with context
   const callGeminiAI = async (userMessage, contextData) => {
     try {
-      const systemPrompt = `You are an intelligent admin assistant for "Upcycled Streetwear", a sustainable fashion e-commerce platform with bidding features. 
-
+      const systemPrompt = `You are an intelligent admin assistant for "Upcycled Streetwear", a sustainable fashion e-commerce platform with bidding features.
 CONTEXT DATA:
 - Total Customers: ${contextData.stats.totalCustomers}
 - Total Orders: ${contextData.stats.totalOrders}
@@ -288,7 +283,8 @@ DATABASE STRUCTURE NOTES:
 - Users have detailed profiles with firstName, lastName, middleName, totalOrders, totalSpent
 - News items have mainImage and secondaryImages arrays
 
-${contextData.recentOrders ? `RECENT ORDERS: ${JSON.stringify(contextData.recentOrders.slice(0, 5).map(order => ({
+${contextData.recentOrders ?
+`RECENT ORDERS: ${JSON.stringify(contextData.recentOrders.slice(0, 5).map(order => ({
   id: order.id.slice(-6),
   customer: order.customerName,
   product: order.product,
@@ -298,7 +294,8 @@ ${contextData.recentOrders ? `RECENT ORDERS: ${JSON.stringify(contextData.recent
   date: order.date
 })))}` : ''}
 
-${contextData.customers ? `CUSTOMERS: ${JSON.stringify(contextData.customers.slice(0, 5).map(user => ({
+${contextData.customers ?
+`CUSTOMERS: ${JSON.stringify(contextData.customers.slice(0, 5).map(user => ({
   name: user.name,
   email: user.email,
   status: user.status,
@@ -307,7 +304,8 @@ ${contextData.customers ? `CUSTOMERS: ${JSON.stringify(contextData.customers.sli
   joinDate: user.joinDate
 })))}` : ''}
 
-${contextData.products ? `PRODUCTS: ${JSON.stringify(contextData.products.slice(0, 10).map(product => ({
+${contextData.products ?
+`PRODUCTS: ${JSON.stringify(contextData.products.slice(0, 10).map(product => ({
   name: product.name,
   price: product.price,
   status: product.status,
@@ -318,30 +316,26 @@ ${contextData.products ? `PRODUCTS: ${JSON.stringify(contextData.products.slice(
   highestBidder: product.highestBidder
 })))}` : ''}
 
-${contextData.biddingProducts ? `BIDDING PRODUCTS: ${JSON.stringify(contextData.biddingProducts)}` : ''}
+${contextData.biddingProducts ?
+`BIDDING PRODUCTS: ${JSON.stringify(contextData.biddingProducts)}` : ''}
 ${contextData.soldProducts ? `SOLD PRODUCTS: ${JSON.stringify(contextData.soldProducts.slice(0, 5))}` : ''}
-${contextData.news ? `NEWS: ${JSON.stringify(contextData.news.map(news => ({
+${contextData.news ?
+`NEWS: ${JSON.stringify(contextData.news.map(news => ({
   title: news.title,
   description: news.description,
   createdAt: news.createdAt
 })))}` : ''}
 
 GUIDELINES:
-1. Provide specific, actionable insights based on the data
-2. Use emojis and formatting for better readability
-3. Always include relevant numbers and statistics from actual data
-4. Suggest specific actions the admin can take
-5. Be conversational but professional
-6. Handle bidding system questions (current bids, bid winners, etc.)
-7. Address single-product-per-order structure in analysis
-8. Keep responses concise but informative (max 300 words)
-9. Format currency in Philippine Peso (₱)
-10. Consider the customer lifecycle: new users, active buyers, etc.
+1. Use the provided CONTEXT DATA to answer the user's query directly.
+2. Be factual and to the point. Do not provide extra insights, suggestions, or conversational filler.
+3. Do not use emojis or extensive formatting. Present the information clearly and concisely.
+4. Ensure all information is supported by the provided CONTEXT DATA.
+5. Format currency in Philippine Peso (₱).
 
 USER QUERY: ${userMessage}
 
 Respond as the admin assistant with specific data-driven insights:`;
-
       const response = await fetch(GEMINI_API_URL, {
         method: 'POST',
         headers: {
@@ -400,7 +394,6 @@ Respond as the admin assistant with specific data-driven insights:`;
         sender: "user",
         timestamp: new Date(),
       };
-
       setMessages(prev => [...prev, userMessage]);
       const currentInput = inputText;
       setInputText("");
@@ -410,20 +403,18 @@ Respond as the admin assistant with specific data-driven insights:`;
 
       // Call Gemini AI
       const aiResponse = await callGeminiAI(currentInput, contextData);
-      
+
       const botMessage = {
         id: Date.now() + 1,
         text: aiResponse,
         sender: "bot",
         timestamp: new Date(),
       };
-      
       setMessages(prev => [...prev, botMessage]);
 
     } catch (error) {
       console.error("AI Error:", error);
       let errorText = "I'm having trouble processing your request right now. ";
-      
       if (error.message.includes('API key')) {
         errorText += "Please check your API key configuration.";
       } else if (error.message.includes('quota')) {
@@ -483,7 +474,8 @@ Respond as the admin assistant with specific data-driven insights:`;
           {/* Header */}
           <div className="p-4 rounded-t-2xl flex items-center justify-between"
                style={{ backgroundColor: '#135918' }}>
-            <div className="flex items-center gap-3">
+            <div 
+className="flex items-center gap-3">
               <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                 <BarChart3 size={16} className="text-white" />
               </div>
@@ -534,7 +526,8 @@ Respond as the admin assistant with specific data-driven insights:`;
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex ${msg.sender === "user" ?
+"justify-end" : "justify-start"}`}
               >
                 <div
                   className={`p-3 rounded-2xl max-w-xs text-sm ${
@@ -542,7 +535,8 @@ Respond as the admin assistant with specific data-driven insights:`;
                       ? "text-white rounded-br-sm"
                       : "bg-gray-50 text-gray-800 rounded-bl-sm border border-green-100"
                   }`}
-                  style={msg.sender === "user" ? { backgroundColor: '#135918' } : {}}
+                  style={msg.sender === "user" ?
+{ backgroundColor: '#135918' } : {}}
                 >
                   <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                 </div>
@@ -590,7 +584,8 @@ Respond as the admin assistant with specific data-driven insights:`;
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="Ask anything about your business..."
-                className="flex-1 px-3 py-2 text-sm border border-green-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-green-300 bg-white max-h-20"
+                className="flex-1 px-3 py-2 text-sm border border-green-200 rounded-xl resize-none focus:outline-none 
+focus:ring-2 focus:ring-green-300 bg-white max-h-20"
                 rows="1"
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -601,11 +596,13 @@ Respond as the admin assistant with specific data-driven insights:`;
               />
               <button
                 onClick={sendMessage}
-                disabled={loading || !inputText.trim()}
+                disabled={loading ||
+!inputText.trim()}
                 className="p-2 rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 style={{ backgroundColor: '#135918' }}
               >
-                {loading ? (
+                {loading ?
+(
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <Send size={16} />

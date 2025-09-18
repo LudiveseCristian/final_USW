@@ -111,7 +111,7 @@ const SoldProductDetailModal = ({ showModal, setShowModal, product, formatPrice 
               </div>
               <div className="flex items-center col-span-2">
                 <Users className="h-5 w-5 mr-2 text-gray-500" />
-                <span>Highest Bidder: <span className="font-medium">{product.highestBidder || 'N/A'}</span></span>
+                <span>Sold to: <span className="font-medium">{product.highestBidder || 'N/A'}</span></span>
               </div>
             </div>
 

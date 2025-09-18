@@ -32,6 +32,7 @@ import ProductsModal from '../modals/ProductsModal';
 import BidManagementModal from '../modals/BidManagementModal';
 import CategoryModal from '../modals/CategoryModal';
 import { useAlert } from "../contexts/alertContext";
+import { Card, CardContent, Button, Pagination, LoadingSpinner, EmptyState, StatusBadge } from './ui';
 
 const ProductManagement = () => {
   // State variables for UI and data management
@@ -613,18 +614,10 @@ const ProductManagement = () => {
   // --- Rendered JSX ---
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="animate-pulse max-w-7xl mx-auto">
-          <div className="h-10 bg-gray-200 rounded-lg w-1/3 mb-8"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div
-                key={i} className="bg-white rounded-xl p-4 shadow-sm">
-                <div className="h-48 bg-gray-200 rounded-lg mb-4"></div>
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-              </div>
-            ))}
+      <div className="min-h-screen bg-cream p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center h-96">
+            <LoadingSpinner size="lg" />
           </div>
         </div>
       </div>
@@ -632,13 +625,13 @@ const ProductManagement = () => {
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen bg-cream p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header Section */}
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Product Management</h1>
+              <h1 className="text-4xl font-bold text-green-800 mb-2">Product Management</h1>
               <p className="text-lg text-gray-600">
                 Manage your upcycled streetwear inventory and bidding
               </p>
@@ -878,35 +871,15 @@ const ProductManagement = () => {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <nav className="flex items-center justify-center space-x-2 mt-8">
-                <button
-                  onClick={() => paginate(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Previous
-                </button>
-                {pageNumbers.map((number) => (
-                  <button
-                    key={number}
-                    onClick={() => paginate(number)}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                      currentPage === number
-                        ? 'text-white bg-[#135918]'
-                        : 'text-gray-700 bg-white hover:bg-gray-100'
-                    }`}
-                  >
-                    {number}
-                  </button>
-                ))}
-                <button
-                  onClick={() => paginate(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next
-                </button>
-              </nav>
+              <div className="mt-8">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={paginate}
+                  itemsPerPage={productsPerPage}
+                  totalItems={filteredProducts.length}
+                />
+              </div>
             )}
 
           </>
@@ -1075,25 +1048,30 @@ const ProductManagement = () => {
         )}
 
         {filteredProducts.length === 0 && activeTab === 'products' && (
-          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-            <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
-            <p className="text-gray-500 mb-6">
-              {searchTerm ||
-                filterStatus !== 'all'
-                ? 'Try adjusting your search or filters'
-                : 'Get started by adding your first product'}
-            </p>
-            {!searchTerm && filterStatus === 'all' && (
-              <button
-                onClick={() => setShowModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center space-x-2"
-              >
-                <Plus className="h-5 w-5" />
-                <span>Add Your First Product</span>
-              </button>
-            )}
-          </div>
+          <Card>
+            <CardContent className="p-12">
+              <EmptyState
+                icon={Package}
+                title="No products found"
+                description={
+                  searchTerm || filterStatus !== 'all'
+                    ? 'Try adjusting your search or filters'
+                    : 'Get started by adding your first product'
+                }
+                action={
+                  !searchTerm && filterStatus === 'all' ? (
+                    <Button
+                      onClick={() => setShowModal(true)}
+                      size="lg"
+                    >
+                      <Plus className="h-5 w-5 mr-2" />
+                      Add Your First Product
+                    </Button>
+                  ) : null
+                }
+              />
+            </CardContent>
+          </Card>
         )}
 
         {/* Modals Section */}

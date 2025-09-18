@@ -3,7 +3,6 @@ import "react-native-gesture-handler" // Must be at the top
 import React from "react"
 import { NavigationContainer } from "@react-navigation/native"
 import { createStackNavigator } from "@react-navigation/stack"
-import { useNavigationState } from "@react-navigation/native"
 
 import { AuthProvider, useAuth } from "./AuthContext"
 import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native"
@@ -31,9 +30,10 @@ import HomeScreen from "./Screens/HomeScreen"
 import NewsScreen from "./Screens/NewsScreen"
 import BiddingScreen from "./Screens/BiddingScreen"
 import ProfileScreen from "./Screens/ProfileScreen"
-import CartScreen from "./Screens/CartScreen"
+import WinningBiddingScreen from "./Screens/WinbiddingScreen"
 import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant"
-import CheckoutScreen from "./Screens/CheckoutScreen"
+import NotificationScreen from "./Screens/NotificationScreen"
+import OrderTrackingScreen from "./Screens/OrderTrackingScreen"
 
 
 // Import your NavBarLayout
@@ -144,18 +144,11 @@ function MainAppStack() {
       <Stack.Screen name="Cart">
         {(props) => (
           <NavBarLayout>
-            <CartScreen {...props} />
+            <WinningBiddingScreen {...props} />
           </NavBarLayout>
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="Checkout">
-        {(props) => (
-          <NavBarLayout>
-            <CheckoutScreen {...props} />
-          </NavBarLayout>
-        )}
-      </Stack.Screen>
 
       <Stack.Screen name="Profile">
         {(props) => (
@@ -164,6 +157,23 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
+
+      <Stack.Screen name="Notifications">
+        {(props) => (
+          <NavBarLayout>
+            <NotificationScreen {...props} />
+          </NavBarLayout>
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="OrderTracking">
+        {(props) => (
+          <NavBarLayout>
+            <OrderTrackingScreen {...props} />
+          </NavBarLayout>
+        )}
+      </Stack.Screen>
+
 
       {/* Account Screen */}
       <Stack.Screen name="Account">
@@ -184,28 +194,27 @@ const AppWithAssistant = ({ children, currentUser, showAssistant = true }) => {
   return (
     <View style={styles.appContainer}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFEF7" />
-      
+
       {/* Main App Content */}
       {children}
-      
+
       {/* Global Floating Assistant - Hide during onboarding and auth */}
       {showAssistant && currentUser && <UpcycledUserAssistant currentUser={currentUser} />}
-      
     </View>
-  );
-};
+  )
+}
 
 // --- Root Navigator ---
 function RootNavigator() {
   const authContext = useAuth()
-  
+
   // Destructure with fallbacks to prevent undefined errors
   const {
     isLoggedIn = false,
     isLoading = true,
     currentUser = null,
     hasSeenOnboarding = false,
-    hasCompletedAppOnboarding = false
+    hasCompletedAppOnboarding = false,
   } = authContext || {}
 
   if (isLoading) {
@@ -225,21 +234,18 @@ function RootNavigator() {
         },
       }}
     >
-      <AppWithAssistant 
-        currentUser={currentUser} 
-        showAssistant={isLoggedIn && hasCompletedAppOnboarding}
-      >
+      <AppWithAssistant currentUser={currentUser} showAssistant={isLoggedIn && hasCompletedAppOnboarding}>
         {(() => {
           // User is logged in → Main App
           if (isLoggedIn) {
             return <MainAppStack />
           }
-          
+
           // User has seen onboarding but not logged in → Auth only
           if (hasSeenOnboarding) {
             return <AuthStack />
           }
-          
+
           // First time user → Onboarding + Auth flow
           return <OnboardingStack />
         })()}

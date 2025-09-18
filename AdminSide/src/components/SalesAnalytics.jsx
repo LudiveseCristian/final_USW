@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAlert } from '../contexts/alertContext';
+import { LoadingSpinner, Card, CardContent, CardTitle, Button, EmptyState, Pagination } from './ui';
 import ExportModal from '../modals/ExportModal';
 import {
   TrendingUp,
@@ -280,13 +281,10 @@ const SalesAnalytics = () => {
   };
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
-            ))}
+      <div className="min-h-screen bg-cream p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center h-96">
+            <LoadingSpinner size="lg" />
           </div>
         </div>
       </div>
@@ -310,7 +308,7 @@ const SalesAnalytics = () => {
   const PIE_COLORS_CATEGORY = ['#8A2BE2', '#FF8042', '#FFBB28', '#00C49F', '#0088FE'];
 
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-cream p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-secondary mb-2">Sales Analytics</h1>

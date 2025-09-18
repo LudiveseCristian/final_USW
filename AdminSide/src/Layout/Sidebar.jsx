@@ -2,7 +2,7 @@
 
 import { Link, useLocation } from "react-router-dom"
 import { useState, useEffect } from "react"
-import { LayoutDashboard, Package, TrendingUp, Users, LogOut, Newspaper, Settings, ClipboardList, ChevronDown, ChevronRight } from "lucide-react"
+import { LayoutDashboard, Package, TrendingUp, Users, LogOut, Newspaper, ClipboardList, ChevronDown, ChevronRight, EarIcon } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { auth } from "../firebase/config"
 
@@ -13,12 +13,12 @@ const Sidebar = () => {
 
    const menuItems = [
       { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-      { path: "/news", icon: Newspaper, label: "News" },
+      { path: "/news", icon: Newspaper, label: "Drops" },
       { path: '/orders', icon: ClipboardList, label: 'Orders' },
       { path: '/products', icon: Package, label: 'Products' },
       { path: "/sales", icon: TrendingUp, label: "Sales Analytics" },
       { path: "/customers", icon: Users, label: "Customers" },
-      { path: "/settings", icon: Settings, label: "Settings" },
+      { path: "/feedback", icon: EarIcon, label: "Feedback" },
    ]
 
    const productSubItems = [
@@ -166,7 +166,7 @@ const Sidebar = () => {
                         </div>
                      )}
 
-                     {/* Sales + Customers + Settings */}
+                     {/* Sales + Customers + Feedback */}
                      {menuItems.slice(4).map((item) => {
                         const Icon = item.icon
                         const isActive = location.pathname === item.path
@@ -205,28 +205,43 @@ const Sidebar = () => {
          </div>
 
          {/* ✅ Logout Confirmation Modal */}
-             {showLogoutModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                   <div className="bg-[#1C1F22] p-6 rounded-lg shadow-xl w-full max-w-sm mx-4 text-center border border-slate-700">
-                      <h3 className="text-xl font-bold text-white mb-2">Confirm Logout</h3>
-                      <p className="text-slate-400 mb-6">Are you sure you want to sign out?</p>
-                      <div className="flex justify-center space-x-4">
-                         <button 
-                            onClick={closeLogoutModal} 
-                            className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
-                         >
-                            Cancel
-                         </button>
-                         <button 
-                            onClick={handleLogout} 
-                            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"
-                         >
-                            Sign Out
-                         </button>
-                      </div>
-                   </div>
-                </div>
-             )}
+            {showLogoutModal && (
+               <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+                  <div className="bg-gradient-to-br from-green-700 to-emerald-800 p-8 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] w-full max-w-sm mx-4 text-center border border-green-500 animate-bounce-in">
+                        <div className="flex justify-center mb-4">
+                           <svg
+                              className="h-12 w-12 text-white opacity-90"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                           >
+                              <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H5a3 3 0 01-3-3V7a3 3 0 013-3h5a3 3 0 013 3v1"
+                              />
+                           </svg>
+                        </div>
+                        <h3 className="text-2xl font-extrabold text-white mb-2 tracking-wide">Confirm Sign Out</h3>
+                        <p className="text-green-200 mb-8 font-light">Are you sure you want to log out of your account?</p>
+                        <div className="flex justify-center space-x-4">
+                           <button
+                              onClick={closeLogoutModal}
+                              className="bg-gray-800 text-white font-semibold px-6 py-3 rounded-xl hover:bg-gray-700 transition-all duration-300 transform hover:scale-105 shadow-md border border-transparent hover:border-gray-500"
+                           >
+                              Cancel
+                           </button>
+                           <button
+                              onClick={handleLogout}
+                              className="bg-red-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-red-500 transition-all duration-300 transform hover:scale-105 shadow-md"
+                           >
+                              Sign Out
+                           </button>
+                        </div>
+                  </div>
+               </div>
+            )}
 
          {/* ✅ Hide scrollbar with fallback if Tailwind plugin not installed */}
          <style>

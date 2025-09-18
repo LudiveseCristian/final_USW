@@ -1,9 +1,23 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, TextInput, Alert, Dimensions } from "react-native"
-import Icon from 'react-native-vector-icons/MaterialIcons'
-import { collection, onSnapshot, updateDoc, doc, getDoc, query, where, orderBy } from "firebase/firestore"
+"use client"
+
+import { useState, useEffect } from "react"
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Modal,
+  TextInput,
+  Alert,
+  Dimensions,
+} from "react-native"
+import Icon from "react-native-vector-icons/MaterialIcons"
+import { collection, onSnapshot, updateDoc, doc, getDoc,  } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import { useAuth } from "../AuthContext"
+import LoadingScreen from "../hooks/LoadingScreen"
 
 export default function BiddingScreen({ navigation }) {
   const { currentUser } = useAuth()
@@ -15,33 +29,52 @@ export default function BiddingScreen({ navigation }) {
   const [liveAuctions, setLiveAuctions] = useState([])
   const [myBids, setMyBids] = useState([])
   const [acceptedBids, setAcceptedBids] = useState([])
+  const [endingSoonAuctions, setEndingSoonAuctions] = useState([])
+  const [activeBiddersCount, setActiveBiddersCount] = useState(0)
 
   const [imageModalVisible, setImageModalVisible] = useState(false)
   const [selectedImages, setSelectedImages] = useState([])
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  const [biddingCounts, setBiddingCounts] = useState({ activeBids: 0, outbidNotifications: 0 })
+  const [biddingCountsLoading, setBiddingCountsLoading] = useState(false)
 
   useEffect(() => {
     if (!currentUser?.uid) return
 
-    // Listen to live auctions
     const unsubscribeLive = onSnapshot(collection(db, "products"), (snapshot) => {
       const now = new Date()
+      const soonThreshold = new Date(now.getTime() + 2 * 60 * 60 * 1000) // 2 hours from now
+
       const items = snapshot.docs
         .map((d) => {
           const data = d.data()
           const bidEndTime = data.bidEndTime?.toDate ? data.bidEndTime.toDate() : data.bidEndTime
           const isExpired = bidEndTime ? new Date(bidEndTime) <= now : false
-          if (!data.biddingEnabled || data.status === 'sold' || data.status === 'expired' || isExpired) {
+
+          if (!data.biddingEnabled || data.status === "sold" || data.status === "expired" || isExpired) {
             return null
           }
-          const current = typeof data.currentBid === 'number' ? data.currentBid : (data.currentBid ? parseFloat(data.currentBid) : 0)
-          const minBid = typeof data.minimumBid === 'number' ? data.minimumBid : (data.minimumBid ? parseFloat(data.minimumBid) : 0)
+
+          const current =
+            typeof data.currentBid === "number"
+              ? data.currentBid
+              : data.currentBid
+                ? Number.parseFloat(data.currentBid)
+                : 0
+          const minBid =
+            typeof data.minimumBid === "number"
+              ? data.minimumBid
+              : data.minimumBid
+                ? Number.parseFloat(data.minimumBid)
+                : 0
           const base = Math.max(current || 0, minBid || 0)
           const next = base > 0 ? Math.ceil(base * 1.05) : 0
-          
+
           // Check if user has bid on this item
-          const userBid = data.bids?.find(bid => bid.bidderId === currentUser.uid)
-          
+          const userBid = data.bids?.find((bid) => bid.bidderId === currentUser.uid)
+
           return {
             id: d.id,
             title: data.name,
@@ -57,30 +90,52 @@ export default function BiddingScreen({ navigation }) {
             isUserWinning: userBid && userBid.amount === base,
             description: data.description || "No description available",
             length: data.length || "N/A",
-            width: data.width || "N/A"
+            width: data.width || "N/A",
+            bidEndTime: bidEndTime,
+            isEndingSoon: bidEndTime && new Date(bidEndTime) <= soonThreshold,
+            bids: data.bids || [],
           }
         })
         .filter(Boolean)
+
       setLiveAuctions(items)
+
+      const endingSoon = items.filter((item) => item.isEndingSoon)
+      setEndingSoonAuctions(endingSoon)
+
+      const uniqueBidders = new Set()
+      items.forEach((item) => {
+        item.bids.forEach((bid) => {
+          if (bid.bidderId) {
+            uniqueBidders.add(bid.bidderId)
+          }
+        })
+      })
+      setActiveBiddersCount(uniqueBidders.size)
+
+      setLoading(false)
     })
 
-    // Listen to user's bids and accepted bids
     const unsubscribeBids = onSnapshot(collection(db, "products"), (snapshot) => {
       const userBids = []
       const accepted = []
-      
+
       snapshot.docs.forEach((d) => {
         const data = d.data()
-        const userBid = data.bids?.find(bid => bid.bidderId === currentUser.uid)
-        
+        const userBid = data.bids?.find((bid) => bid.bidderId === currentUser.uid)
+
         if (userBid) {
           const bidInfo = {
             id: d.id,
             title: data.name,
             myBid: userBid.amount,
             currentBid: data.currentBid || 0,
-            status: data.status === 'sold' && data.highestBidder === userBid.bidderName ? 'won' : 
-                   data.currentBid > userBid.amount ? 'outbid' : 'winning',
+            status:
+              data.status === "sold" && data.highestBidder === userBid.bidderName
+                ? "won"
+                : data.currentBid > userBid.amount
+                  ? "outbid"
+                  : "winning",
             timeLeft: getTimeLeftText(data.bidEndTime?.toDate ? data.bidEndTime.toDate() : data.bidEndTime),
             image: data.imageUrls?.[0] || "https://via.placeholder.com/80x80/CCCCCC/FFFFFF?text=Bid+Item",
             category: data.category || "",
@@ -89,17 +144,17 @@ export default function BiddingScreen({ navigation }) {
             userBid: userBid,
             description: data.description || "No description available",
             length: data.length || "N/A",
-            width: data.width || "N/A"
+            width: data.width || "N/A",
           }
-          
-          if (data.status === 'sold' && data.highestBidder === userBid.bidderName) {
+
+          if (data.status === "sold" && data.highestBidder === userBid.bidderName) {
             accepted.push(bidInfo)
           } else {
             userBids.push(bidInfo)
           }
         }
       })
-      
+
       setMyBids(userBids)
       setAcceptedBids(accepted)
     })
@@ -110,7 +165,6 @@ export default function BiddingScreen({ navigation }) {
     }
   }, [currentUser?.uid])
 
-  // Combined bids for display (active + accepted)
   const allMyBids = [...myBids, ...acceptedBids]
 
   const getStatusColor = (status) => {
@@ -120,7 +174,7 @@ export default function BiddingScreen({ navigation }) {
       case "outbid":
         return "#D0021B"
       case "won":
-        return "#4A90E2"
+        return "#135918"
       default:
         return "#888"
     }
@@ -146,8 +200,8 @@ export default function BiddingScreen({ navigation }) {
   }
 
   const handleConfirmBid = async () => {
-    const bidValue = parseFloat(bidAmount)
-    
+    const bidValue = Number.parseFloat(bidAmount)
+
     if (!bidValue || isNaN(bidValue)) {
       Alert.alert("Invalid Bid", "Please enter a valid bid amount.")
       return
@@ -158,25 +212,27 @@ export default function BiddingScreen({ navigation }) {
       return
     }
     try {
-      const productRef = doc(db, 'products', selectedItem.id)
+      const productRef = doc(db, "products", selectedItem.id)
       const productSnap = await getDoc(productRef)
       if (!productSnap.exists()) {
-        Alert.alert('Error', 'This auction no longer exists.')
+        Alert.alert("Error", "This auction no longer exists.")
         return
       }
       const data = productSnap.data()
-      const current = typeof data.currentBid === 'number' ? data.currentBid : (data.currentBid ? parseFloat(data.currentBid) : 0)
-      const minBid = typeof data.minimumBid === 'number' ? data.minimumBid : (data.minimumBid ? parseFloat(data.minimumBid) : 0)
+      const current =
+        typeof data.currentBid === "number" ? data.currentBid : data.currentBid ? Number.parseFloat(data.currentBid) : 0
+      const minBid =
+        typeof data.minimumBid === "number" ? data.minimumBid : data.minimumBid ? Number.parseFloat(data.minimumBid) : 0
       const base = Math.max(current || 0, minBid || 0)
       const requiredMin = base > 0 ? Math.ceil(base * 1.05) : minBid
       if (bidValue < requiredMin) {
-        Alert.alert('Bid Too Low', `Latest required bid is ₱${requiredMin.toLocaleString()}`)
+        Alert.alert("Bid Too Low", `Latest required bid is ₱${requiredMin.toLocaleString()}`)
         return
       }
 
       const newBid = {
-        bidderId: currentUser?.uid || 'anonymous',
-        bidderName: currentUser?.name || currentUser?.email?.split('@')[0] || 'Anonymous',
+        bidderId: currentUser?.uid || "anonymous",
+        bidderName: currentUser?.name || currentUser?.email?.split("@")[0] || "Anonymous",
         bidderEmail: currentUser?.email || undefined,
         amount: bidValue,
         timestamp: new Date().toISOString(),
@@ -194,8 +250,8 @@ export default function BiddingScreen({ navigation }) {
       setBidAmount("")
       setSelectedItem(null)
     } catch (e) {
-      console.error('Error placing bid:', e)
-      Alert.alert('Error', 'Failed to place bid. Please try again.')
+      console.error("Error placing bid:", e)
+      Alert.alert("Error", "Failed to place bid. Please try again.")
     }
   }
 
@@ -220,21 +276,24 @@ export default function BiddingScreen({ navigation }) {
   }
 
   const handleViewOrder = (item) => {
-    if (item.status === 'won') {
-      navigation.navigate('Cart', { 
+    if (item.status === "won") {
+      navigation.navigate("Cart", {
         orderItem: {
           ...item,
           orderId: `ORDER_${item.id}_${Date.now()}`,
           orderDate: new Date().toISOString(),
-          status: 'pending_payment'
-        }
+          status: "pending_payment",
+        },
       })
     }
   }
 
-  // Custom Peso Symbol Component
+  if (loading || biddingCountsLoading) {
+    return <LoadingScreen message="Loading bids..." />
+  }
+
   const PesoSymbol = ({ size = 16, color = "#2E6A2E" }) => (
-    <Text style={{ fontSize: size, color, fontWeight: 'bold' }}>₱</Text>
+    <Text style={{ fontSize: size, color, fontWeight: "bold" }}>₱</Text>
   )
 
   const PesoAmount = ({ amount, style, showYou = false }) => (
@@ -260,81 +319,72 @@ export default function BiddingScreen({ navigation }) {
     if (hours > 0) return `${hours}h ${minutes}m`
     return `${minutes}m`
   }
+
   const openImageViewer = (item) => {
-  if (item.image && item.raw?.imageUrls) {
-    const allImages = item.raw.imageUrls
-    setSelectedImages(allImages)
-    setCurrentImageIndex(0)
-    setImageModalVisible(true)
+    if (item.image && item.raw?.imageUrls) {
+      const allImages = item.raw.imageUrls
+      setSelectedImages(allImages)
+      setCurrentImageIndex(0)
+      setImageModalVisible(true)
+    }
   }
-}
 
-const renderImageViewer = () => (
-  <Modal
-    visible={imageModalVisible}
-    transparent={true}
-    animationType="fade"
-    onRequestClose={() => setImageModalVisible(false)}
-  >
-    <View style={styles.imageModalContainer}>
-      <View style={styles.imageModalHeader}>
-        <Text style={styles.imageCounter}>
-          {currentImageIndex + 1} of {selectedImages.length}
-        </Text>
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() => setImageModalVisible(false)}
-        >
-          <Icon name="close" size={24} color="white" />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(event) => {
-          const { width } = Dimensions.get('window')
-          const index = Math.round(event.nativeEvent.contentOffset.x / width)
-          setCurrentImageIndex(index)
-        }}
-        style={styles.imageScrollView}
-      >
-        {selectedImages.map((imageUrl, index) => (
-          <View key={index} style={styles.imageSlideContainer}>
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.fullScreenImage}
-              resizeMode="contain"
-            />
-          </View>
-        ))}
-      </ScrollView>
-
-      {selectedImages.length > 1 && (
-        <View style={styles.imageDots}>
-          {selectedImages.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                currentImageIndex === index && styles.activeDot
-              ]}
-            />
-          ))}
+  const renderImageViewer = () => (
+    <Modal
+      visible={imageModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setImageModalVisible(false)}
+    >
+      <View style={styles.imageModalContainer}>
+        <View style={styles.imageModalHeader}>
+          <Text style={styles.imageCounter}>
+            {currentImageIndex + 1} of {selectedImages.length}
+          </Text>
+          <TouchableOpacity style={styles.closeButton} onPress={() => setImageModalVisible(false)}>
+            <Icon name="close" size={24} color="white" />
+          </TouchableOpacity>
         </View>
-      )}
-    </View>
-  </Modal>
-)
 
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(event) => {
+            const { width } = Dimensions.get("window")
+            const index = Math.round(event.nativeEvent.contentOffset.x / width)
+            setCurrentImageIndex(index)
+          }}
+          style={styles.imageScrollView}
+        >
+          {selectedImages.map((imageUrl, index) => (
+            <View key={index} style={styles.imageSlideContainer}>
+              <Image source={{ uri: imageUrl }} style={styles.fullScreenImage} resizeMode="contain" />
+            </View>
+          ))}
+        </ScrollView>
+
+        {selectedImages.length > 1 && (
+          <View style={styles.imageDots}>
+            {selectedImages.map((_, index) => (
+              <View key={index} style={[styles.dot, currentImageIndex === index && styles.activeDot]} />
+            ))}
+          </View>
+        )}
+      </View>
+    </Modal>
+  )
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bidding Center</Text>
-        <Text style={styles.headerSubtitle}>Place bids and track your auctions</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Bidding Center</Text>
+        </View>
+        <Text style={styles.headerSubtitle}>
+          Place bids and track your auctions • {biddingCounts.activeBids} active bids
+        </Text>
       </View>
 
       {/* Tab Navigation */}
@@ -343,13 +393,20 @@ const renderImageViewer = () => (
           style={[styles.tab, activeTab === "live" && styles.activeTab]}
           onPress={() => setActiveTab("live")}
         >
-          <Text style={[styles.tabText, activeTab === "live" && styles.activeTabText]}>Live Auctions</Text>
+          <Text style={[styles.tabText, activeTab === "live" && styles.activeTabText]}>Live Bids</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "mybids" && styles.activeTab]}
           onPress={() => setActiveTab("mybids")}
         >
-          <Text style={[styles.tabText, activeTab === "mybids" && styles.activeTabText]}>My Bids</Text>
+          <View style={styles.tabWithBadge}>
+            <Text style={[styles.tabText, activeTab === "mybids" && styles.activeTabText]}>My Bids</Text>
+            {biddingCounts.outbidNotifications > 0 && (
+              <View style={styles.tabNotificationBadge}>
+                <Text style={styles.tabNotificationText}>{biddingCounts.outbidNotifications}</Text>
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -359,21 +416,21 @@ const renderImageViewer = () => (
             {/* Quick Stats */}
             <View style={styles.statsContainer}>
               <View style={styles.statCard}>
-                <Text style={styles.statNumber}>24</Text>
-                <Text style={styles.statLabel}>Live Auctions</Text>
+                <Text style={styles.statNumber}>{liveAuctions.length}</Text>
+                <Text style={styles.statLabel}>Live Bids</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statNumber}>8</Text>
+                <Text style={styles.statNumber}>{endingSoonAuctions.length}</Text>
                 <Text style={styles.statLabel}>Ending Soon</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statNumber}>156</Text>
-                <Text style={styles.statLabel}>Active Bidders</Text>
+                <Text style={styles.statNumber}>{activeBiddersCount}</Text>
+                <Text style={styles.statLabel}>Active Bids</Text>
               </View>
             </View>
 
             {/* Live Auctions */}
-            <Text style={styles.sectionTitle}>Live Auctions</Text>
+            <Text style={styles.sectionTitle}>Live Bids</Text>
             {liveAuctions.map((item) => (
               <View key={item.id} style={styles.auctionCard}>
                 <TouchableOpacity onPress={() => openImageViewer(item)} activeOpacity={0.8}>
@@ -393,22 +450,22 @@ const renderImageViewer = () => (
                     </View>
                   </View>
 
-                    <View style={styles.auctionDescription}>
-                      <Text style={styles.descriptionText}>{item.description}</Text>
-                      <View style={styles.measurementsContainer}>
-                        <Text style={styles.measurementText}>Length: {item.length}″</Text>
-                        <Text style={styles.measurementText}>Width: {item.width}″</Text>
-                      </View>
+                  <View style={styles.auctionDescription}>
+                    <Text style={styles.descriptionText}>{item.description}</Text>
+                    <View style={styles.measurementsContainer}>
+                      <Text style={styles.measurementText}>Length: {item.length}″</Text>
+                      <Text style={styles.measurementText}>Width: {item.width}″</Text>
                     </View>
+                  </View>
 
                   <View style={styles.bidInfo}>
                     <View style={styles.bidRow}>
                       <Text style={styles.bidLabel}>Current Bid:</Text>
-                      <PesoAmount 
-                        amount={item.currentBid} 
+                      <PesoAmount
+                        amount={item.currentBid}
                         style={[
                           styles.currentBidAmount,
-                          item.userBid && item.userBid === item.currentBid && styles.userBidAmount
+                          item.userBid && item.userBid === item.currentBid && styles.userBidAmount,
                         ]}
                         showYou={item.userBid && item.userBid === item.currentBid}
                       />
@@ -416,15 +473,11 @@ const renderImageViewer = () => (
                     <View style={styles.bidRow}>
                       <Text style={styles.bidLabel}>Next Bid:</Text>
                       {item.userBid && item.userBid === item.currentBid ? (
-                        <Text style={[styles.nextBidAmount, styles.yourBidText]}>
-                          Your Bid
-                        </Text>
+                        <Text style={[styles.nextBidAmount, styles.yourBidText]}>Your Bid</Text>
                       ) : (
                         <View style={styles.pesoAmountContainer}>
                           <PesoSymbol size={14} color="#333" />
-                          <Text style={[styles.nextBidAmount, { marginLeft: 2 }]}>
-                            {item.nextBid.toLocaleString()}
-                          </Text>
+                          <Text style={[styles.nextBidAmount, { marginLeft: 2 }]}>{item.nextBid.toLocaleString()}</Text>
                         </View>
                       )}
                     </View>
@@ -441,11 +494,11 @@ const renderImageViewer = () => (
                     </View>
                   </View>
 
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.bidButton,
-                      item.userBid && item.userBid === item.currentBid && styles.increaseBidButton
-                    ]} 
+                      item.userBid && item.userBid === item.currentBid && styles.increaseBidButton,
+                    ]}
                     onPress={() => handlePlaceBid(item)}
                   >
                     <Text style={styles.bidButtonText}>{renderBidButtonText(item)}</Text>
@@ -463,7 +516,7 @@ const renderImageViewer = () => (
                 <Text style={styles.myBidsStatLabel}>Total Bids</Text>
               </View>
               <View style={styles.myBidsStatCard}>
-                <Text style={styles.myBidsStatNumber}>{myBids.filter(b => b.status === 'winning').length}</Text>
+                <Text style={styles.myBidsStatNumber}>{myBids.filter((b) => b.status === "winning").length}</Text>
                 <Text style={styles.myBidsStatLabel}>Winning</Text>
               </View>
               <View style={styles.myBidsStatCard}>
@@ -476,14 +529,14 @@ const renderImageViewer = () => (
             {allMyBids.map((item) => (
               <View key={item.id} style={styles.myBidCard}>
                 <TouchableOpacity onPress={() => openImageViewer(item)} activeOpacity={0.8}>
-                    <Image source={{ uri: item.image }} style={styles.myBidImage} />
-                    {item.raw?.imageUrls && item.raw.imageUrls.length > 1 && (
-                      <View style={styles.myBidImageCountBadge}>
-                        <Icon name="photo-library" size={10} color="white" />
-                        <Text style={styles.myBidImageCountText}>+{item.raw.imageUrls.length - 1}</Text>
-                      </View>
-                    )}
-              </TouchableOpacity>
+                  <Image source={{ uri: item.image }} style={styles.myBidImage} />
+                  {item.raw?.imageUrls && item.raw.imageUrls.length > 1 && (
+                    <View style={styles.myBidImageCountBadge}>
+                      <Icon name="photo-library" size={10} color="white" />
+                      <Text style={styles.myBidImageCountText}>+{item.raw.imageUrls.length - 1}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
                 <View style={styles.myBidContent}>
                   <View style={styles.myBidHeader}>
                     <Text style={styles.myBidTitle}>{item.title}</Text>
@@ -513,7 +566,7 @@ const renderImageViewer = () => (
                     <View style={styles.timeContainer}>
                       <Icon name="access-time" size={11} color="#F5A623" />
                       <Text style={styles.timeLeftSmall}>
-                        {item.status === 'won' ? 'Won' : `${item.timeLeft} left`}
+                        {item.status === "won" ? "Won" : `${item.timeLeft} left`}
                       </Text>
                     </View>
                     {item.status === "outbid" && (
@@ -522,10 +575,7 @@ const renderImageViewer = () => (
                       </TouchableOpacity>
                     )}
                     {item.status === "won" && (
-                      <TouchableOpacity 
-                        style={styles.viewOrderButton}
-                        onPress={() => handleViewOrder(item)}
-                      >
+                      <TouchableOpacity style={styles.viewOrderButton} onPress={() => handleViewOrder(item)}>
                         <Text style={styles.viewOrderButtonText}>View Order</Text>
                       </TouchableOpacity>
                     )}
@@ -540,12 +590,7 @@ const renderImageViewer = () => (
       </ScrollView>
 
       {/* Bid Modal */}
-      <Modal
-        visible={showBidModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCancelBid}
-      >
+      <Modal visible={showBidModal} transparent={true} animationType="slide" onRequestClose={handleCancelBid}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Place Your Bid</Text>
@@ -565,12 +610,10 @@ const renderImageViewer = () => (
                   <Text style={styles.modalMinBid}>Minimum Bid: </Text>
                   <View style={styles.pesoAmountContainer}>
                     <PesoSymbol size={16} color="#2E6A2E" />
-                    <Text style={[styles.modalMinBid, { marginLeft: 2 }]}>
-                      {selectedItem.nextBid.toLocaleString()}
-                    </Text>
+                    <Text style={[styles.modalMinBid, { marginLeft: 2 }]}>{selectedItem.nextBid.toLocaleString()}</Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Your Bid Amount:</Text>
                   <View style={styles.inputWrapper}>
@@ -607,13 +650,23 @@ const renderImageViewer = () => (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFFCF3",
   },
   header: {
     backgroundColor: "#2E6A2E",
-    paddingTop: 50,
+    paddingTop: 30,
     paddingBottom: 20,
     paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  headerTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   headerTitle: {
     fontSize: 28,
@@ -624,6 +677,20 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     color: "rgba(255, 255, 255, 0.9)",
+  },
+  notificationBadge: {
+    backgroundColor: "#FF4444",
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
+  notificationText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
   },
   tabContainer: {
     flexDirection: "row",
@@ -655,6 +722,25 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: "white",
   },
+  tabWithBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  tabNotificationBadge: {
+    backgroundColor: "#FF4444",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  tabNotificationText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
   scrollView: {
     flex: 1,
     marginTop: 20,
@@ -683,7 +769,7 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: "#135918",
     marginTop: 5,
   },
   statLabel: {
@@ -726,7 +812,7 @@ const styles = StyleSheet.create({
   auctionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: "#135918",
     flex: 1,
   },
   categoryBadge: {
@@ -923,7 +1009,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   viewOrderButton: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: "#135918",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 15,
@@ -1042,123 +1128,123 @@ const styles = StyleSheet.create({
   },
 
   // Image Modal Styles
-imageModalContainer: {
-  flex: 1,
-  backgroundColor: 'rgba(0, 0, 0, 0.95)',
-},
-imageModalHeader: {
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  paddingTop: 50,
-  paddingHorizontal: 20,
-  paddingBottom: 20,
-  zIndex: 1000,
-  backgroundColor: 'rgba(0, 0, 0, 0.3)',
-},
-imageCounter: {
-  color: 'white',
-  fontSize: 16,
-  fontWeight: '600',
-},
-closeButton: {
-  padding: 8,
-  borderRadius: 20,
-  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-},
-imageScrollView: {
-  flex: 1,
-},
-imageSlideContainer: {
-  width: Dimensions.get('window').width,
-  height: Dimensions.get('window').height,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-fullScreenImage: {
-  width: Dimensions.get('window').width,
-  height: Dimensions.get('window').height * 0.8,
-},
-imageDots: {
-  position: 'absolute',
-  bottom: 50,
-  left: 0,
-  right: 0,
-  flexDirection: 'row',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-dot: {
-  width: 8,
-  height: 8,
-  borderRadius: 4,
-  backgroundColor: 'rgba(255, 255, 255, 0.4)',
-  marginHorizontal: 4,
-},
-activeDot: {
-  backgroundColor: 'white',
-  width: 10,
-  height: 10,
-  borderRadius: 5,
-},
-imageCountBadge: {
-  position: 'absolute',
-  top: 8,
-  right: 8,
-  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  paddingHorizontal: 6,
-  paddingVertical: 2,
-  borderRadius: 10,
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-imageCountText: {
-  color: 'white',
-  fontSize: 10,
-  fontWeight: '600',
-  marginLeft: 2,
-},
-myBidImageCountBadge: {
-  position: 'absolute',
-  top: 4,
-  right: 4,
-  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  paddingHorizontal: 4,
-  paddingVertical: 1,
-  borderRadius: 8,
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-myBidImageCountText: {
-  color: 'white',
-  fontSize: 8,
-  fontWeight: '600',
-  marginLeft: 1,
-},
+  imageModalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+  },
+  imageModalHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    zIndex: 1000,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  imageCounter: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  imageScrollView: {
+    flex: 1,
+  },
+  imageSlideContainer: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullScreenImage: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height * 0.8,
+  },
+  imageDots: {
+    position: "absolute",
+    bottom: 50,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    marginHorizontal: 4,
+  },
+  activeDot: {
+    backgroundColor: "white",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  imageCountBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  imageCountText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "600",
+    marginLeft: 2,
+  },
+  myBidImageCountBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  myBidImageCountText: {
+    color: "white",
+    fontSize: 8,
+    fontWeight: "600",
+    marginLeft: 1,
+  },
 
-auctionDescription: {
-  marginVertical: 10,
-  paddingHorizontal: 5,
-},
-descriptionText: {
-  fontSize: 14,
-  color: '#666',
-  lineHeight: 20,
-  marginBottom: 8,
-},
-measurementsContainer: {
-  flexDirection: 'row',
-  justifyContent: 'flex-start',
-  marginTop: 5,
-},
-measurementText: {
-  fontSize: 13,
-  color: '#444',
-  marginRight: 15,
-  fontWeight: '500',
-},
+  auctionDescription: {
+    marginVertical: 10,
+    paddingHorizontal: 5,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  measurementsContainer: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    marginTop: 5,
+  },
+  measurementText: {
+    fontSize: 13,
+    color: "#444",
+    marginRight: 15,
+    fontWeight: "500",
+  },
 })
