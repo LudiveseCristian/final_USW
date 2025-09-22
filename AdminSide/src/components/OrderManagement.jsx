@@ -239,7 +239,7 @@ const OrderManagement = () => {
   return (
     <div className="min-h-screen bg-cream">
       {/* Header */}
-      <div className="bg-green-700 shadow-lg">
+      <div className="bg-[#135918] shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-6">
             <h1 className="text-3xl font-bold text-white">Order Management</h1>
@@ -258,7 +258,7 @@ const OrderManagement = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">{tab.label}</p>
-                  <p className="text-2xl font-bold text-green-700">{tab.count}</p>
+                  <p className="text-2xl font-bold text-[#135918]">{tab.count}</p>
                 </div>
                 <div className="p-3 bg-green-100 rounded-full">
                   {getStatusIcon(tab.id)}
@@ -281,7 +281,7 @@ const OrderManagement = () => {
                 placeholder="Search orders by title, winner name, email, or ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-green-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-colors"
+                className="w-full pl-10 pr-4 py-3 border-2 border-green-200 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-200 transition-colors"
               />
             </div>
           </div>
@@ -294,7 +294,7 @@ const OrderManagement = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-green-700 text-white'
+                    ? 'bg-[#135918] text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -303,7 +303,7 @@ const OrderManagement = () => {
                 {tab.count > 0 && (
                   <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                     activeTab === tab.id
-                      ? 'bg-green-600 text-white'
+                      ? 'bg-white text-[#135918]'
                       : 'bg-gray-300 text-gray-700'
                   }`}>
                     {tab.count}

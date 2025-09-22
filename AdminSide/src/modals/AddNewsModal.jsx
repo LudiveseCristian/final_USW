@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, ImageIcon } from 'lucide-react';
+import { Upload, X, ImageIcon, Loader2 } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
 import { useAlert } from "../contexts/alertContext";
@@ -11,6 +11,7 @@ const AddNewsModal = ({ showModal, setShowModal, editingNews, onSaveSuccess }) =
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    type: 'update', // New: Added type field
     mainImage: '',
     secondaryImages: []
   });
@@ -25,6 +26,7 @@ const AddNewsModal = ({ showModal, setShowModal, editingNews, onSaveSuccess }) =
       setFormData({
         title: editingNews.title || '',
         description: editingNews.description || '',
+        type: editingNews.type || 'update', // New: Populate type when editing
         mainImage: editingNews.mainImage || '',
         secondaryImages: editingNews.secondaryImages || []
       });
@@ -41,6 +43,7 @@ const AddNewsModal = ({ showModal, setShowModal, editingNews, onSaveSuccess }) =
     setFormData({
       title: '',
       description: '',
+      type: 'update', // New: Reset type field
       mainImage: '',
       secondaryImages: []
     });
@@ -48,6 +51,11 @@ const AddNewsModal = ({ showModal, setShowModal, editingNews, onSaveSuccess }) =
       mainImage: null,
       secondaryImages: []
     });
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
   };
 
   const uploadImage = async (file, path) => {
@@ -158,9 +166,10 @@ const AddNewsModal = ({ showModal, setShowModal, editingNews, onSaveSuccess }) =
               <label htmlFor="title" className="text-sm font-medium text-gray-700">Title</label>
               <input
                 id="title"
+                name="title"
                 type="text"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={handleInputChange}
                 className="w-full bg-white text-gray-800 border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
                 placeholder="Enter article title"
                 required
@@ -172,13 +181,30 @@ const AddNewsModal = ({ showModal, setShowModal, editingNews, onSaveSuccess }) =
               <label htmlFor="description" className="text-sm font-medium text-gray-700">Description</label>
               <textarea
                 id="description"
+                name="description"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={handleInputChange}
                 className="w-full bg-white text-gray-800 border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
                 rows="4"
                 placeholder="Write a description for your article"
                 required
               />
+            </div>
+            
+            {/* Type Dropdown */}
+            <div className="flex flex-col space-y-1">
+              <label htmlFor="type" className="text-sm font-medium text-gray-700">Type</label>
+              <select
+                id="type"
+                name="type"
+                value={formData.type}
+                onChange={handleInputChange}
+                className="w-full bg-white text-gray-800 border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                required
+              >
+                <option value="update">Update</option>
+                <option value="drop">Drop</option>
+              </select>
             </div>
 
             {/* Main Image Upload */}
@@ -254,7 +280,6 @@ const AddNewsModal = ({ showModal, setShowModal, editingNews, onSaveSuccess }) =
                         </button>
                       </div>
                     ))}
-
                     {/* New images */}
                     {imageFiles.secondaryImages.map((file, index) => (
                       <div key={`new-${index}`} className="relative group aspect-w-1 aspect-h-1 overflow-hidden rounded-lg">
@@ -315,7 +340,7 @@ const AddNewsModal = ({ showModal, setShowModal, editingNews, onSaveSuccess }) =
               >
                 {uploadingImages ? (
                   <div className="flex items-center justify-center space-x-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <Loader2 className="animate-spin h-4 w-4 text-white" />
                     <span>Processing...</span>
                   </div>
                 ) : (

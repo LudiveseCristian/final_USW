@@ -139,12 +139,14 @@ const SoldProducts = () => {
         {/* Header Section */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Package className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Sold Products</h1>
-              <p className="text-gray-600 text-lg mt-1">
+            <div className="mb-8">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Package className="h-6 w-6 text-primary" />
+                </div>
+                <h1 className="text-3xl font-bold text-primary">Sold Products</h1>
+              </div>
+                <p className="text-gray-600 text-lg">
                 View a history of all sold upcycled streetwear items
               </p>
               <div className="flex items-center space-x-6 mt-4">

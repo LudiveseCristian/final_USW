@@ -198,23 +198,21 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9F7F1] p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-cream">
         {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <BarChart3 className="h-6 w-6 text-primary" />
+        <div className="bg-[#135918] shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="py-6">
+              <h1 className="text-3xl font-bold text-white">Dashboard</h1>
+              <p className="mt-2 text-green-100">
+              Welcome back! Here's an overview of your business performance and recent activity.
+              </p>
             </div>
-            <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
           </div>
-          <p className="text-gray-600 text-lg">
-            Welcome back! Here's an overview of your business performance and recent activity.
-          </p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-[-1rem] mb-8 mx-4 md:mx-6 lg:mx-8">
           {/* Total Sales */}
           <Card className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
@@ -305,269 +303,270 @@ const Dashboard = () => {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
-          {/* Recent Orders - Takes 2/3 width */}
-          <div className="xl:col-span-2">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Clock className="h-5 w-5 text-gray-400" />
-                    <CardTitle>Recent Orders</CardTitle>
+        <div className="mx-4 md:mx-6 lg:mx-8 mb-8">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+            {/* Recent Orders - Takes 2/3 width */}
+            <div className="xl:col-span-2">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <Clock className="h-5 w-5 text-gray-400" />
+                      <CardTitle>Recent Orders</CardTitle>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/sales')}
+                    >
+                      View All
+                    </Button>
                   </div>
-                  <Button 
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate('/sales')}
-                  >
-                    View All
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {recentOrders.length === 0 ? (
-                  <EmptyState
-                    icon={Package}
-                    title="No recent orders found"
-                    description="Orders will appear here once customers start making purchases."
-                  />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Product</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentOrders.map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell>
-                            <div className="font-medium text-gray-900">{order.customerName}</div>
-                          </TableCell>
-                          <TableCell className="text-gray-600">{order.product}</TableCell>
-                          <TableCell>
-                            <span className="font-semibold text-gray-900">
-                              {formatPrice(order.price)}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusColor(order.status)}`}>
-                              {order.status}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-gray-500 text-sm">{order.date}</TableCell>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {recentOrders.length === 0 ? (
+                    <EmptyState
+                      icon={Package}
+                      title="No recent orders found"
+                      description="Orders will appear here once customers start making purchases."
+                    />
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Price</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {recentOrders.map((order) => (
+                          <TableRow key={order.id}>
+                            <TableCell>
+                              <div className="font-medium text-gray-900">{order.customerName}</div>
+                            </TableCell>
+                            <TableCell className="text-gray-600">{order.product}</TableCell>
+                            <TableCell>
+                              <span className="font-semibold text-gray-900">
+                                {formatPrice(order.price)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusColor(order.status)}`}>
+                                {order.status}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-gray-500 text-sm">{order.date}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Quick Actions Sidebar */}
+            <div className="space-y-6">
+              {/* Quick Actions */}
+              <Card>
+                <CardContent className="p-6">
+                  <CardTitle className="mb-4 flex items-center">
+                    <Plus className="h-5 w-5 mr-2 text-gray-400" />
+                    Quick Actions
+                  </CardTitle>
+                  <div className="space-y-3">
+                    <Button
+                      onClick={handleAddNewProduct}
+                      className="w-full"
+                      size="lg"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Product
+                    </Button>
+                    <Button
+                      onClick={handleViewSalesReport}
+                      variant="secondary"
+                      className="w-full"
+                      size="lg"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      View Sales Report
+                    </Button>
+                    <Button
+                      onClick={handleManageInventory}
+                      variant="secondary"
+                      className="w-full"
+                      size="lg"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Manage Inventory
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* System Status */}
+              <Card>
+                <CardContent className="p-6">
+                  <CardTitle className="mb-4 flex items-center">
+                    <Activity className="h-5 w-5 mr-2 text-gray-400" />
+                    System Status
+                  </CardTitle>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Database</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                        <span className="text-green-600 font-medium text-sm">Online</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Storage</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                        <span className="text-green-600 font-medium text-sm">Available</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Auto-cleanup</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                        <span className="text-green-600 font-medium text-sm">Active</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
-          {/* Quick Actions Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <Card>
-              <CardContent className="p-6">
-                <CardTitle className="mb-4 flex items-center">
-                  <Plus className="h-5 w-5 mr-2 text-gray-400" />
-                  Quick Actions
-                </CardTitle>
-                <div className="space-y-3">
-                  <Button 
-                    onClick={handleAddNewProduct}
-                    className="w-full"
-                    size="lg"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add New Product
-                  </Button>
-                  <Button 
-                    onClick={handleViewSalesReport}
-                    variant="secondary"
-                    className="w-full"
-                    size="lg"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    View Sales Report
-                  </Button>
-                  <Button 
-                    onClick={handleManageInventory}
-                    variant="secondary"
-                    className="w-full"
-                    size="lg"
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Manage Inventory
-                  </Button>
+          {/* Latest News */}
+          <Card>
+            <CardContent className="p-6">
+              <CardTitle className="mb-6 flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2 text-gray-400" />
+                Latest News
+              </CardTitle>
+              {latestNews.length === 0 ? (
+                <EmptyState
+                  icon={FileText}
+                  title="No news available"
+                  description="Latest news and announcements will appear here."
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {latestNews.map((news) => (
+                    <Card key={news.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        {news.imageUrl && (
+                          <img
+                            src={news.imageUrl}
+                            alt={news.name || news.title}
+                            className="w-full h-32 object-cover rounded-md mb-4"
+                          />
+                        )}
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+                          {news.name || news.title}
+                        </h3>
+                        <p className="text-gray-600 text-sm line-clamp-3 mb-3">{news.description}</p>
+                        <p className="text-xs text-gray-500">{news.createdAt}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* System Status */}
-            <Card>
-              <CardContent className="p-6">
-                <CardTitle className="mb-4 flex items-center">
-                  <Activity className="h-5 w-5 mr-2 text-gray-400" />
-                  System Status
-                </CardTitle>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Database</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                      <span className="text-green-600 font-medium text-sm">Online</span>
-                    </div>
+          {/* Add Product Modal */}
+          <Modal
+            isOpen={showAddProductModal}
+            onClose={() => setShowAddProductModal(false)}
+            title="Add New Product"
+            size="sm"
+          >
+            <div className="p-6">
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                Navigate to the Products page to add new items to your inventory and manage your product catalog.
+              </p>
+
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAddProductModal(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowAddProductModal(false);
+                    navigate('/products');
+                  }}
+                  className="flex-1"
+                >
+                  Go to Products
+                </Button>
+              </div>
+            </div>
+          </Modal>
+
+          {/* Inventory Management Modal */}
+          <Modal
+            isOpen={showInventoryModal}
+            onClose={() => setShowInventoryModal(false)}
+            title="Inventory Overview"
+            size="sm"
+          >
+            <div className="p-6">
+              <div className="space-y-4 mb-6">
+                <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center space-x-3">
+                    <Package className="h-5 w-5 text-blue-600" />
+                    <span className="text-gray-900 font-medium">Available Products</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Storage</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                      <span className="text-green-600 font-medium text-sm">Available</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Auto-cleanup</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                      <span className="text-green-600 font-medium text-sm">Active</span>
-                    </div>
-                  </div>
+                  <span className="text-xl font-bold text-blue-600">{stats.totalProducts}</span>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg border border-orange-200">
+                  <div className="flex items-center space-x-3">
+                    <AlertCircle className="h-5 w-5 text-orange-600" />
+                    <span className="text-gray-900 font-medium">Low Stock Items</span>
+                  </div>
+                  <span className="text-xl font-bold text-orange-600">3</span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
+                  <div className="flex items-center space-x-3">
+                    <X className="h-5 w-5 text-red-600" />
+                    <span className="text-gray-900 font-medium">Out of Stock</span>
+                  </div>
+                  <span className="text-xl font-bold text-red-600">1</span>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowInventoryModal(false)}
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowInventoryModal(false);
+                    navigate('/products');
+                  }}
+                  className="flex-1"
+                >
+                  Manage Products
+                </Button>
+              </div>
+            </div>
+          </Modal>
         </div>
-
-        {/* Latest News */}
-        <Card>
-          <CardContent className="p-6">
-            <CardTitle className="mb-6 flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2 text-gray-400" />
-              Latest News
-            </CardTitle>
-            {latestNews.length === 0 ? (
-              <EmptyState
-                icon={FileText}
-                title="No news available"
-                description="Latest news and announcements will appear here."
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {latestNews.map((news) => (
-                  <Card key={news.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      {news.imageUrl && (
-                        <img
-                          src={news.imageUrl}
-                          alt={news.name || news.title}
-                          className="w-full h-32 object-cover rounded-md mb-4"
-                        />
-                      )}
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-                        {news.name || news.title}
-                      </h3>
-                      <p className="text-gray-600 text-sm line-clamp-3 mb-3">{news.description}</p>
-                      <p className="text-xs text-gray-500">{news.createdAt}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Add Product Modal */}
-        <Modal
-          isOpen={showAddProductModal}
-          onClose={() => setShowAddProductModal(false)}
-          title="Add New Product"
-          size="sm"
-        >
-          <div className="p-6">
-            <p className="text-gray-600 mb-6 leading-relaxed">
-              Navigate to the Products page to add new items to your inventory and manage your product catalog.
-            </p>
-            
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowAddProductModal(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowAddProductModal(false);
-                  navigate('/products');
-                }}
-                className="flex-1"
-              >
-                Go to Products
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Inventory Management Modal */}
-        <Modal
-          isOpen={showInventoryModal}
-          onClose={() => setShowInventoryModal(false)}
-          title="Inventory Overview"
-          size="sm"
-        >
-          <div className="p-6">
-            <div className="space-y-4 mb-6">
-              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center space-x-3">
-                  <Package className="h-5 w-5 text-blue-600" />
-                  <span className="text-gray-900 font-medium">Available Products</span>
-                </div>
-                <span className="text-xl font-bold text-blue-600">{stats.totalProducts}</span>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="flex items-center space-x-3">
-                  <AlertCircle className="h-5 w-5 text-orange-600" />
-                  <span className="text-gray-900 font-medium">Low Stock Items</span>
-                </div>
-                <span className="text-xl font-bold text-orange-600">3</span>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
-                <div className="flex items-center space-x-3">
-                  <X className="h-5 w-5 text-red-600" />
-                  <span className="text-gray-900 font-medium">Out of Stock</span>
-                </div>
-                <span className="text-xl font-bold text-red-600">1</span>
-              </div>
-            </div>
-            
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowInventoryModal(false)}
-                className="flex-1"
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowInventoryModal(false);
-                  navigate('/products');
-                }}
-                className="flex-1"
-              >
-                Manage Products
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      </div>
     </div>
   );
 };

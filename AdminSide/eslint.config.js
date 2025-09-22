@@ -1,18 +1,23 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import { defineConfig, globalIgnores } from 'eslint/config'
+// eslint.config.js
 
-export default defineConfig([
-  globalIgnores(['dist']),
+import js from '@eslint/js';
+import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
+
+export default [
+  {
+    // Ignores are now a top-level property of the configuration object
+    ignores: ['dist'],
+  },
   {
     files: ['**/*.{js,jsx}'],
-    extends: [
-      js.configs.recommended,
-      reactHooks.configs['recommended-latest'],
-      reactRefresh.configs.vite,
-    ],
+    // Instead of `extends`, use `...` to spread the configuration objects
+    // from the imported plugins.
+    ...js.configs.recommended,
+    ...reactHooks.configs['recommended-latest'],
+    ...reactRefresh.configs.vite,
+
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -26,4 +31,4 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
-])
+];

@@ -16,7 +16,7 @@ import MessageChatbot from './ai/UpcycledAdminAssistant';
 
 // Import the new Alert components and context
 import AlertModal from './modals/AlertModal';
-import { AlertProvider, useAlert } from './contexts/AlertContext';
+import { AlertProvider, useAlert } from './contexts/alertContext';
 // New wrapper component to use the context
 const AppContent = () => {
   const [user, setUser] = useState(null);

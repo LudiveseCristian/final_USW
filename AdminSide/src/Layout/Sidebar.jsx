@@ -2,13 +2,13 @@
 
 import { Link, useLocation } from "react-router-dom"
 import { useState, useEffect } from "react"
-import { LayoutDashboard, Package, TrendingUp, Users, LogOut, Newspaper, ClipboardList, ChevronDown, ChevronRight, EarIcon } from "lucide-react"
+import { LayoutDashboard, Package, TrendingUp, Users, LogOut, Newspaper, ClipboardList, ChevronDown, ChevronRight, EarIcon, Boxes, Store } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { auth } from "../firebase/config"
 
 const Sidebar = () => {
    const location = useLocation()
-   const [showLogoutModal, setShowLogoutModal] = useState(false) // Added back
+   const [showLogoutModal, setShowLogoutModal] = useState(false)
    const [isProductsOpen, setIsProductsOpen] = useState(false)
 
    const menuItems = [
@@ -22,11 +22,10 @@ const Sidebar = () => {
    ]
 
    const productSubItems = [
-      { path: "/products", label: "Product Management" },
-      { path: "/products/solds", label: "Sold Products" }
+      { path: "/products", label: "Product Management", icon: Boxes },
+      { path: "/products/solds", label: "Sold Products", icon: Store }
    ]
 
-   // ✅ Auto-open products dropdown when path starts with /products
    useEffect(() => {
       if (location.pathname.startsWith("/products")) {
          setIsProductsOpen(true)
@@ -42,8 +41,8 @@ const Sidebar = () => {
       }
    }
 
-   const openLogoutModal = () => setShowLogoutModal(true) // Added back
-   const closeLogoutModal = () => setShowLogoutModal(false) // Added back
+   const openLogoutModal = () => setShowLogoutModal(true)
+   const closeLogoutModal = () => setShowLogoutModal(false)
 
    return (
       <>
@@ -108,8 +107,8 @@ const Sidebar = () => {
                      {/* Orders */}
                      {(() => {
                         const item = menuItems[2]
-                        const Icon = item.icon
                         const isActive = location.pathname === item.path
+                        const Icon = item.icon
                         return (
                            <Link
                               key={item.path}
@@ -132,10 +131,14 @@ const Sidebar = () => {
                      {/* Products Dropdown */}
                      <button
                         onClick={() => setIsProductsOpen(!isProductsOpen)}
-                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#A8C3A0] transition-all duration-200"
+                        className={`group w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                           location.pathname.startsWith("/products")
+                              ? "bg-[#113A14] text-white shadow-lg"
+                              : "text-slate-300 hover:text-white hover:bg-[#A8C3A0]"
+                        }`}
                      >
                         <div className="flex items-center space-x-2">
-                           <Package className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 group-hover:text-white" />
+                           <Package className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${location.pathname.startsWith("/products") ? "text-white" : "text-slate-400 group-hover:text-white"} transition-colors`} />
                            <span className="font-medium text-sm sm:text-base">Products</span>
                         </div>
                         {isProductsOpen ? (
@@ -148,18 +151,23 @@ const Sidebar = () => {
                      {isProductsOpen && (
                         <div className="ml-8 mt-1 space-y-1">
                            {productSubItems.map((sub) => {
+                              const Icon = sub.icon
                               const isActive = location.pathname === sub.path
                               return (
                                  <Link
                                     key={sub.path}
                                     to={sub.path}
-                                    className={`block px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                                    className={`group relative flex items-center space-x-2 sm:space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
                                        isActive
                                           ? "bg-[#113A14] text-white shadow-md"
                                           : "text-slate-300 hover:text-white hover:bg-[#A8C3A0]"
                                     }`}
                                  >
-                                    {sub.label}
+                                    {isActive && (
+                                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#A8C3A0] rounded-r-full"></div>
+                                    )}
+                                    <Icon className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isActive ? "text-white" : "text-slate-400 group-hover:text-white"} transition-colors`} />
+                                    <span className="font-medium text-sm sm:text-base truncate">{sub.label}</span>
                                  </Link>
                               )
                            })}
@@ -195,7 +203,7 @@ const Sidebar = () => {
             {/* Footer */}
             <div className="border-t border-slate-800 p-3 sm:p-4">
                <button
-                  onClick={openLogoutModal} // Changed back to openLogoutModal
+                  onClick={openLogoutModal}
                   className="group flex items-center space-x-2 sm:space-x-3 px-3 py-2.5 rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 w-full"
                >
                   <LogOut className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 text-slate-400 group-hover:text-red-400 transition-colors" />
@@ -204,7 +212,7 @@ const Sidebar = () => {
             </div>
          </div>
 
-         {/* ✅ Logout Confirmation Modal */}
+         {/* Logout Confirmation Modal */}
             {showLogoutModal && (
                <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
                   <div className="bg-gradient-to-br from-green-700 to-emerald-800 p-8 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] w-full max-w-sm mx-4 text-center border border-green-500 animate-bounce-in">
@@ -243,7 +251,7 @@ const Sidebar = () => {
                </div>
             )}
 
-         {/* ✅ Hide scrollbar with fallback if Tailwind plugin not installed */}
+         {/* Hide scrollbar with fallback if Tailwind plugin not installed */}
          <style>
             {`
                .scrollbar-hide::-webkit-scrollbar {
