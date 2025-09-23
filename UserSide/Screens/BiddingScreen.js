@@ -42,8 +42,46 @@ export default function BiddingScreen({ navigation }) {
   const [biddingCounts, setBiddingCounts] = useState({ activeBids: 0, outbidNotifications: 0 })
   const [biddingCountsLoading, setBiddingCountsLoading] = useState(false)
 
+  const [expandedCards, setExpandedCards] = useState(new Set());
+
+  const toggleExpand = (itemId) => {
+    setExpandedCards(prevExpandedCards => {
+      const newExpanded = new Set(prevExpandedCards);
+      if (newExpanded.has(itemId)) {
+        newExpanded.delete(itemId);
+      } else {
+        newExpanded.add(itemId);
+      }
+      return newExpanded;
+    });
+  };
+  
+
+  const conditionColors = {
+    Excellent: '#4CAF50', // Green
+    Good: '#8BC34A',      // Light green
+    Fair: '#FFC107',      // Amber
+    Poor: '#F44336',      // Red
+  };
+
   useEffect(() => {
     if (!currentUser?.uid) return
+
+    // ...inside your BiddingScreen component...
+    const [expandedCards, setExpandedCards] = useState(new Set());
+
+    // Function to toggle card expansion
+    const toggleExpand = (itemId) => {
+      setExpandedCards(prevExpandedCards => {
+        const newExpanded = new Set(prevExpandedCards);
+        if (newExpanded.has(itemId)) {
+          newExpanded.delete(itemId);
+        } else {
+          newExpanded.add(itemId);
+        }
+        return newExpanded;
+      });
+    };
 
     const unsubscribeLive = onSnapshot(collection(db, "products"), (snapshot) => {
       const now = new Date()
@@ -86,6 +124,7 @@ export default function BiddingScreen({ navigation }) {
             bidders: data.bids?.length || 0,
             image: data.imageUrls?.[0] || "https://via.placeholder.com/120x120/CCCCCC/FFFFFF?text=Auction+Item",
             category: data.category || "",
+            condition: data.condition || "",
             raw: data,
             userBid: userBid,
             userBidAmount: userBid?.amount || null,
@@ -141,6 +180,7 @@ export default function BiddingScreen({ navigation }) {
             timeLeft: getTimeLeftText(data.bidEndTime?.toDate ? data.bidEndTime.toDate() : data.bidEndTime),
             image: data.imageUrls?.[0] || "https://via.placeholder.com/80x80/CCCCCC/FFFFFF?text=Bid+Item",
             category: data.category || "",
+            condition: data.condition || "",
             bidEndTime: data.bidEndTime?.toDate ? data.bidEndTime.toDate() : data.bidEndTime,
             raw: data,
             userBid: userBid,
@@ -457,6 +497,12 @@ export default function BiddingScreen({ navigation }) {
                 <View style={styles.auctionContent}>
                   <View style={styles.auctionHeader}>
                     <Text style={styles.auctionTitle}>{item.title}</Text>
+                    <View style={[
+                      styles.conditionBadge,
+                      { backgroundColor: conditionColors[item.condition] || '#F0F0F0' }
+                    ]}>
+                      <Text style={styles.conditionText}>{item.condition}</Text>
+                    </View>
                     <View style={styles.categoryBadge}>
                       <Text style={styles.categoryText}>{item.category}</Text>
                     </View>
@@ -502,7 +548,7 @@ export default function BiddingScreen({ navigation }) {
                     </View>
                     <View style={styles.biddersContainer}>
                       <Icon name="people" size={12} color="#4A90E2" />
-                      <Text style={styles.biddersCount}>{item.bidders} bidders</Text>
+                      <Text style={styles.biddersCount}>{item.bidders} bids</Text>
                     </View>
                   </View>
 
@@ -837,6 +883,17 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#135918",
     flex: 1,
+  },
+  conditionBadge: {
+    backgroundColor: "#F0F0F0",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  conditionText: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "500",
   },
   categoryBadge: {
     backgroundColor: "#F0F0F0",

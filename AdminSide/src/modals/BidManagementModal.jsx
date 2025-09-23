@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useAlert } from "../contexts/alertContext";
-import { X, CheckCircle, XCircle, Users } from 'lucide-react';
+import { X, CheckCircle, Users } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal, setSelectedBidProduct, formatPrice, getTimeLeft, handleAcceptBid, handleRejectBid }) => {
+// The handleRejectBid prop is no longer needed
+const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal, setSelectedBidProduct, formatPrice, getTimeLeft, handleAcceptBid }) => {
     const [bids, setBids] = useState(selectedBidProduct?.bids || []);
-    const { setAlert } = useAlert();
+    // Correctly destructure showAlert from the context
+    const { showAlert } = useAlert();
 
     useEffect(() => {
         if (!showBidModal || !selectedBidProduct?.id) {
@@ -28,14 +30,12 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
             }
         }, (error) => {
             console.error("Error listening to bids:", error);
-            setAlert({
-                message: 'Failed to update bids in real-time. Please reopen the modal.',
-                type: 'error',
-            });
+            // Use showAlert with the correct parameters
+            showAlert('error', 'Failed to update bids in real-time. Please reopen the modal.');
         });
 
         return () => unsubscribe();
-    }, [showBidModal, selectedBidProduct?.id, setAlert]);
+    }, [showBidModal, selectedBidProduct?.id, showAlert]);
 
     if (!showBidModal || !selectedBidProduct) return null;
 
@@ -43,46 +43,23 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
         setShowBidModal(false);
         setSelectedBidProduct(null);
     };
-    
-    const handleAccept = async (productId, bidIndex) => {
+
+    const handleAccept = async (bid) => {
         try {
-            await handleAcceptBid(productId, bidIndex);
-            setAlert({
-                message: 'Bid accepted successfully!',
-                type: 'success',
-                duration: 5000
-            });
+            // Pass the entire bid object to handleAcceptBid
+            await handleAcceptBid(selectedBidProduct.id, bid);
+            // Use showAlert for success messages
+            showAlert('success', 'Bid accepted successfully!', null, null, 5000);
             onClose();
         } catch (error) {
             console.error('Error in handleAccept:', error);
-            setAlert({
-                message: 'Failed to accept bid. Please try again.',
-                type: 'error',
-                duration: 5000
-            });
+            // Use showAlert for error messages
+            showAlert('error', 'Failed to accept bid. Please try again.', null, null, 5000);
         }
     };
 
-    const handleReject = async (productId, bidIndex) => {
-        try {
-            await handleRejectBid(productId, bidIndex);
-            setAlert({
-                message: 'Bid rejected successfully.',
-                type: 'success',
-                duration: 5000
-            });
-        } catch (error) {
-            console.error('Error in handleReject:', error);
-            setAlert({
-                message: 'Failed to reject bid. Please try again.',
-                type: 'error',
-                duration: 5000
-            });
-        }
-    };
-
-    const sortedAndSlicedBids = bids 
-        ? [...bids].sort((a, b) => b.amount - a.amount).slice(0, 3) 
+    const sortedAndSlicedBids = bids
+        ? [...bids].sort((a, b) => b.amount - a.amount).slice(0, 3)
         : [];
 
     return (
@@ -183,18 +160,11 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
 
                                         <div className="flex space-x-2">
                                             <button
-                                                onClick={() => handleAccept(selectedBidProduct.id, index)}
+                                                onClick={() => handleAccept(bid)}
                                                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-1 transition-colors"
                                             >
                                                 <CheckCircle className="h-4 w-4" />
                                                 <span>Accept</span>
-                                            </button>
-                                            <button
-                                                onClick={() => handleReject(selectedBidProduct.id, index)}
-                                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-1 transition-colors"
-                                            >
-                                                <XCircle className="h-4 w-4" />
-                                                <span>Reject</span>
                                             </button>
                                         </div>
                                     </div>

@@ -7,7 +7,17 @@ const EmailModal = ({ recipient, onClose }) => {
     const [body, setBody] = useState("");
     const [isSending, setIsSending] = useState(false);
     const { showAlert } = useAlert();
+
+    const emailFooter = `
+    ---
+    This email was sent from the administration panel of UpcycledStreetwear.
+    If you have questions, please feel free to reply to this email, or DM us on our Instagram:
+    https://www.instagram.com/upcycled_streetwear/
     
+
+    © ${new Date().getFullYear()} UpcycledStreetwear. All rights reserved.
+        `;
+
     const handleSendEmail = async () => {
         if (!subject || !body) {
             showAlert("error", "Please enter both a subject and a message.");
@@ -16,7 +26,9 @@ const EmailModal = ({ recipient, onClose }) => {
 
         setIsSending(true);
         try {
-            // Replace with your actual backend endpoint
+            // Combine the user-entered body with the premade footer
+            const fullBody = `${body}\n\n${emailFooter}`;
+
             const response = await fetch("http://localhost:5000/api/send-email", {
                 method: "POST",
                 headers: {
@@ -25,7 +37,7 @@ const EmailModal = ({ recipient, onClose }) => {
                 body: JSON.stringify({
                     recipient: recipient,
                     subject: subject,
-                    body: body,
+                    body: fullBody, // Use the combined body
                 }),
             });
 

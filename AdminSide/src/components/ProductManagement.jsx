@@ -330,10 +330,11 @@ const ProductManagement = () => {
       }
     };
 
-  const handleAcceptBid = async (productId, bidIndex) => {
+  const handleAcceptBid = async (productId, acceptedBid) => {
     try {
+      // The acceptedBid object is now passed directly, no need for product.bids[bidIndex]
       const product = products.find((p) => p.id === productId);
-      const acceptedBid = product.bids[bidIndex];
+
       let userProfile = null;
       try {
         if (acceptedBid.bidderId) {
@@ -388,7 +389,7 @@ const ProductManagement = () => {
         console.error('Failed to create order document:', orderErr);
       }
 
-      showAlert('sucess', 
+      showAlert('success',
         `Bid accepted! Product sold to ${acceptedBid.bidderName} for ₱${acceptedBid.amount.toLocaleString()}`
       );
       setShowBidModal(false);
@@ -398,10 +399,11 @@ const ProductManagement = () => {
     }
   };
 
-  const handleRejectBid = async (productId, bidIndex) => {
+  const handleRejectBid = async (productId, bid) => {
     try {
       const product = products.find((p) => p.id === productId);
-      const updatedBids = product.bids.filter((_, index) => index !== bidIndex);
+      // Find the bid to remove by checking its properties
+      const updatedBids = product.bids.filter((b) => b.bidderId !== bid.bidderId || b.amount !== bid.amount || b.timestamp !== bid.timestamp);
 
       await updateDoc(doc(db, 'products', productId), {
         bids: updatedBids,

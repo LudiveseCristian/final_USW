@@ -121,13 +121,6 @@ const CustomerDetailModal = ({ show, onClose, selectedCustomer, onSendEmail, onV
                 <span>View Orders</span>
               </button>
               <button
-                onClick={() => onEditProfile(selectedCustomer)}
-                className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors flex items-center justify-center space-x-2"
-              >
-                <Edit className="h-4 w-4" />
-                <span>Edit Profile</span>
-              </button>
-              <button
                 onClick={() => onDeleteCustomer(selectedCustomer)}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2"
               >
