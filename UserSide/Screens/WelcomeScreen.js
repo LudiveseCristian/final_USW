@@ -10,8 +10,8 @@ import {
   Dimensions,
   StatusBar,
   Animated,
-  SafeAreaView, // Added SafeAreaView import
 } from "react-native"
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from "expo-video"
 import { LinearGradient } from "expo-linear-gradient"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
@@ -165,7 +165,6 @@ export default function WelcomeScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
       <View style={styles.fullScreenContainer}>
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
@@ -173,7 +172,7 @@ export default function WelcomeScreen({ navigation }) {
         <VideoView
           style={styles.backgroundVideo}
           player={player}
-          allowsFullscreen={false}
+          fullscreenOptions={{ allowsFullscreen: false }}
           allowsPictureInPicture={false}
           contentFit="cover"
         />
@@ -226,7 +225,7 @@ export default function WelcomeScreen({ navigation }) {
           </Animated.View>
         </LinearGradient>
       </View>
-    </SafeAreaView>
+
   )
 }
 

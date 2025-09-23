@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
   Dimensions,
   Platform,
-  SafeAreaView,
 } from "react-native"
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons"
 import * as ImagePicker from "expo-image-picker"
@@ -23,6 +22,7 @@ import { doc, updateDoc, getDoc, collection, onSnapshot, query, where } from "fi
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { db, storage } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get("window")
 
@@ -47,6 +47,107 @@ export default function ProfileScreen({ navigation }) {
   wonAuctions: 0,
   successRate: 0
 })
+
+
+// Add this useEffect after your existing useEffects to fetch user profile data
+useEffect(() => {
+  const fetchUserProfile = async () => {
+    if (!currentUser?.uid) return
+
+    try {
+      const userRef = doc(db, "users", currentUser.uid)
+      const userDoc = await getDoc(userRef)
+      
+      if (userDoc.exists()) {
+        const profileData = userDoc.data()
+        setUserProfile(profileData)
+        
+        // Populate form fields with existing data
+        setFirstName(profileData.firstName || "")
+        setMiddleName(profileData.middleName || "")
+        setLastName(profileData.lastName || "")
+        setContactNumber(profileData.phone || "")
+        setAddress(profileData.address || "")
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  fetchUserProfile()
+}, [currentUser?.uid])
+
+// Also add this useEffect to populate fields when modal opens
+useEffect(() => {
+  if (modalVisible && (userProfile || currentUser)) {
+    const userData = userProfile || currentUser
+    setFirstName(userData.firstName || "")
+    setMiddleName(userData.middleName || "")
+    setLastName(userData.lastName || "")
+    setContactNumber(userData.phone || "")
+    setAddress(userData.address || "")
+  }
+}, [modalVisible, userProfile, currentUser])
+
+// Update your existing bids useEffect to set loading to false even when no user
+useEffect(() => {
+  if (!currentUser?.uid) {
+    setLoading(false) // Add this line
+    return
+  }
+
+  setLoading(true)
+
+  const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
+    const allUserBids = []
+    let wonCount = 0
+
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data()
+      const userBid = data.bids?.find(bid => bid.bidderId === currentUser.uid)
+      
+      if (userBid) {
+        const bidInfo = {
+          id: doc.id,
+          myBid: userBid.amount,
+          currentBid: data.currentBid || 0,
+          status: data.status === 'sold' && data.highestBidder === userBid.bidderName 
+            ? 'won' 
+            : data.currentBid > userBid.amount 
+              ? 'outbid' 
+              : 'winning',
+          itemName: data.name
+        }
+        
+        allUserBids.push(bidInfo)
+        
+        if (bidInfo.status === 'won') {
+          wonCount++
+        }
+      }
+    })
+
+    setUserBids(allUserBids)
+    
+    const totalBids = allUserBids.length
+    const successRate = totalBids > 0 ? Math.round((wonCount / totalBids) * 100) : 0
+
+    setUserStats({
+      totalBids,
+      wonAuctions: wonCount,
+      successRate
+    })
+
+    setLoading(false)
+  }, (error) => {
+    console.error("Error fetching bids: ", error)
+    setLoading(false)
+  })
+
+  return () => unsubscribe()
+}, [currentUser?.uid])
 
   // Request permissions on component mount
   useEffect(() => {
@@ -233,7 +334,7 @@ useEffect(() => {
         firstName: firstName.trim(),
         middleName: middleName.trim(),
         lastName: lastName.trim(),
-        contactNumber: contactNumber.trim(),
+        phone: contactNumber.trim(),
         address: address.trim(),
         updatedAt: new Date().toISOString(),
       }
@@ -301,10 +402,16 @@ const stats = [
       onPress: () => navigation.navigate("Notifications"),
     },
     {
-      title: "Help & Support Chat",
-      subtitle: "Get help and contact support",
-      icon: "help-circle",
+      title: "Order Tracking",
+      subtitle: "Track your order status in real-time",
+      icon: "package", 
       onPress: () => navigation.navigate("OrderTracking"),
+    },
+    {
+      title: "Feedback",
+      subtitle: "Share your thoughts",
+      icon: "star", 
+      onPress: () => navigation.navigate("Feedback"),
     },
     {
       title: "Logout",
@@ -353,10 +460,10 @@ const stats = [
               <Text style={styles.userName}>{displayName}</Text>
               <Text style={styles.userEmail}>{userData?.email}</Text>
 
-              {userData?.contactNumber && (
+              {userData?.phone && (
                 <View style={styles.detailRow}>
                   <Feather name="phone" size={16} color="#2E6A2E" />
-                  <Text style={styles.userDetail}>{userData.contactNumber}</Text>
+                  <Text style={styles.userDetail}>{userData.phone}</Text>
                 </View>
               )}
 
@@ -424,7 +531,6 @@ const stats = [
         <View style={styles.section}>
           <TouchableOpacity style={styles.logoutButtonStandalone} onPress={handleLogout}>
             <Feather name="log-out" size={20} color="white" />
-            <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -568,15 +674,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   header: {
-    backgroundColor: "#2E6A2E",
-    paddingTop: 30,
-    paddingBottom: 20,
+    backgroundColor: "#1A5B1A",
+    paddingVertical: 24,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
   },
   headerTitle: {
     fontSize: 28,
@@ -600,7 +707,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   scrollContent: {
-    paddingBottom: 30,
+    paddingBottom: 60,
   },
   sectionTitle: {
     fontSize: 20,

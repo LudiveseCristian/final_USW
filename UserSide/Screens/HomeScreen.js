@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
-  SafeAreaView,
   Modal,
   TextInput,
   Alert,
@@ -19,6 +18,7 @@ import { collection, getDocs, query, orderBy, onSnapshot, doc, getDoc, updateDoc
 import { db } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { useAuth } from "../AuthContext"
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get("window")
 
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   headerGradient: {
-    paddingTop: 40,
+    paddingTop: 30,
     paddingBottom: 40,
     paddingHorizontal: 20,
     position: 'relative',
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 20,
-    paddingVertical: 30,
+    paddingVertical: 5,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -820,17 +820,20 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     marginTop: 10,
+    marginHorizontal: -5,
   },
   gridCard: {
     backgroundColor: "white",
-    borderRadius: 12,
-    width: (width - 50) / 2, // Responsive width for 2 columns with margins
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+      borderRadius: 12,
+      width: (width - 50) / 2, // Maintain responsive width
+      marginBottom: 10, // Reduced from 15 to minimize vertical gap
+      marginHorizontal: 5, // Add small horizontal margin for even spacing
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+      overflow: "hidden",
   },
   gridImage: {
     width: "100%",
@@ -839,7 +842,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 12,
   },
   gridContent: {
-    padding: 12,
+    padding: 10,
   },
   gridTitle: {
     fontSize: 14,
@@ -884,6 +887,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
     alignItems: "center",
+    marginTop: 0,
   },
   bidButtonText: {
     color: "white",

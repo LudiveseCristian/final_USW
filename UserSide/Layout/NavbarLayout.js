@@ -101,6 +101,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8F9FA",
+    
   },
   content: {
     flex: 1,
@@ -119,6 +120,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 15,
+    paddingBottom: 10,
   },
   bottomNav: {
     flexDirection: "row",

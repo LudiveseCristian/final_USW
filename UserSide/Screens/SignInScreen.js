@@ -34,6 +34,7 @@ export default function SignInScreen({ navigation }) {
   const [isEmailFocused, setIsEmailFocused] = useState(false)
   const [isPasswordFocused, setIsPasswordFocused] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  
 
   const { signIn } = useAuth() // Remove verifyCredentials as we're using Firebase
 

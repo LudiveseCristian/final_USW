@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
@@ -19,7 +18,7 @@ import Feather from "react-native-vector-icons/Feather"
 import { collection, getDocs, query, orderBy } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
-
+import { SafeAreaView } from "react-native-safe-area-context"
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window")
 const cardWidth = (screenWidth - 48) / 2 // 2 columns with padding
 
@@ -364,14 +363,15 @@ const styles = StyleSheet.create({
 
   // Enhanced Header Styles
   header: {
-    backgroundColor: "#2E6A2E",
-    paddingTop: 20,
-    paddingBottom: 25,
+    backgroundColor: "#1A5B1A",
+    paddingVertical: 24,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
     elevation: 8,
   },
   headerContent: {

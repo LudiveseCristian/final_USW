@@ -2,7 +2,7 @@
 import "react-native-gesture-handler" // Must be at the top
 import React from "react"
 import { NavigationContainer } from "@react-navigation/native"
-import { createStackNavigator } from "@react-navigation/stack"
+import { createStackNavigator,  } from "@react-navigation/stack"
 
 import { AuthProvider, useAuth } from "./AuthContext"
 import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native"
@@ -34,6 +34,7 @@ import WinningBiddingScreen from "./Screens/WinbiddingScreen"
 import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant"
 import NotificationScreen from "./Screens/NotificationScreen"
 import OrderTrackingScreen from "./Screens/OrderTrackingScreen"
+import FeedbackScreen from "./Screens/FeedbackScreen"
 
 
 // Import your NavBarLayout
@@ -170,6 +171,14 @@ function MainAppStack() {
         {(props) => (
           <NavBarLayout>
             <OrderTrackingScreen {...props} />
+          </NavBarLayout>
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="Feedback">
+        {(props) => (
+          <NavBarLayout>
+            <FeedbackScreen {...props} />
           </NavBarLayout>
         )}
       </Stack.Screen>

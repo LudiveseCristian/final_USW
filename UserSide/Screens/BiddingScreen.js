@@ -18,6 +18,8 @@ import { collection, onSnapshot, updateDoc, doc, getDoc,  } from "firebase/fires
 import { db } from "../firebase/firebase"
 import { useAuth } from "../AuthContext"
 import LoadingScreen from "../hooks/LoadingScreen"
+import { SafeAreaView } from 'react-native-safe-area-context';
+import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons";
 
 export default function BiddingScreen({ navigation }) {
   const { currentUser } = useAuth()
@@ -376,6 +378,7 @@ export default function BiddingScreen({ navigation }) {
   )
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFCF3" }}>
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
@@ -431,7 +434,16 @@ export default function BiddingScreen({ navigation }) {
 
             {/* Live Auctions */}
             <Text style={styles.sectionTitle}>Live Bids</Text>
-            {liveAuctions.map((item) => (
+            {liveAuctions.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <MaterialCommunityIcon name="tshirt-crew" size={64} color="#ccc" />
+                  <Text style={styles.emptyStateTitle}>No Live Bidding</Text>
+                  <Text style={styles.emptyStateText}>
+                    There are no items up for bidding right now. Please check back later!
+                  </Text>
+                </View>
+              ) : (
+            liveAuctions.map((item) => (
               <View key={item.id} style={styles.auctionCard}>
                 <TouchableOpacity onPress={() => openImageViewer(item)} activeOpacity={0.8}>
                   <Image source={{ uri: item.image }} style={styles.auctionImage} />
@@ -505,7 +517,7 @@ export default function BiddingScreen({ navigation }) {
                   </TouchableOpacity>
                 </View>
               </View>
-            ))}
+            )))}
           </View>
         ) : (
           <View style={styles.section}>
@@ -526,7 +538,16 @@ export default function BiddingScreen({ navigation }) {
             </View>
 
             <Text style={styles.sectionTitle}>My Bids</Text>
-            {allMyBids.map((item) => (
+              {allMyBids.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Icon name="assignment" size={64} color="#ccc" />
+                  <Text style={styles.emptyStateTitle}>You Haven't Bid Yet</Text>
+                  <Text style={styles.emptyStateText}>
+                    Your active and won bids will appear here once you place a bid on an item.
+                  </Text>
+                </View>
+              ) : (
+            allMyBids.map((item) => (
               <View key={item.id} style={styles.myBidCard}>
                 <TouchableOpacity onPress={() => openImageViewer(item)} activeOpacity={0.8}>
                   <Image source={{ uri: item.image }} style={styles.myBidImage} />
@@ -576,13 +597,13 @@ export default function BiddingScreen({ navigation }) {
                     )}
                     {item.status === "won" && (
                       <TouchableOpacity style={styles.viewOrderButton} onPress={() => handleViewOrder(item)}>
-                        <Text style={styles.viewOrderButtonText}>View Order</Text>
+                        <Text style={styles.viewOrderButtonText}>View Bid</Text>
                       </TouchableOpacity>
                     )}
                   </View>
                 </View>
               </View>
-            ))}
+            )))}
           </View>
         )}
 
@@ -644,6 +665,7 @@ export default function BiddingScreen({ navigation }) {
       </Modal>
       {renderImageViewer()}
     </View>
+    </SafeAreaView>
   )
 }
 
@@ -653,15 +675,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFCF3",
   },
   header: {
-    backgroundColor: "#2E6A2E",
-    paddingTop: 30,
-    paddingBottom: 20,
+    backgroundColor: "#1A5B1A",
+    paddingVertical: 24,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
   },
   headerTitleContainer: {
     flexDirection: "row",
@@ -1247,4 +1270,25 @@ const styles = StyleSheet.create({
     marginRight: 15,
     fontWeight: "500",
   },
+   emptyState: {
+    alignItems: "center",
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+    marginTop: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#666",
+    marginTop: 20,
+    textAlign: "center",
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 12,
+    lineHeight: 24,
+  },
+
 })
