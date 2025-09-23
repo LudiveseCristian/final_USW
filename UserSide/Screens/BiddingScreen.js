@@ -55,7 +55,6 @@ export default function BiddingScreen({ navigation }) {
       return newExpanded;
     });
   };
-  
 
   const conditionColors = {
     Excellent: '#4CAF50', // Green
@@ -66,22 +65,6 @@ export default function BiddingScreen({ navigation }) {
 
   useEffect(() => {
     if (!currentUser?.uid) return
-
-    // ...inside your BiddingScreen component...
-    const [expandedCards, setExpandedCards] = useState(new Set());
-
-    // Function to toggle card expansion
-    const toggleExpand = (itemId) => {
-      setExpandedCards(prevExpandedCards => {
-        const newExpanded = new Set(prevExpandedCards);
-        if (newExpanded.has(itemId)) {
-          newExpanded.delete(itemId);
-        } else {
-          newExpanded.add(itemId);
-        }
-        return newExpanded;
-      });
-    };
 
     const unsubscribeLive = onSnapshot(collection(db, "products"), (snapshot) => {
       const now = new Date()
