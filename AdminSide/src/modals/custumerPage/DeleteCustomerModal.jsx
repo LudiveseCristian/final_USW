@@ -30,7 +30,7 @@ const DeleteCustomerModal = ({ show, onClose, onConfirm, customer }) => {
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors font-medium flex items-center justify-center space-x-2"
+              className="flex-1 px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red transition-colors font-medium flex items-center justify-center space-x-2"
             >
               <Trash className="h-4 w-4" />
               <span>Delete</span>

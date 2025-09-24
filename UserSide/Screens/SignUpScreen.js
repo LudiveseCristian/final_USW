@@ -51,12 +51,12 @@ export default function SignUpScreen({ navigation }) {
   const [isPasswordFocused, setIsPasswordFocused] = useState(false)
   const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] = useState(false)
 
-
   const { registerUser } = useAuth()
 
-  if (isLoading ) {
-      return <LoadingScreen message="Loading bids..." />
-    }
+  // MOVED: Early return after all hooks are declared
+  if (isLoading) {
+    return <LoadingScreen message="Creating your account..." />
+  }
 
   // Helper function to capitalize first letter of each word
   const capitalizeWords = (text) => {
@@ -167,14 +167,19 @@ export default function SignUpScreen({ navigation }) {
   const handleSignUp = useCallback(async () => {
     console.log("Sign Up pressed with:", { email, firstName, middleName, lastName, phone, address, password, confirmPassword })
 
-    if (!email || !firstName || !lastName || !phone || !address || !password || !confirmPassword ) {
-      Alert.alert("Error", "Please fill in all required fields marked with * and agree to the Terms and Conditions")
+    if (!email || !firstName || !lastName || !phone || !address || !password || !confirmPassword) {
+      Alert.alert("Error", "Please fill in all required fields marked with *")
+      return
+    }
+
+    if (!agreedToTerms) {
+      Alert.alert("Error", "Please agree to the Terms and Conditions")
       return
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(email.trim())) {
       Alert.alert("Error", "Please enter a valid email address")
       return
     }
@@ -201,7 +206,7 @@ export default function SignUpScreen({ navigation }) {
 
     try {
       // Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password)
       const user = userCredential.user
 
       // Create full name with middle initial if provided
@@ -209,15 +214,15 @@ export default function SignUpScreen({ navigation }) {
         ? `${firstName} ${middleName} ${lastName}`
         : `${firstName} ${lastName}`
 
-      // Save additional user data in Firestore - FIXED: Now properly saving firstName separately
+      // Save additional user data in Firestore
       await setDoc(doc(db, "users", user.uid), {
         name: fullName,
-        email,
-        firstName,        // This is the key fix - saving firstName as separate field
+        email: email.trim(),
+        firstName,
         middleName: middleName || "",
         lastName,
         phone: phone.replace(/\D/g, ''), // Store phone without formatting
-        address,
+        address: address.trim(),
         joinDate: new Date().toISOString().split("T")[0],
         status: "new",
         totalOrders: 0,
@@ -226,25 +231,33 @@ export default function SignUpScreen({ navigation }) {
         preferences: [],
       })
 
-      console.log("User data saved successfully with firstName:", firstName) // Debug log
+      console.log("User data saved successfully with firstName:", firstName)
 
-      Alert.alert("Success", "Account created successfully! Please sign in.")
-      navigation.navigate("SignIn")
+      Alert.alert("Success", "Account created successfully! Please sign in.", [
+        {
+          text: "OK",
+          onPress: () => navigation.navigate("SignIn")
+        }
+      ])
     } catch (error) {
       console.error("Error creating account:", error)
       let errorMessage = "Failed to create account. Please try again."
+      
       if (error.code === "auth/email-already-in-use") {
-        errorMessage = "This email is already registered."
+        errorMessage = "This email is already registered. Please use a different email or sign in with your existing account."
       } else if (error.code === "auth/invalid-email") {
         errorMessage = "Invalid email format."
       } else if (error.code === "auth/weak-password") {
         errorMessage = "Password does not meet security requirements."
+      } else if (error.code === "auth/network-request-failed") {
+        errorMessage = "Network error. Please check your internet connection and try again."
       }
+      
       Alert.alert("Sign Up Failed", errorMessage)
     } finally {
       setIsLoading(false)
     }
-  }, [email, firstName, middleName, lastName, phone, address, password, confirmPassword, navigation])
+  }, [email, firstName, middleName, lastName, phone, address, password, confirmPassword, agreedToTerms, navigation])
 
   return (
     <View style={styles.fullScreenBackground}>

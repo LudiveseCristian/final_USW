@@ -618,7 +618,7 @@ const CustomerManagement = () => {
                           <MoreVertical className="h-4 w-4" />
                         </button>
                         {dropdownOpen === customer.id && (
-                          <div className="absolute right-0 mt-2 w-48 bg-popover rounded-md shadow-lg z-10 border border-border">
+                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-border">
                             <div className="py-1">
                               <button
                                 onClick={() => handleViewCustomer(customer)}

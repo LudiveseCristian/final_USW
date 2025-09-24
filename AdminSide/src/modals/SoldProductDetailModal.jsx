@@ -9,11 +9,15 @@ import {
   Users,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useState } from 'react'; // Import useState hook
 
 const SoldProductDetailModal = ({ showModal, setShowModal, product, formatPrice }) => {
   if (!showModal || !product) {
     return null;
   }
+
+  // State to manage the currently displayed main image
+  const [mainImage, setMainImage] = useState(product.imageUrls?.[0] || '');
 
   const handleCloseModal = () => {
     setShowModal(false);
@@ -49,9 +53,10 @@ const SoldProductDetailModal = ({ showModal, setShowModal, product, formatPrice 
           {/* Left Column: Product Image Gallery */}
           <div>
             <div className="relative overflow-hidden rounded-2xl aspect-square bg-gray-100 flex items-center justify-center">
-              {product.imageUrls && product.imageUrls.length > 0 ? (
+              {/* Main image view */}
+              {mainImage ? (
                 <img
-                  src={product.imageUrls[0]}
+                  src={mainImage} // Use the state variable here
                   alt={product.name}
                   className="object-contain w-full h-full"
                 />
@@ -59,13 +64,18 @@ const SoldProductDetailModal = ({ showModal, setShowModal, product, formatPrice 
                 <ImageIcon className="w-16 h-16 text-gray-400" />
               )}
             </div>
+            {/* Secondary image thumbnails */}
             {product.imageUrls && product.imageUrls.length > 1 && (
               <div className="mt-4 grid grid-cols-4 gap-4">
-                {product.imageUrls.slice(1).map((url, index) => (
-                  <div key={index} className="aspect-square rounded-lg overflow-hidden border border-gray-200">
+                {product.imageUrls.map((url, index) => (
+                  <div 
+                    key={index} 
+                    className={`aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${mainImage === url ? 'border-[#135918]' : 'border-gray-200 hover:border-gray-400'}`}
+                    onClick={() => setMainImage(url)} // Set main image on click
+                  >
                     <img
                       src={url}
-                      alt={`${product.name} - ${index + 2}`}
+                      alt={`${product.name} - ${index + 1}`}
                       className="object-cover w-full h-full"
                     />
                   </div>
@@ -89,9 +99,9 @@ const SoldProductDetailModal = ({ showModal, setShowModal, product, formatPrice 
                 </div>
               </div>
             </div>
-
-            <p className="text-gray-600 leading-relaxed">{product.description}</p>
-
+            <p class="text-gray-600 leading-relaxed max-h-40 overflow-y-auto">
+              {product.description}
+            </p>
             <div className="grid grid-cols-2 gap-4 text-gray-700">
               <div className="flex items-center">
                 <Tag className="h-5 w-5 mr-2 text-gray-500" />

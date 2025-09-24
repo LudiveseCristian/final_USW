@@ -1,22 +1,79 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAlert } from "../contexts/alertContext";
 import { Mail, X, Send } from 'lucide-react';
+import sanitizeHtml from 'sanitize-html';
 
 const EmailModal = ({ recipient, onClose }) => {
     const [subject, setSubject] = useState("");
     const [body, setBody] = useState("");
+    const [htmlBody, setHtmlBody] = useState("");
     const [isSending, setIsSending] = useState(false);
     const { showAlert } = useAlert();
 
+    // The HTML-formatted footer
     const emailFooter = `
-    ---
-    This email was sent from the administration panel of UpcycledStreetwear.
-    If you have questions, please feel free to reply to this email, or DM us on our Instagram:
-    https://www.instagram.com/upcycled_streetwear/
-    
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-family: sans-serif; font-size: 14px; color: #666; text-align: center;">
+            <p style="margin: 0; padding: 0;">---</p>
+            <p style="margin: 0; padding: 0;">This email was sent from the administration panel of UpcycledStreetwear.</p>
+            <p style="margin: 0; padding: 0;">If you have questions, please feel free to reply to this email, or DM us on our Instagram: <a href="https://www.instagram.com/upcycled_streetwear/" style="color: #22c55e; text-decoration: none;">upcycled_streetwear</a></p>
+            <p style="margin-top: 20px; font-size: 12px; color: #999; margin-bottom: 0;">&copy; ${new Date().getFullYear()} UpcycledStreetwear. All rights reserved.</p>
+        </div>
+    `;
 
-    © ${new Date().getFullYear()} UpcycledStreetwear. All rights reserved.
-        `;
+    // A simple function to convert plain text to HTML with line breaks and basic formatting
+    const convertToHtml = (text) => {
+        const sanitizedText = sanitizeHtml(text, {
+            allowedTags: sanitizeHtml.defaults.allowedTags.concat([ 'h1', 'h2', 'h3', 'p', 'b', 'i', 'u', 'em', 'strong', 'a', 'ul', 'ol', 'li' ])
+        });
+        return sanitizedText.replace(/\n/g, '<br />');
+    };
+
+    useEffect(() => {
+        // This is the core change: creating a robust email template
+        setHtmlBody(`
+            <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+            <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+            <head>
+                <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <style type="text/css">
+                    /* Client-specific Styles */
+                    div, p, a, li, td, span {
+                        -webkit-text-size-adjust: none;
+                    }
+                    p {
+                        margin: 0;
+                    }
+                </style>
+            </head>
+            <body style="margin: 0; padding: 0; background-color: #F8F8F8; font-family: sans-serif;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8F8F8;">
+                    <tr>
+                        <td style="padding: 20px 0;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="600" style="margin: auto; border-radius: 12px; overflow: hidden; background-color: #FFFFFF; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #EDECE4;">
+                                <tr>
+                                    <td style="padding: 30px;">
+                                        <h1 style="font-size: 24px; font-weight: bold; margin: 0 0 20px 0; color: #333333;">
+                                            UpcycledStreetwear Admin
+                                        </h1>
+                                        <div style="font-family: sans-serif; color: #444444; line-height: 1.6; font-size: 16px;">
+                                            <p style="margin: 0;">${convertToHtml(body)}</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        ${emailFooter}
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+        `);
+    }, [body]);
 
     const handleSendEmail = async () => {
         if (!subject || !body) {
@@ -26,9 +83,6 @@ const EmailModal = ({ recipient, onClose }) => {
 
         setIsSending(true);
         try {
-            // Combine the user-entered body with the premade footer
-            const fullBody = `${body}\n\n${emailFooter}`;
-
             const response = await fetch("http://localhost:5000/api/send-email", {
                 method: "POST",
                 headers: {
@@ -37,7 +91,7 @@ const EmailModal = ({ recipient, onClose }) => {
                 body: JSON.stringify({
                     recipient: recipient,
                     subject: subject,
-                    body: fullBody, // Use the combined body
+                    htmlBody: htmlBody, // Use the new htmlBody state
                 }),
             });
 
@@ -58,19 +112,19 @@ const EmailModal = ({ recipient, onClose }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div className="bg-[#FFFBF3] rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-[#EDECE4]">
                 <div className="p-8">
                     {/* Header */}
-                    <div className="flex items-center justify-between pb-6 border-b border-gray-200 mb-6">
+                    <div className="flex items-center justify-between pb-6 border-b border-[#EDECE4] mb-6">
                         <div className="flex items-center space-x-4">
-                            <Mail className="h-8 w-8 text-green-600" />
+                            <Mail className="h-8 w-8 text-[#22c55e]" />
                             <h2 className="text-2xl font-bold text-gray-800">
                                 Compose Email
                             </h2>
                         </div>
                         <button
                             onClick={onClose}
-                            className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+                            className="p-2 text-gray-500 hover:bg-[#F3F2EE] rounded-full transition-colors"
                         >
                             <X className="h-6 w-6" />
                         </button>
@@ -90,7 +144,7 @@ const EmailModal = ({ recipient, onClose }) => {
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
                                 placeholder="Subject"
-                                className="w-full p-4 border border-gray-300 rounded-lg text-sm transition-colors focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                                className="w-full p-4 border border-[#DEDDDC] rounded-lg text-sm transition-colors focus:border-[#22c55e] focus:ring-1 focus:ring-[#22c55e] bg-white"
                             />
                         </div>
                         <div className="relative">
@@ -99,7 +153,7 @@ const EmailModal = ({ recipient, onClose }) => {
                                 onChange={(e) => setBody(e.target.value)}
                                 placeholder="Email body"
                                 rows="8"
-                                className="w-full p-4 border border-gray-300 rounded-lg text-sm transition-colors focus:border-green-500 focus:ring-1 focus:ring-green-500 resize-none"
+                                className="w-full p-4 border border-[#DEDDDC] rounded-lg text-sm transition-colors focus:border-[#22c55e] focus:ring-1 focus:ring-[#22c55e] resize-none bg-white"
                             ></textarea>
                         </div>
                     </div>
@@ -115,7 +169,7 @@ const EmailModal = ({ recipient, onClose }) => {
                         <button
                             onClick={handleSendEmail}
                             disabled={isSending}
-                            className="px-6 py-3 rounded-xl font-semibold text-white bg-green-600 hover:bg-green-700 disabled:bg-green-400 transition-colors flex items-center space-x-2"
+                            className="px-6 py-3 rounded-xl font-semibold text-white bg-[#22c55e] hover:bg-[#1f9f4a] disabled:bg-[#4dd278] transition-colors flex items-center space-x-2"
                         >
                             {isSending ? (
                                 <>

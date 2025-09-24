@@ -958,89 +958,92 @@ const ProductManagement = () => {
                 getBiddingProducts().map((product) => (
                   <div key={product.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                     <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center space-x-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Left Column (75% width): Product Image, Name, and Description */}
+                        <div className="flex flex-col md:flex-row items-center md:items-start space-x-4 col-span-2">
                           {product.imageUrls?.[0] && (
                             <img
                               src={product.imageUrls[0]}
                               alt={product.name}
-                              className="w-20 h-20 rounded-lg object-cover"
+                              className="w-24 h-24 rounded-lg object-cover flex-shrink-0"
                             />
                           )}
-                          <div>
-                            <h3 className="text-xl
-                              font-bold text-gray-900 mb-1">
+                          <div className="flex-1 text-center md:text-left mt-4 md:mt-0">
+                            <h3 className="text-xl font-bold text-gray-900 mb-1">
                               {product.name}
                             </h3>
                             <p className="text-gray-600 text-sm mb-2">{product.description}</p>
-                            <div className="flex items-center space-x-4 text-sm">
+                            <div className="flex items-center justify-center md:justify-start space-x-4 text-sm">
                               <span className="flex items-center text-gray-500">
                                 <Clock className="h-4 w-4 mr-1" />
                                 {getTimeLeft(product.bidEndTime)}
                               </span>
                               <span className="flex items-center text-gray-500">
                                 <Users className="h-4 w-4 mr-1" />
-                                {product.bids?.length ||
-                                  0} bids
+                                {product.bids?.length || 0} bids
                               </span>
+                            </div>
+                            <div className="mt-4 text-center md:text-left">
+                              <div className="text-sm text-gray-500 mb-1">Current Highest Bid</div>
+                              <div className="text-2xl font-bold text-green-600">
+                                {formatPrice(product.currentBid)}
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm text-gray-500 mb-1">Current Highest Bid</div>
-                          <div className="text-2xl font-bold text-green-600">
-                            {formatPrice(product.currentBid)}
+
+                        {/* Right Column (25% width): Highest Bidder & Manage Bids */}
+                        <div className="flex flex-col justify-between col-span-1 mt-4 md:mt-0">
+                          <div>
+                            {product.bids && product.bids.length > 0 && (
+                              <>
+                                <h4 className="font-semibold text-gray-900 mb-3 text-center md:text-left">Highest Bidder</h4>
+                                {(() => {
+                                  // Find the highest bid based on amount
+                                  const highestBid = product.bids.reduce((highest, current) => {
+                                    return current.amount > highest.amount ? current : highest;
+                                  }, product.bids[0]);
+
+                                  return (
+                                    <div
+                                      key={highestBid.timestamp}
+                                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                    >
+                                      <div className="flex items-center space-x-3">
+                                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                          <span className="text-blue-600 font-semibold text-sm">
+                                            {highestBid.bidderName?.charAt(0)?.toUpperCase()}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <div className="font-medium text-gray-900">
+                                            {highestBid.bidderName}
+                                          </div>
+                                          <div className="text-sm text-gray-500">
+                                            {new Date(highestBid.timestamp).toLocaleDateString()} at{' '}
+                                            {new Date(highestBid.timestamp).toLocaleTimeString()}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="text-lg font-bold text-gray-900">
+                                        {formatPrice(highestBid.amount)}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </>
+                            )}
                           </div>
-                          <button
-                            onClick={() => handleViewBids(product)}
-                            className="mt-2 bg-[#135918] hover:bg-[#0F4713] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                          >
-                            Manage Bids
-                          </button>
+                          <div className="mt-4">
+                            <button
+                              onClick={() => handleViewBids(product)}
+                              className="w-full bg-[#135918] hover:bg-[#0F4713] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              Manage Bids
+                            </button>
+                          </div>
                         </div>
                       </div>
-
-                      {/* Recent Bids Preview */}
-                      {product.bids && product.bids.length > 0 && (
-                        <div className="border-t pt-4">
-                          <h4 className="font-semibold text-gray-900 mb-3">Highest Bidder</h4>
-                          <div className="space-y-2">
-                            {(() => {
-                              // Find the highest bid based on amount
-                              const highestBid = product.bids.reduce((highest, current) => {
-                                return current.amount > highest.amount ? current : highest;
-                              }, product.bids[0]);
-
-                              return (
-                                <div
-                                  key={highestBid.timestamp} // Using a unique key
-                                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                                >
-                                  <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                      <span className="text-blue-600 font-semibold text-sm">
-                                        {highestBid.bidderName?.charAt(0)?.toUpperCase()}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <div className="font-medium text-gray-900">
-                                        {highestBid.bidderName}
-                                      </div>
-                                      <div className="text-sm text-gray-500">
-                                        {new Date(highestBid.timestamp).toLocaleDateString()} at{' '}
-                                        {new Date(highestBid.timestamp).toLocaleTimeString()}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="text-lg font-bold text-gray-900">
-                                    {formatPrice(highestBid.amount)}
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))

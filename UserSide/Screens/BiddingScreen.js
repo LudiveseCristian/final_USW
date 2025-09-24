@@ -14,12 +14,12 @@ import {
   Dimensions,
 } from "react-native"
 import Icon from "react-native-vector-icons/MaterialIcons"
-import { collection, onSnapshot, updateDoc, doc, getDoc,  } from "firebase/firestore"
+import { collection, onSnapshot, updateDoc, doc, getDoc } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import { useAuth } from "../AuthContext"
 import LoadingScreen from "../hooks/LoadingScreen"
-import { SafeAreaView } from 'react-native-safe-area-context';
-import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons";
+import { SafeAreaView } from "react-native-safe-area-context"
+import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons"
 
 export default function BiddingScreen({ navigation }) {
   const { currentUser } = useAuth()
@@ -27,48 +27,66 @@ export default function BiddingScreen({ navigation }) {
   const [bidAmount, setBidAmount] = useState("")
   const [showBidModal, setShowBidModal] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
-
   const [liveAuctions, setLiveAuctions] = useState([])
   const [myBids, setMyBids] = useState([])
   const [acceptedBids, setAcceptedBids] = useState([])
   const [endingSoonAuctions, setEndingSoonAuctions] = useState([])
   const [activeBiddersCount, setActiveBiddersCount] = useState(0)
-
   const [imageModalVisible, setImageModalVisible] = useState(false)
   const [selectedImages, setSelectedImages] = useState([])
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [loading, setLoading] = useState(true)
-
   const [biddingCounts, setBiddingCounts] = useState({ activeBids: 0, outbidNotifications: 0 })
   const [biddingCountsLoading, setBiddingCountsLoading] = useState(false)
-
-  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [expandedCards, setExpandedCards] = useState(new Set())
 
   const toggleExpand = (itemId) => {
     setExpandedCards(prevExpandedCards => {
-      const newExpanded = new Set(prevExpandedCards);
+      const newExpanded = new Set(prevExpandedCards)
       if (newExpanded.has(itemId)) {
-        newExpanded.delete(itemId);
+        newExpanded.delete(itemId)
       } else {
-        newExpanded.add(itemId);
+        newExpanded.add(itemId)
       }
-      return newExpanded;
-    });
-  };
+      return newExpanded
+    })
+  }
 
   const conditionColors = {
-    Excellent: '#4CAF50', // Green
-    Good: '#8BC34A',      // Light green
-    Fair: '#FFC107',      // Amber
-    Poor: '#F44336',      // Red
-  };
+    Excellent: "#4CAF50",
+    Good: "#8BC34A",
+    Fair: "#FFC107",
+    Poor: "#F44336",
+  }
+
+  const determineBidStatus = (data, userBid, currentUser) => {
+    const now = new Date()
+    const bidEndTime = data.bidEndTime?.toDate ? data.bidEndTime.toDate() : data.bidEndTime
+    const isBiddingEnded = !data.biddingEnabled || (bidEndTime && new Date(bidEndTime) <= now)
+
+    if (isBiddingEnded) {
+      if (data.status === "sold" && data.highestBidder === userBid.bidderName) {
+        return "won"
+      } else if (data.status === "sold" && data.highestBidder !== userBid.bidderName) {
+        return "lost"
+      } else {
+        return "ended"
+      }
+    } else {
+      if (data.currentBid > userBid.amount) {
+        return "outbid"
+      } else {
+        return "winning"
+      }
+    }
+  }
 
   useEffect(() => {
     if (!currentUser?.uid) return
 
     const unsubscribeLive = onSnapshot(collection(db, "products"), (snapshot) => {
       const now = new Date()
-      const soonThreshold = new Date(now.getTime() + 2 * 60 * 60 * 1000) // 2 hours from now
+      const soonThreshold = new Date(now.getTime() + 2 * 60 * 60 * 1000)
 
       const items = snapshot.docs
         .map((d) => {
@@ -95,7 +113,6 @@ export default function BiddingScreen({ navigation }) {
           const base = Math.max(current || 0, minBid || 0)
           const next = base > 0 ? Math.ceil(base * 1.05) : 0
 
-          // Check if user has bid on this item
           const userBid = data.bids?.find((bid) => bid.bidderId === currentUser.uid)
 
           return {
@@ -123,9 +140,7 @@ export default function BiddingScreen({ navigation }) {
         .filter(Boolean)
 
       setLiveAuctions(items)
-
-      const endingSoon = items.filter((item) => item.isEndingSoon)
-      setEndingSoonAuctions(endingSoon)
+      setEndingSoonAuctions(items.filter((item) => item.isEndingSoon))
 
       const uniqueBidders = new Set()
       items.forEach((item) => {
@@ -136,43 +151,45 @@ export default function BiddingScreen({ navigation }) {
         })
       })
       setActiveBiddersCount(uniqueBidders.size)
-
       setLoading(false)
     })
 
     const unsubscribeBids = onSnapshot(collection(db, "products"), (snapshot) => {
       const userBids = []
       const accepted = []
+      let outbidCount = 0
 
       snapshot.docs.forEach((d) => {
         const data = d.data()
-        const userBid = data.bids?.find((bid) => bid.bidderId === currentUser.uid)
+        const userBidsArray = data.bids?.filter((bid) => bid.bidderId === currentUser.uid)
+        const latestUserBid = userBidsArray?.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
 
-        if (userBid) {
+        if (latestUserBid) {
+          const status = determineBidStatus(data, latestUserBid, currentUser)
+          
           const bidInfo = {
             id: d.id,
             title: data.name,
-            myBid: userBid.amount,
+            myBid: latestUserBid.amount,
             currentBid: data.currentBid || 0,
-            status:
-              data.status === "sold" && data.highestBidder === userBid.bidderName
-                ? "won"
-                : data.currentBid > userBid.amount
-                  ? "outbid"
-                  : "winning",
+            status: status,
             timeLeft: getTimeLeftText(data.bidEndTime?.toDate ? data.bidEndTime.toDate() : data.bidEndTime),
             image: data.imageUrls?.[0] || "https://via.placeholder.com/80x80/CCCCCC/FFFFFF?text=Bid+Item",
             category: data.category || "",
             condition: data.condition || "",
             bidEndTime: data.bidEndTime?.toDate ? data.bidEndTime.toDate() : data.bidEndTime,
             raw: data,
-            userBid: userBid,
+            userBid: latestUserBid,
             description: data.description || "No description available",
             length: data.length || "N/A",
             width: data.width || "N/A",
           }
 
-          if (data.status === "sold" && data.highestBidder === userBid.bidderName) {
+          if (status === "outbid") {
+            outbidCount++
+          }
+
+          if (status === "won") {
             accepted.push(bidInfo)
           } else {
             userBids.push(bidInfo)
@@ -182,6 +199,7 @@ export default function BiddingScreen({ navigation }) {
 
       setMyBids(userBids)
       setAcceptedBids(accepted)
+      setBiddingCounts(prev => ({ ...prev, outbidNotifications: outbidCount }))
     })
 
     return () => {
@@ -194,27 +212,23 @@ export default function BiddingScreen({ navigation }) {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "winning":
-        return "#7ED321"
-      case "outbid":
-        return "#D0021B"
-      case "won":
-        return "#135918"
-      default:
-        return "#888"
+      case "winning": return "#7ED321"
+      case "outbid": return "#D0021B"
+      case "won": return "#135918"
+      case "lost": return "#FF6B6B"
+      case "ended": return "#888"
+      default: return "#888"
     }
   }
 
   const getStatusText = (status) => {
     switch (status) {
-      case "winning":
-        return "WINNING"
-      case "outbid":
-        return "OUTBID"
-      case "won":
-        return "WON"
-      default:
-        return "ACTIVE"
+      case "winning": return "WINNING"
+      case "outbid": return "OUTBID"
+      case "won": return "WON"
+      case "lost": return "LOST"
+      case "ended": return "ENDED"
+      default: return "ACTIVE"
     }
   }
 
@@ -236,6 +250,7 @@ export default function BiddingScreen({ navigation }) {
       Alert.alert("Bid Too Low", `Your bid must be at least ₱${selectedItem.nextBid.toLocaleString()}`)
       return
     }
+
     try {
       const productRef = doc(db, "products", selectedItem.id)
       const productSnap = await getDoc(productRef)
@@ -313,6 +328,16 @@ export default function BiddingScreen({ navigation }) {
     }
   }
 
+  const truncateDescription = (text, maxLines = 4) => {
+    const words = text.split(" ")
+    const wordsPerLine = 10
+    const maxWords = maxLines * wordsPerLine
+    if (words.length <= maxWords) {
+      return text
+    }
+    return words.slice(0, maxWords).join(" ") + "..."
+  }
+
   if (loading || biddingCountsLoading) {
     return <LoadingScreen message="Loading bids..." />
   }
@@ -336,7 +361,7 @@ export default function BiddingScreen({ navigation }) {
     const now = new Date()
     const end = new Date(endTime)
     const diff = end - now
-    if (diff <= 0) return "Expired"
+    if (diff <= 0) return "Ended"
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
@@ -370,7 +395,6 @@ export default function BiddingScreen({ navigation }) {
             <Icon name="close" size={24} color="white" />
           </TouchableOpacity>
         </View>
-
         <ScrollView
           horizontal
           pagingEnabled
@@ -388,7 +412,6 @@ export default function BiddingScreen({ navigation }) {
             </View>
           ))}
         </ScrollView>
-
         {selectedImages.length > 1 && (
           <View style={styles.imageDots}>
             {selectedImages.map((_, index) => (
@@ -402,62 +425,55 @@ export default function BiddingScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFCF3" }}>
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Bidding Center</Text>
-        </View>
-        <Text style={styles.headerSubtitle}>
-          Place bids and track your auctions • {biddingCounts.activeBids} active bids
-        </Text>
-      </View>
-
-      {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "live" && styles.activeTab]}
-          onPress={() => setActiveTab("live")}
-        >
-          <Text style={[styles.tabText, activeTab === "live" && styles.activeTabText]}>Live Bids</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "mybids" && styles.activeTab]}
-          onPress={() => setActiveTab("mybids")}
-        >
-          <View style={styles.tabWithBadge}>
-            <Text style={[styles.tabText, activeTab === "mybids" && styles.activeTabText]}>My Bids</Text>
-            {biddingCounts.outbidNotifications > 0 && (
-              <View style={styles.tabNotificationBadge}>
-                <Text style={styles.tabNotificationText}>{biddingCounts.outbidNotifications}</Text>
-              </View>
-            )}
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Bidding Center</Text>
           </View>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {activeTab === "live" ? (
-          <View style={styles.section}>
-            {/* Quick Stats */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{liveAuctions.length}</Text>
-                <Text style={styles.statLabel}>Live Bids</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{endingSoonAuctions.length}</Text>
-                <Text style={styles.statLabel}>Ending Soon</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{activeBiddersCount}</Text>
-                <Text style={styles.statLabel}>Active Bids</Text>
-              </View>
+          <Text style={styles.headerSubtitle}>
+            Place bids and track your auctions • {biddingCounts.activeBids} active bids
+          </Text>
+        </View>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "live" && styles.activeTab]}
+            onPress={() => setActiveTab("live")}
+          >
+            <Text style={[styles.tabText, activeTab === "live" && styles.activeTabText]}>Live Bids</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "mybids" && styles.activeTab]}
+            onPress={() => setActiveTab("mybids")}
+          >
+            <View style={styles.tabWithBadge}>
+              <Text style={[styles.tabText, activeTab === "mybids" && styles.activeTabText]}>My Bids</Text>
+              {biddingCounts.outbidNotifications > 0 && (
+                <View style={styles.tabNotificationBadge}>
+                  <Text style={styles.tabNotificationText}>{biddingCounts.outbidNotifications}</Text>
+                </View>
+              )}
             </View>
-
-            {/* Live Auctions */}
-            <Text style={styles.sectionTitle}>Live Bids</Text>
-            {liveAuctions.length === 0 ? (
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {activeTab === "live" ? (
+            <View style={styles.section}>
+              <View style={styles.statsContainer}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{liveAuctions.length}</Text>
+                  <Text style={styles.statLabel}>Live Bids</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{endingSoonAuctions.length}</Text>
+                  <Text style={styles.statLabel}>Ending Soon</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{activeBiddersCount}</Text>
+                  <Text style={styles.statLabel}>Active Bids</Text>
+                </View>
+              </View>
+              <Text style={styles.sectionTitle}>Live Bids</Text>
+              {liveAuctions.length === 0 ? (
                 <View style={styles.emptyState}>
                   <MaterialCommunityIcon name="tshirt-crew" size={64} color="#ccc" />
                   <Text style={styles.emptyStateTitle}>No Live Bidding</Text>
@@ -466,107 +482,107 @@ export default function BiddingScreen({ navigation }) {
                   </Text>
                 </View>
               ) : (
-            liveAuctions.map((item) => (
-              <View key={item.id} style={styles.auctionCard}>
-                <TouchableOpacity onPress={() => openImageViewer(item)} activeOpacity={0.8}>
-                  <Image source={{ uri: item.image }} style={styles.auctionImage} />
-                  {item.raw?.imageUrls && item.raw.imageUrls.length > 1 && (
-                    <View style={styles.imageCountBadge}>
-                      <Icon name="photo-library" size={12} color="white" />
-                      <Text style={styles.imageCountText}>+{item.raw.imageUrls.length - 1}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <View style={styles.auctionContent}>
-                  <View style={styles.auctionHeader}>
-                    <Text style={styles.auctionTitle}>{item.title}</Text>
-                    <View style={[
-                      styles.conditionBadge,
-                      { backgroundColor: conditionColors[item.condition] || '#F0F0F0' }
-                    ]}>
-                      <Text style={styles.conditionText}>{item.condition}</Text>
-                    </View>
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryText}>{item.category}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.auctionDescription}>
-                    <Text style={styles.descriptionText}>{item.description}</Text>
-                    <View style={styles.measurementsContainer}>
-                      <Text style={styles.measurementText}>Length: {item.length}″</Text>
-                      <Text style={styles.measurementText}>Width: {item.width}″</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.bidInfo}>
-                    <View style={styles.bidRow}>
-                      <Text style={styles.bidLabel}>Current Bid:</Text>
-                      <PesoAmount
-                        amount={item.currentBid}
-                        style={[
-                          styles.currentBidAmount,
-                          item.userBid && item.userBid === item.currentBid && styles.userBidAmount,
-                        ]}
-                        showYou={item.userBid && item.userBid === item.currentBid}
-                      />
-                    </View>
-                    <View style={styles.bidRow}>
-                      <Text style={styles.bidLabel}>Next Bid:</Text>
-                      {item.userBid && item.userBid === item.currentBid ? (
-                        <Text style={[styles.nextBidAmount, styles.yourBidText]}>Your Bid</Text>
-                      ) : (
-                        <View style={styles.pesoAmountContainer}>
-                          <PesoSymbol size={14} color="#333" />
-                          <Text style={[styles.nextBidAmount, { marginLeft: 2 }]}>{item.nextBid.toLocaleString()}</Text>
+                liveAuctions.map((item) => (
+                  <View key={item.id} style={styles.auctionCard}>
+                    <TouchableOpacity onPress={() => openImageViewer(item)} activeOpacity={0.8}>
+                      <Image source={{ uri: item.image }} style={styles.auctionImage} />
+                      {item.raw?.imageUrls && item.raw.imageUrls.length > 1 && (
+                        <View style={styles.imageCountBadge}>
+                          <Icon name="photo-library" size={12} color="white" />
+                          <Text style={styles.imageCountText}>+{item.raw.imageUrls.length - 1}</Text>
                         </View>
                       )}
+                    </TouchableOpacity>
+                    <View style={styles.auctionContent}>
+                      <View style={styles.auctionHeader}>
+                        <Text style={styles.auctionTitle}>{item.title}</Text>
+                        <View style={[styles.conditionBadge, { backgroundColor: conditionColors[item.condition] || "#F0F0F0" }]}>
+                          <Text style={styles.conditionText}>{item.condition}</Text>
+                        </View>
+                        <View style={styles.categoryBadge}>
+                          <Text style={styles.categoryText}>{item.category}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.auctionDescription}
+                        onPress={() => toggleExpand(item.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.descriptionText}>
+                          {expandedCards.has(item.id)
+                            ? item.description
+                            : truncateDescription(item.description)}
+                        </Text>
+                        {item.description.length > truncateDescription(item.description).length && (
+                          <Text style={styles.expandText}>
+                            {expandedCards.has(item.id) ? "Show less" : "Show more"}
+                          </Text>
+                        )}
+                        <View style={styles.measurementsContainer}>
+                          <Text style={styles.measurementText}>Length: {item.length}"</Text>
+                          <Text style={styles.measurementText}>Width: {item.width}"</Text>
+                        </View>
+                      </TouchableOpacity>
+                      <View style={styles.bidInfo}>
+                        <View style={styles.bidRow}>
+                          <Text style={styles.bidLabel}>Current Bid:</Text>
+                          <PesoAmount
+                            amount={item.currentBid}
+                            style={[styles.currentBidAmount, item.userBid && item.userBid === item.currentBid && styles.userBidAmount]}
+                            showYou={item.userBid && item.userBid === item.currentBid}
+                          />
+                        </View>
+                        <View style={styles.bidRow}>
+                          <Text style={styles.bidLabel}>Next Bid:</Text>
+                          {item.userBid && item.userBid === item.currentBid ? (
+                            <Text style={[styles.nextBidAmount, styles.yourBidText]}>Your Bid</Text>
+                          ) : (
+                            <View style={styles.pesoAmountContainer}>
+                              <PesoSymbol size={14} color="#333" />
+                              <Text style={[styles.nextBidAmount, { marginLeft: 2 }]}>{item.nextBid.toLocaleString()}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <View style={styles.auctionFooter}>
+                        <View style={styles.timeContainer}>
+                          <Icon name="access-time" size={12} color="#F5A623" />
+                          <Text style={styles.timeLeft}>{item.timeLeft} left</Text>
+                        </View>
+                        <View style={styles.biddersContainer}>
+                          <Icon name="people" size={12} color="#4A90E2" />
+                          <Text style={styles.biddersCount}>{item.bidders} bids</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.bidButton, item.userBid && item.userBid === item.currentBid && styles.increaseBidButton]}
+                        onPress={() => handlePlaceBid(item)}
+                      >
+                        <Text style={styles.bidButtonText}>{renderBidButtonText(item)}</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
-
-                  <View style={styles.auctionFooter}>
-                    <View style={styles.timeContainer}>
-                      <Icon name="access-time" size={12} color="#F5A623" />
-                      <Text style={styles.timeLeft}>{item.timeLeft} left</Text>
-                    </View>
-                    <View style={styles.biddersContainer}>
-                      <Icon name="people" size={12} color="#4A90E2" />
-                      <Text style={styles.biddersCount}>{item.bidders} bids</Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.bidButton,
-                      item.userBid && item.userBid === item.currentBid && styles.increaseBidButton,
-                    ]}
-                    onPress={() => handlePlaceBid(item)}
-                  >
-                    <Text style={styles.bidButtonText}>{renderBidButtonText(item)}</Text>
-                  </TouchableOpacity>
+                ))
+              )}
+              <View style={styles.bottomPadding} />
+            </View>
+          ) : (
+            <View style={styles.section}>
+              <View style={styles.myBidsStats}>
+                <View style={styles.myBidsStatCard}>
+                  <Text style={styles.myBidsStatNumber}>{allMyBids.length}</Text>
+                  <Text style={styles.myBidsStatLabel}>Total Bids</Text>
+                </View>
+                <View style={styles.myBidsStatCard}>
+                  <Text style={styles.myBidsStatNumber}>{myBids.filter((b) => b.status === "winning").length}</Text>
+                  <Text style={styles.myBidsStatLabel}>Winning</Text>
+                </View>
+                <View style={styles.myBidsStatCard}>
+                  <Text style={styles.myBidsStatNumber}>{acceptedBids.length}</Text>
+                  <Text style={styles.myBidsStatLabel}>Won</Text>
                 </View>
               </View>
-            )))}
-          </View>
-        ) : (
-          <View style={styles.section}>
-            {/* My Bids Stats */}
-            <View style={styles.myBidsStats}>
-              <View style={styles.myBidsStatCard}>
-                <Text style={styles.myBidsStatNumber}>{allMyBids.length}</Text>
-                <Text style={styles.myBidsStatLabel}>Total Bids</Text>
-              </View>
-              <View style={styles.myBidsStatCard}>
-                <Text style={styles.myBidsStatNumber}>{myBids.filter((b) => b.status === "winning").length}</Text>
-                <Text style={styles.myBidsStatLabel}>Winning</Text>
-              </View>
-              <View style={styles.myBidsStatCard}>
-                <Text style={styles.myBidsStatNumber}>{acceptedBids.length}</Text>
-                <Text style={styles.myBidsStatLabel}>Won</Text>
-              </View>
-            </View>
-
-            <Text style={styles.sectionTitle}>My Bids</Text>
+              <Text style={styles.sectionTitle}>My Bids</Text>
               {allMyBids.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Icon name="assignment" size={64} color="#ccc" />
@@ -576,124 +592,120 @@ export default function BiddingScreen({ navigation }) {
                   </Text>
                 </View>
               ) : (
-            allMyBids.map((item) => (
-              <View key={item.id} style={styles.myBidCard}>
-                <TouchableOpacity onPress={() => openImageViewer(item)} activeOpacity={0.8}>
-                  <Image source={{ uri: item.image }} style={styles.myBidImage} />
-                  {item.raw?.imageUrls && item.raw.imageUrls.length > 1 && (
-                    <View style={styles.myBidImageCountBadge}>
-                      <Icon name="photo-library" size={10} color="white" />
-                      <Text style={styles.myBidImageCountText}>+{item.raw.imageUrls.length - 1}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <View style={styles.myBidContent}>
-                  <View style={styles.myBidHeader}>
-                    <Text style={styles.myBidTitle}>{item.title}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-                      <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.myBidInfo}>
-                    <View style={styles.myBidRowContainer}>
-                      <Text style={styles.myBidLabel}>My Bid: </Text>
-                      <View style={styles.pesoAmountContainer}>
-                        <PesoSymbol size={14} color="#333" />
-                        <Text style={[styles.myBidAmount, { marginLeft: 2 }]}>{item.myBid}</Text>
+                allMyBids.map((item) => (
+                  <View key={item.id} style={styles.myBidCard}>
+                    <TouchableOpacity onPress={() => openImageViewer(item)} activeOpacity={0.8}>
+                      <Image source={{ uri: item.image }} style={styles.myBidImage} />
+                      {item.raw?.imageUrls && item.raw.imageUrls.length > 1 && (
+                        <View style={styles.myBidImageCountBadge}>
+                          <Icon name="photo-library" size={10} color="white" />
+                          <Text style={styles.myBidImageCountText}>+{item.raw.imageUrls.length - 1}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    <View style={styles.myBidContent}>
+                      <View style={styles.myBidHeader}>
+                        <Text style={styles.myBidTitle}>{item.title}</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+                          <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.myBidInfo}>
+                        <View style={styles.myBidRowContainer}>
+                          <Text style={styles.myBidLabel}>My Bid: </Text>
+                          <View style={styles.pesoAmountContainer}>
+                            <PesoSymbol size={14} color="#333" />
+                            <Text style={[styles.myBidAmount, { marginLeft: 2 }]}>{item.myBid}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.myBidRowContainer}>
+                          <Text style={styles.myBidLabel}>Current: </Text>
+                          <View style={styles.pesoAmountContainer}>
+                            <PesoSymbol size={14} color="#2E6A2E" />
+                            <Text style={[styles.currentBidAmount, { marginLeft: 2 }]}>{item.currentBid}</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={styles.myBidFooter}>
+                        <View style={styles.timeContainer}>
+                          <Icon name="access-time" size={11} color="#F5A623" />
+                          <Text style={styles.timeLeftSmall}>
+                            {item.status === "won" || item.status === "lost" || item.status === "ended"
+                              ? getStatusText(item.status)
+                              : `${item.timeLeft} left`}
+                          </Text>
+                        </View>
+                        {item.status === "outbid" && (
+                          <TouchableOpacity style={styles.rebidButton} onPress={() => handlePlaceBid(item)}>
+                            <Text style={styles.rebidButtonText}>Increase Bid</Text>
+                          </TouchableOpacity>
+                        )}
+                        {item.status === "won" && (
+                          <TouchableOpacity style={styles.viewOrderButton} onPress={() => handleViewOrder(item)}>
+                            <Text style={styles.viewOrderButtonText}>View Bid</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
-                    <View style={styles.myBidRowContainer}>
-                      <Text style={styles.myBidLabel}>Current: </Text>
-                      <View style={styles.pesoAmountContainer}>
-                        <PesoSymbol size={14} color="#2E6A2E" />
-                        <Text style={[styles.currentBidAmount, { marginLeft: 2 }]}>{item.currentBid}</Text>
-                      </View>
-                    </View>
                   </View>
-
-                  <View style={styles.myBidFooter}>
-                    <View style={styles.timeContainer}>
-                      <Icon name="access-time" size={11} color="#F5A623" />
-                      <Text style={styles.timeLeftSmall}>
-                        {item.status === "won" ? "Won" : `${item.timeLeft} left`}
+                ))
+              )}
+              <View style={styles.bottomPadding} />
+            </View>
+          )}
+        </ScrollView>
+        <Modal visible={showBidModal} transparent={true} animationType="slide" onRequestClose={handleCancelBid}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Place Your Bid</Text>
+              {selectedItem && (
+                <>
+                  <Text style={styles.modalItemTitle}>{selectedItem.title}</Text>
+                  <View style={styles.modalBidRow}>
+                    <Text style={styles.modalCurrentBid}>Current Bid: </Text>
+                    <View style={styles.pesoAmountContainer}>
+                      <PesoSymbol size={16} color="#666" />
+                      <Text style={[styles.modalCurrentBid, { marginLeft: 2 }]}>
+                        {selectedItem.currentBid.toLocaleString()}
                       </Text>
                     </View>
-                    {item.status === "outbid" && (
-                      <TouchableOpacity style={styles.rebidButton}>
-                        <Text style={styles.rebidButtonText}>Increase Bid</Text>
-                      </TouchableOpacity>
-                    )}
-                    {item.status === "won" && (
-                      <TouchableOpacity style={styles.viewOrderButton} onPress={() => handleViewOrder(item)}>
-                        <Text style={styles.viewOrderButtonText}>View Bid</Text>
-                      </TouchableOpacity>
-                    )}
                   </View>
-                </View>
-              </View>
-            )))}
+                  <View style={styles.modalBidRow}>
+                    <Text style={styles.modalMinBid}>Minimum Bid: </Text>
+                    <View style={styles.pesoAmountContainer}>
+                      <PesoSymbol size={16} color="#2E6A2E" />
+                      <Text style={[styles.modalMinBid, { marginLeft: 2 }]}>{selectedItem.nextBid.toLocaleString()}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Your Bid Amount:</Text>
+                    <View style={styles.inputWrapper}>
+                      <PesoSymbol size={20} color="#2E6A2E" />
+                      <TextInput
+                        style={styles.bidInput}
+                        value={bidAmount}
+                        onChangeText={setBidAmount}
+                        placeholder={selectedItem.nextBid.toString()}
+                        keyboardType="numeric"
+                        autoFocus={true}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity style={styles.cancelButton} onPress={handleCancelBid}>
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmBid}>
+                      <Text style={styles.confirmButtonText}>Place Bid</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
-        )}
-
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-
-      {/* Bid Modal */}
-      <Modal visible={showBidModal} transparent={true} animationType="slide" onRequestClose={handleCancelBid}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Place Your Bid</Text>
-            {selectedItem && (
-              <>
-                <Text style={styles.modalItemTitle}>{selectedItem.title}</Text>
-                <View style={styles.modalBidRow}>
-                  <Text style={styles.modalCurrentBid}>Current Bid: </Text>
-                  <View style={styles.pesoAmountContainer}>
-                    <PesoSymbol size={16} color="#666" />
-                    <Text style={[styles.modalCurrentBid, { marginLeft: 2 }]}>
-                      {selectedItem.currentBid.toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.modalBidRow}>
-                  <Text style={styles.modalMinBid}>Minimum Bid: </Text>
-                  <View style={styles.pesoAmountContainer}>
-                    <PesoSymbol size={16} color="#2E6A2E" />
-                    <Text style={[styles.modalMinBid, { marginLeft: 2 }]}>{selectedItem.nextBid.toLocaleString()}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Your Bid Amount:</Text>
-                  <View style={styles.inputWrapper}>
-                    <PesoSymbol size={20} color="#2E6A2E" />
-                    <TextInput
-                      style={styles.bidInput}
-                      value={bidAmount}
-                      onChangeText={setBidAmount}
-                      placeholder={selectedItem.nextBid.toString()}
-                      keyboardType="numeric"
-                      autoFocus={true}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity style={styles.cancelButton} onPress={handleCancelBid}>
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmBid}>
-                    <Text style={styles.confirmButtonText}>Place Bid</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
-      {renderImageViewer()}
-    </View>
+        </Modal>
+        {renderImageViewer()}
+      </View>
     </SafeAreaView>
   )
 }
@@ -730,25 +742,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "rgba(255, 255, 255, 0.9)",
   },
-  notificationBadge: {
-    backgroundColor: "#FF4444",
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 6,
-  },
-  notificationText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "white",
     marginHorizontal: 20,
-    marginTop: -10,
+    marginTop: -14,
     borderRadius: 25,
     padding: 4,
     shadowColor: "#000",
@@ -1085,7 +1083,6 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 100,
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -1189,8 +1186,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "white",
   },
-
-  // Image Modal Styles
   imageModalContainer: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.95)",
@@ -1288,7 +1283,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 1,
   },
-
   auctionDescription: {
     marginVertical: 10,
     paddingHorizontal: 5,
@@ -1310,7 +1304,7 @@ const styles = StyleSheet.create({
     marginRight: 15,
     fontWeight: "500",
   },
-   emptyState: {
+  emptyState: {
     alignItems: "center",
     paddingVertical: 80,
     paddingHorizontal: 40,
@@ -1330,5 +1324,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     lineHeight: 24,
   },
-
+  expandText: {
+    fontSize: 14,
+    color: "#2E6A2E",
+    fontWeight: "600",
+    marginTop: 5,
+  },
 })

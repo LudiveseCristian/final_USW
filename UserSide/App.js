@@ -1,15 +1,14 @@
-// Removed "use client"
-import "react-native-gesture-handler" // Must be at the top
-import React from "react"
-import { NavigationContainer } from "@react-navigation/native"
-import { createStackNavigator,  } from "@react-navigation/stack"
-
-import { AuthProvider, useAuth } from "./AuthContext"
-import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native"
-import { enableScreens } from "react-native-screens"
+import "react-native-gesture-handler"; // Must be at the top
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { GestureHandlerRootView } from "react-native-gesture-handler"; // Add this import
+import { AuthProvider, useAuth } from "./AuthContext";
+import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native";
+import { enableScreens } from "react-native-screens";
 
 // Enable react-native-screens for better performance
-enableScreens()
+enableScreens();
 
 // Disable all navigation animations globally
 const disableAnimations = {
@@ -20,42 +19,41 @@ const disableAnimations = {
     close: { animation: "timing", config: { duration: 1000 } },
   },
   cardStyleInterpolator: () => ({}),
-}
+};
 
 // Import your screen components
-import SignInScreen from "./Screens/SignInScreen"
-import SignUpScreen from "./Screens/SignUpScreen"
-import WelcomeScreen from "./Screens/WelcomeScreen"
-import HomeScreen from "./Screens/HomeScreen"
-import NewsScreen from "./Screens/NewsScreen"
-import BiddingScreen from "./Screens/BiddingScreen"
-import ProfileScreen from "./Screens/ProfileScreen"
-import WinningBiddingScreen from "./Screens/WinbiddingScreen"
-import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant"
-import NotificationScreen from "./Screens/NotificationScreen"
-import OrderTrackingScreen from "./Screens/OrderTrackingScreen"
-import FeedbackScreen from "./Screens/FeedbackScreen"
-
+import SignInScreen from "./Screens/SignInScreen";
+import SignUpScreen from "./Screens/SignUpScreen";
+import WelcomeScreen from "./Screens/WelcomeScreen";
+import HomeScreen from "./Screens/HomeScreen";
+import NewsScreen from "./Screens/NewsScreen";
+import BiddingScreen from "./Screens/BiddingScreen";
+import ProfileScreen from "./Screens/ProfileScreen";
+import WinningBiddingScreen from "./Screens/WinbiddingScreen";
+import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant";
+import NotificationScreen from "./Screens/NotificationScreen";
+import OrderTrackingScreen from "./Screens/OrderTrackingScreen";
+import FeedbackScreen from "./Screens/FeedbackScreen";
 
 // Import your NavBarLayout
-import NavBarLayout from "./Layout/NavbarLayout"
+import NavBarLayout from "./Layout/NavbarLayout";
 
 // Import Onboarding Screens
-import OnboardingScreen from "./Screens/OnboardingScreen"
+import OnboardingScreen from "./Screens/OnboardingScreen";
 
-const Stack = createStackNavigator()
+const Stack = createStackNavigator();
 
 // Enhanced Loading Component
 const LoadingScreen = ({ message = "Loading..." }) => {
-  const [fadeAnim] = React.useState(new Animated.Value(0))
+  const [fadeAnim] = React.useState(new Animated.Value(0));
 
   React.useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 3000,
       useNativeDriver: true,
-    }).start()
-  }, [fadeAnim])
+    }).start();
+  }, [fadeAnim]);
 
   return (
     <View style={styles.loadingContainer}>
@@ -64,8 +62,8 @@ const LoadingScreen = ({ message = "Loading..." }) => {
         <Text style={styles.loadingText}>{message}</Text>
       </Animated.View>
     </View>
-  )
-}
+  );
+};
 
 // --- Onboarding Stack (First Time Users) ---
 function OnboardingStack() {
@@ -79,11 +77,10 @@ function OnboardingStack() {
       initialRouteName="Onboarding"
     >
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-      {/* Add authentication screens after onboarding */}
       <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
     </Stack.Navigator>
-  )
+  );
 }
 
 // --- Authentication Stack (Returning Users) ---
@@ -100,7 +97,7 @@ function AuthStack() {
       <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
     </Stack.Navigator>
-  )
+  );
 }
 
 // --- Main App Stack (Authenticated Users) ---
@@ -114,10 +111,7 @@ function MainAppStack() {
       }}
       initialRouteName="Welcome"
     >
-      {/* Welcome screen is the first screen after login */}
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
-
-      {/* Screens that use the NavBarLayout */}
       <Stack.Screen name="Home">
         {(props) => (
           <NavBarLayout>
@@ -125,7 +119,6 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-
       <Stack.Screen name="News">
         {(props) => (
           <NavBarLayout>
@@ -133,7 +126,6 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-
       <Stack.Screen name="Bidding">
         {(props) => (
           <NavBarLayout>
@@ -141,7 +133,6 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-
       <Stack.Screen name="Cart">
         {(props) => (
           <NavBarLayout>
@@ -149,8 +140,6 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-
-
       <Stack.Screen name="Profile">
         {(props) => (
           <NavBarLayout>
@@ -158,7 +147,6 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-
       <Stack.Screen name="Notifications">
         {(props) => (
           <NavBarLayout>
@@ -166,7 +154,6 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-
       <Stack.Screen name="OrderTracking">
         {(props) => (
           <NavBarLayout>
@@ -174,7 +161,6 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-
       <Stack.Screen name="Feedback">
         {(props) => (
           <NavBarLayout>
@@ -182,9 +168,6 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-
-
-      {/* Account Screen */}
       <Stack.Screen name="Account">
         {(props) => (
           <NavBarLayout>
@@ -195,45 +178,35 @@ function MainAppStack() {
         )}
       </Stack.Screen>
     </Stack.Navigator>
-  )
+  );
 }
 
-// Global App Wrapper with Assistant - this wraps the entire navigation
+// Global App Wrapper with Assistant
 const AppWithAssistant = ({ children, currentUser, showAssistant = true }) => {
   return (
-    <View style={styles.appContainer}>
+    <GestureHandlerRootView style={styles.appContainer}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFEF7" />
-
-      {/* Main App Content */}
       {children}
-
-      {/* Global Floating Assistant - Hide during onboarding and auth */}
       {showAssistant && currentUser && <UpcycledUserAssistant currentUser={currentUser} />}
-    </View>
-  )
-}
+    </GestureHandlerRootView>
+  );
+};
 
 // --- Root Navigator ---
 function RootNavigator() {
-  const authContext = useAuth()
+  const authContext = useAuth();
 
-  // Destructure with fallbacks to prevent undefined errors
   const {
     isLoggedIn = false,
     isLoading = true,
     currentUser = null,
     hasSeenOnboarding = false,
     hasCompletedAppOnboarding = false,
-  } = authContext || {}
+  } = authContext || {};
 
   if (isLoading) {
-    return <LoadingScreen message="Initializing app..." />
+    return <LoadingScreen message="Initializing app..." />;
   }
-
-  // Flow Logic:
-  // 1. First time app users → Show onboarding tutorial → Show auth
-  // 2. Returning users who've seen onboarding but not logged in → Show auth only
-  // 3. Logged in users → Show main app
 
   return (
     <NavigationContainer
@@ -245,22 +218,17 @@ function RootNavigator() {
     >
       <AppWithAssistant currentUser={currentUser} showAssistant={isLoggedIn && hasCompletedAppOnboarding}>
         {(() => {
-          // User is logged in → Main App
           if (isLoggedIn) {
-            return <MainAppStack />
+            return <MainAppStack />;
           }
-
-          // User has seen onboarding but not logged in → Auth only
           if (hasSeenOnboarding) {
-            return <AuthStack />
+            return <AuthStack />;
           }
-
-          // First time user → Onboarding + Auth flow
-          return <OnboardingStack />
+          return <OnboardingStack />;
         })()}
       </AppWithAssistant>
     </NavigationContainer>
-  )
+  );
 }
 
 // --- Main App Component ---
@@ -269,7 +237,7 @@ export default function App() {
     <AuthProvider>
       <RootNavigator />
     </AuthProvider>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -307,4 +275,4 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#2E6A2E",
   },
-})
+});

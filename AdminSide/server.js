@@ -1,5 +1,3 @@
-// server.js
-
 import express from 'express';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
@@ -25,13 +23,18 @@ const transporter = nodemailer.createTransport({
 
 // API endpoint for sending emails
 app.post('/api/send-email', async (req, res) => {
-    const { recipient, subject, body } = req.body;
+    const { recipient, subject, htmlBody } = req.body;
+
+    // Check for required fields
+    if (!recipient || !subject || !htmlBody) {
+        return res.status(400).json({ error: 'Recipient, subject, and HTML body are required.' });
+    }
 
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: recipient,
         subject: subject,
-        text: body,
+        html: htmlBody, // Use the new htmlBody field
     };
 
     try {
