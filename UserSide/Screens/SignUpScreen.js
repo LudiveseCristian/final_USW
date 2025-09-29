@@ -23,6 +23,7 @@ import { auth, db } from "../firebase/firebase"
 import TermsModal from "../hooks/Modal/TermsModal"
 import { SafeAreaView } from "react-native-safe-area-context"
 import LoadingScreen from "../hooks/LoadingScreen"; 
+import AlertModal from "../hooks/AlertModal/AlertModal"
 
 const { width } = Dimensions.get("window")
 
@@ -40,6 +41,11 @@ export default function SignUpScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isTermsModalVisible, setIsTermsModalVisible] = useState(false);
+
+const [modalVisible, setModalVisible] = useState(false);
+const [modalTitle, setModalTitle] = useState("");
+const [modalMessage, setModalMessage] = useState("");
+const [isSuccess, setIsSuccess] = useState(false);
 
   // State for input focus
   const [isEmailFocused, setIsEmailFocused] = useState(false)
@@ -165,99 +171,121 @@ export default function SignUpScreen({ navigation }) {
   }
 
   const handleSignUp = useCallback(async () => {
-    console.log("Sign Up pressed with:", { email, firstName, middleName, lastName, phone, address, password, confirmPassword })
+  console.log("Sign Up pressed with:", { email, firstName, middleName, lastName, phone, address, password, confirmPassword });
 
-    if (!email || !firstName || !lastName || !phone || !address || !password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all required fields marked with *")
-      return
+  if (!email || !firstName || !lastName || !phone || !address || !password || !confirmPassword) {
+    setModalTitle("Error");
+    setModalMessage("Please fill in all required fields marked with *");
+    setIsSuccess(false);
+    setModalVisible(true);
+    return;
+  }
+
+  if (!agreedToTerms) {
+    setModalTitle("Error");
+    setModalMessage("Please agree to the Terms and Conditions");
+    setIsSuccess(false);
+    setModalVisible(true);
+    return;
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email.trim())) {
+    setModalTitle("Error");
+    setModalMessage("Please enter a valid email address");
+    setIsSuccess(false);
+    setModalVisible(true);
+    return;
+  }
+
+  // Validate Philippine phone number
+  if (!isValidPhoneNumber(phone)) {
+    setModalTitle("Error");
+    setModalMessage("Please enter a valid Philippine mobile number (11 digits starting with 09)");
+    setIsSuccess(false);
+    setModalVisible(true);
+    return;
+  }
+
+  // Enhanced password validation
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.isValid) {
+    setModalTitle("Error");
+    setModalMessage(
+      "Password must contain:\n• At least 12 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character"
+    );
+    setIsSuccess(false);
+    setModalVisible(true);
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    setModalTitle("Error");
+    setModalMessage("Passwords do not match!");
+    setIsSuccess(false);
+    setModalVisible(true);
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    // Create user in Firebase Auth
+    const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    const user = userCredential.user;
+
+    // Create full name with middle initial if provided
+    const fullName = middleName
+      ? `${firstName} ${middleName} ${lastName}`
+      : `${firstName} ${lastName}`;
+
+    // Save additional user data in Firestore
+    await setDoc(doc(db, "users", user.uid), {
+      name: fullName,
+      email: email.trim(),
+      firstName,
+      middleName: middleName || "",
+      lastName,
+      phone: phone.replace(/\D/g, ""), // Store phone without formatting
+      address: address.trim(),
+      joinDate: new Date().toISOString().split("T")[0],
+      status: "new",
+      totalOrders: 0,
+      totalSpent: 0,
+      lastOrder: "Never",
+      preferences: [],
+    });
+
+    console.log("User data saved successfully with firstName:", firstName);
+
+    setModalTitle("Success");
+    setModalMessage("Account created successfully! Please sign in.");
+    setIsSuccess(true);
+    setModalVisible(true);
+    setIsLoading(false);
+  } catch (error) {
+    console.error("Error creating account:", error);
+    let errorMessage = "Failed to create account. Please try again.";
+    let title = "Sign-Up Failed";
+
+    if (error.code === "auth/email-already-in-use") {
+      errorMessage = "This email is already registered. Please use a different email or sign in with your existing account.";
+    } else if (error.code === "auth/invalid-email") {
+      errorMessage = "Invalid email format.";
+    } else if (error.code === "auth/weak-password") {
+      errorMessage = "Password does not meet security requirements.";
+    } else if (error.code === "auth/network-request-failed") {
+      errorMessage = "Network error. Please check your internet connection and try again.";
     }
 
-    if (!agreedToTerms) {
-      Alert.alert("Error", "Please agree to the Terms and Conditions")
-      return
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email.trim())) {
-      Alert.alert("Error", "Please enter a valid email address")
-      return
-    }
-
-    // Validate Philippine phone number
-    if (!isValidPhoneNumber(phone)) {
-      Alert.alert("Error", "Please enter a valid Philippine mobile number (11 digits starting with 09)")
-      return
-    }
-
-    // Enhanced password validation
-    const passwordValidation = validatePassword(password)
-    if (!passwordValidation.isValid) {
-      Alert.alert("Error", "Password must contain:\n• At least 12 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character")
-      return
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match!")
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      // Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password)
-      const user = userCredential.user
-
-      // Create full name with middle initial if provided
-      const fullName = middleName 
-        ? `${firstName} ${middleName} ${lastName}`
-        : `${firstName} ${lastName}`
-
-      // Save additional user data in Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        name: fullName,
-        email: email.trim(),
-        firstName,
-        middleName: middleName || "",
-        lastName,
-        phone: phone.replace(/\D/g, ''), // Store phone without formatting
-        address: address.trim(),
-        joinDate: new Date().toISOString().split("T")[0],
-        status: "new",
-        totalOrders: 0,
-        totalSpent: 0,
-        lastOrder: "Never",
-        preferences: [],
-      })
-
-      console.log("User data saved successfully with firstName:", firstName)
-
-      Alert.alert("Success", "Account created successfully! Please sign in.", [
-        {
-          text: "OK",
-          onPress: () => navigation.navigate("SignIn")
-        }
-      ])
-    } catch (error) {
-      console.error("Error creating account:", error)
-      let errorMessage = "Failed to create account. Please try again."
-      
-      if (error.code === "auth/email-already-in-use") {
-        errorMessage = "This email is already registered. Please use a different email or sign in with your existing account."
-      } else if (error.code === "auth/invalid-email") {
-        errorMessage = "Invalid email format."
-      } else if (error.code === "auth/weak-password") {
-        errorMessage = "Password does not meet security requirements."
-      } else if (error.code === "auth/network-request-failed") {
-        errorMessage = "Network error. Please check your internet connection and try again."
-      }
-      
-      Alert.alert("Sign Up Failed", errorMessage)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [email, firstName, middleName, lastName, phone, address, password, confirmPassword, agreedToTerms, navigation])
+    setModalTitle(title);
+    setModalMessage(errorMessage);
+    setIsSuccess(false);
+    setModalVisible(true);
+    setIsLoading(false);
+  }
+}, [email, firstName, middleName, lastName, phone, address, password, confirmPassword, agreedToTerms, navigation]);
 
   return (
     <View style={styles.fullScreenBackground}>
@@ -558,6 +586,19 @@ export default function SignUpScreen({ navigation }) {
         <TermsModal
         visible={isTermsModalVisible}
         onClose={() => setIsTermsModalVisible(false)}
+      />
+
+            <AlertModal
+        visible={modalVisible}
+        title={modalTitle}
+        message={modalMessage}
+        onClose={() => {
+          setModalVisible(false);
+          if (isSuccess) {
+            navigation.navigate("SignIn");
+          }
+        }}
+        isSuccess={isSuccess}
       />
 
     </View>

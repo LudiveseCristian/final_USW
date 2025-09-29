@@ -23,6 +23,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { db, storage } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from 'react-native-safe-area-context';
+import LogoutModal from "../hooks/AlertModal/LogoutModal"
+import TermsModal from "../hooks/Modal/TermsModal"
 
 const { width, height } = Dimensions.get("window")
 
@@ -34,6 +36,8 @@ export default function ProfileScreen({ navigation }) {
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [imagePickerVisible, setImagePickerVisible] = useState(false)
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
 
   const [firstName, setFirstName] = useState("")
   const [middleName, setMiddleName] = useState("")
@@ -351,12 +355,9 @@ useEffect(() => {
     }
   }
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: () => signOut() },
-    ])
-  }
+ const handleLogout = () => {
+  setLogoutModalVisible(true);
+};
 
  if (loading || isLoading) {
   return <LoadingScreen message="Loading profile..." />
@@ -381,7 +382,13 @@ const stats = [
       title: "Personal Information",
       subtitle: "Update your profile details",
       icon: "user",
-      onPress: () => setModalVisible(true),
+      onPress: () => navigation.navigate("PersonalInformation"),
+    },
+    {
+      title: "Change Password",
+      subtitle: "Update your account password",
+      icon: "lock",
+      onPress: () => navigation.navigate("ChangePassword"),
     },
     {
       title: "My Bids",
@@ -390,10 +397,10 @@ const stats = [
       onPress: () => navigation.navigate("Bidding"),
     },
     {
-      title: "Won Items",
-      subtitle: "Items you've successfully won",
-      icon: "award",
-      onPress: () => navigation.navigate("Bidding"),
+      title: "Terms and Conditions",
+      subtitle: "View our terms and conditions",
+      icon: "file-text", 
+      onPress: () => setTermsModalVisible(true),
     },
     {
       title: "Notifications",
@@ -660,6 +667,21 @@ const stats = [
           </View>
         </View>
       </Modal>
+      
+      <LogoutModal
+        visible={logoutModalVisible}
+        onConfirm={() => {
+          setLogoutModalVisible(false);
+          signOut();
+        }}
+        onCancel={() => setLogoutModalVisible(false)}
+      />
+
+      <TermsModal
+      visible={termsModalVisible}
+      onClose={() => setTermsModalVisible(false)}
+    />
+
     </SafeAreaView>
   )
 }
@@ -760,7 +782,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#333",
+    color: "#2E6A2E",
     marginBottom: 6,
     textAlign: "center",
   },
@@ -869,7 +891,7 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: "#2E6A2E",
     marginBottom: 3,
   },
   menuSubtitle: {

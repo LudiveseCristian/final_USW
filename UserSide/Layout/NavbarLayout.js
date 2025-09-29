@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from "@react-navigation/native"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
 import { useCartCount } from "../hooks/useCartCounts"
 
+
 const { width } = Dimensions.get("window")
 
 // Memoized tab configuration

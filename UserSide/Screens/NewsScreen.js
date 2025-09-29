@@ -15,10 +15,11 @@ import {
   Alert,
 } from "react-native"
 import Feather from "react-native-vector-icons/Feather"
-import { collection, getDocs, query, orderBy } from "firebase/firestore"
+import { collection, getDocs, query, orderBy, where } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from "react-native-safe-area-context"
+
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window")
 const cardWidth = (screenWidth - 48) / 2 // 2 columns with padding
 
@@ -31,10 +32,115 @@ export default function NewsScreen({ navigation }) {
   const [imageModalVisible, setImageModalVisible] = useState(false)
   const [selectedArticle, setSelectedArticle] = useState(null)
   const [articleModalVisible, setArticleModalVisible] = useState(false)
+  const [activeTab, setActiveTab] = useState('drops') // 'updates' or 'drops'
+  // Add this to your existing state variables
+  const [featuredArticles, setFeaturedArticles] = useState([])
+  const [heroCurrentIndex, setHeroCurrentIndex] = useState(0)
 
-  useEffect(() => {
-    fetchNews()
-  }, [])
+  const getFeaturedArticles = () => {
+  return newsArticles.slice(0, 3) // Get latest 3 articles
+}
+
+useEffect(() => {
+  fetchNews()
+}, [])
+
+useEffect(() => {
+  if (newsArticles.length > 0) {
+    setFeaturedArticles(getFeaturedArticles())
+  }
+}, [newsArticles])
+
+const renderHeroCarousel = () => {
+  if (featuredArticles.length === 0) return null
+
+  return (
+    <View style={styles.heroSection}>
+      <Text style={styles.heroTitle}>Featured</Text>
+      <FlatList
+        data={featuredArticles}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(event) => {
+          const index = Math.round(event.nativeEvent.contentOffset.x / (screenWidth - 40))
+          setHeroCurrentIndex(index)
+        }}
+        renderItem={({ item, index }) => (
+          <TouchableOpacity
+            style={styles.heroCard}
+            onPress={() => openArticleDetails(item)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.heroImageContainer}>
+              {item.mainImage ? (
+                <Image source={{ uri: item.mainImage }} style={styles.heroImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.heroPlaceholder, item.type === 'update' && styles.heroUpdatePlaceholder]}>
+                  <Feather name={item.type === 'update' ? "bell" : "package"} size={48} color={item.type === 'update' ? "#135918" : "#CCC"} />
+                </View>
+              )}
+              
+              {/* Hero Overlay */}
+              <View style={styles.heroOverlay}>
+                {/* Type Badge */}
+                <View style={[styles.heroTypeBadge, item.type === 'update' ? styles.heroUpdateBadge : styles.heroDropBadge]}>
+                  <Feather name={item.type === 'update' ? "bell" : "package"} size={12} color="white" />
+                  <Text style={styles.heroTypeText}>{item.type === 'update' ? 'UPDATE' : 'DROP'}</Text>
+                </View>
+
+                {/* Hero Content */}
+                <View style={styles.heroContent}>
+                  <Text style={styles.heroCardTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.heroDescription} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                  <View style={styles.heroMeta}>
+                    <View style={styles.heroTimeContainer}>
+                      <Feather name="clock" size={12} color="rgba(255,255,255,0.8)" />
+                      <Text style={styles.heroTime}>{formatDateTime(item.createdAt)}</Text>
+                    </View>
+                    {item.secondaryImages && item.secondaryImages.length > 0 && (
+                      <View style={styles.heroImageCount}>
+                        <Feather name="camera" size={12} color="rgba(255,255,255,0.8)" />
+                        <Text style={styles.heroImageCountText}>+{item.secondaryImages.length}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              {/* New Badge */}
+              {index === 0 && (
+                <View style={styles.heroNewBadge}>
+                  <Text style={styles.heroNewText}>LATEST</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
+        keyExtractor={(item) => item.id}
+      />
+      
+      {/* Pagination Dots */}
+      {featuredArticles.length > 1 && (
+        <View style={styles.heroDots}>
+          {featuredArticles.map((_, index) => (
+            <View key={index} style={[styles.heroDot, heroCurrentIndex === index && styles.heroActiveDot]} />
+          ))}
+        </View>
+      )}
+    </View>
+  )
+}
+const renderSectionDivider = () => (
+  <View style={styles.sectionDivider}>
+    <Text style={styles.sectionTitle}>All {activeTab === 'updates' ? 'Updates' : 'Drops'}</Text>
+    <Text style={styles.sectionSubtitle}>{filteredArticles.length} items</Text>
+  </View>
+)
 
   const fetchNews = async () => {
     try {
@@ -106,12 +212,29 @@ export default function NewsScreen({ navigation }) {
     }
   }
 
+  // Filter articles based on active tab
+  const filteredArticles = newsArticles.filter(article => {
+    if (activeTab === 'updates') {
+      return article.type === 'update'
+    } else {
+      return article.type === 'drop'
+    }
+  })
+
+  const getTabStats = (type) => {
+    return newsArticles.filter(article => article.type === type).length
+  }
+
   const renderGridItem = ({ item, index }) => {
     const isEven = index % 2 === 0
+    const isUpdate = item.type === 'update'
 
     return (
       <TouchableOpacity
-        style={[styles.gridCard, { marginRight: isEven ? 8 : 0, marginLeft: isEven ? 0 : 8 }]}
+        style={[
+          styles.gridCard, 
+          isUpdate && styles.updateCard
+        ]}
         onPress={() => openArticleDetails(item)}
         activeOpacity={0.85}
       >
@@ -120,13 +243,19 @@ export default function NewsScreen({ navigation }) {
           {item.mainImage ? (
             <Image source={{ uri: item.mainImage }} style={styles.cardImage} resizeMode="cover" />
           ) : (
-            <View style={styles.placeholderImage}>
-              <Feather name="image" size={32} color="#CCC" />
+            <View style={[styles.placeholderImage, isUpdate && styles.updatePlaceholder]}>
+              <Feather name={isUpdate ? "bell" : "package"} size={32} color={isUpdate ? "#135918" : "#CCC"} />
             </View>
           )}
 
           {/* Gradient Overlay */}
           <View style={styles.gradientOverlay} />
+
+          {/* Type Badge */}
+          <View style={[styles.typeBadge, isUpdate ? styles.updateBadge : styles.dropBadge]}>
+            <Feather name={isUpdate ? "bell" : "package"} size={10} color="white" />
+            <Text style={styles.typeText}>{isUpdate ? 'UPDATE' : 'DROP'}</Text>
+          </View>
 
           {/* Image Count Badge */}
           {item.secondaryImages && item.secondaryImages.length > 0 && (
@@ -137,14 +266,14 @@ export default function NewsScreen({ navigation }) {
           )}
 
           {/* Time Badge */}
-          <View style={styles.timeBadge}>
+          <View style={[styles.timeBadge, isUpdate && styles.updateTimeBadge]}>
             <Text style={styles.timeText}>{formatDateTime(item.createdAt)}</Text>
           </View>
         </View>
 
         {/* Card Content */}
         <View style={styles.cardContent}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
+          <Text style={[styles.cardTitle, isUpdate && styles.updateTitle]} numberOfLines={2}>
             {item.title}
           </Text>
 
@@ -154,16 +283,18 @@ export default function NewsScreen({ navigation }) {
 
           {/* Action Button */}
           <View style={styles.cardFooter}>
-            <View style={styles.viewButton}>
-              <Feather name="eye" size={12} color="#2E6A2E" />
-              <Text style={styles.viewButtonText}>View</Text>
+            <View style={[styles.viewButton, isUpdate && styles.updateViewButton]}>
+              <Feather name={isUpdate ? "info" : "eye"} size={12} color={isUpdate ? "#2E6A2E" : "#2E6A2E"} />
+              <Text style={[styles.viewButtonText, isUpdate && styles.updateViewButtonText]}>
+                {isUpdate ? "Read" : "View"}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* New Drop Indicator */}
-        {index < 3 && (
-          <View style={styles.newIndicator}>
+        {/* New Indicator */}
+        {index < 2 && (
+          <View style={[styles.newIndicator, isUpdate && styles.updateNewIndicator]}>
             <Text style={styles.newText}>NEW</Text>
           </View>
         )}
@@ -216,138 +347,177 @@ export default function NewsScreen({ navigation }) {
     </Modal>
   )
 
-  const renderArticleDetailModal = () => (
-    <Modal visible={articleModalVisible} animationType="slide" onRequestClose={() => setArticleModalVisible(false)}>
-      <SafeAreaView style={styles.articleModalContainer}>
-        {/* Header */}
-        <View style={styles.articleModalHeader}>
-          <TouchableOpacity style={styles.backButton} onPress={() => setArticleModalVisible(false)}>
-            <Feather name="arrow-left" size={24} color="#2E6A2E" />
-          </TouchableOpacity>
-          <Text style={styles.articleModalTitle}>Drop Details</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+  const renderArticleDetailModal = () => {
+    const isUpdate = selectedArticle?.type === 'update'
+    
+    return (
+      <Modal visible={articleModalVisible} animationType="slide" onRequestClose={() => setArticleModalVisible(false)}>
+        <SafeAreaView style={styles.articleModalContainer}>
+          {/* Header */}
+          <View style={[styles.articleModalHeader, isUpdate && styles.updateModalHeader]}>
+            <TouchableOpacity style={styles.backButton} onPress={() => setArticleModalVisible(false)}>
+              <Feather name="arrow-left" size={24} color={isUpdate ? "#135918" : "#2E6A2E"} />
+            </TouchableOpacity>
+            <Text style={[styles.articleModalTitle, isUpdate && styles.updateModalTitle]}>
+              {isUpdate ? "Update Details" : "Drop Details"}
+            </Text>
+            <View style={styles.headerSpacer} />
+          </View>
 
-        {selectedArticle && (
-          <ScrollView style={styles.articleContent} showsVerticalScrollIndicator={false}>
-            {/* Main Image */}
-            {selectedArticle.mainImage && (
-              <TouchableOpacity style={styles.mainImageContainer} onPress={() => openImageViewer(selectedArticle)}>
-                <Image source={{ uri: selectedArticle.mainImage }} style={styles.articleMainImage} resizeMode="cover" />
-                {/* Image Gallery Indicator */}
-                {selectedArticle.secondaryImages && selectedArticle.secondaryImages.length > 0 && (
-                  <View style={styles.galleryIndicator}>
-                    <Feather name="camera" size={16} color="white" />
-                    <Text style={styles.galleryText}>View Gallery ({selectedArticle.secondaryImages.length + 1})</Text>
+          {selectedArticle && (
+            <ScrollView style={styles.articleContent} showsVerticalScrollIndicator={false}>
+              {/* Main Image */}
+              {selectedArticle.mainImage && (
+                <TouchableOpacity style={styles.mainImageContainer} onPress={() => openImageViewer(selectedArticle)}>
+                  <Image source={{ uri: selectedArticle.mainImage }} style={styles.articleMainImage} resizeMode="cover" />
+                  {/* Image Gallery Indicator */}
+                  {selectedArticle.secondaryImages && selectedArticle.secondaryImages.length > 0 && (
+                    <View style={[styles.galleryIndicator, isUpdate && styles.updateGalleryIndicator]}>
+                      <Feather name="camera" size={16} color="white" />
+                      <Text style={styles.galleryText}>View Gallery ({selectedArticle.secondaryImages.length + 1})</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {/* Article Info */}
+              <View style={styles.articleInfo}>
+                <View style={styles.articleMeta}>
+                  <View style={styles.timeContainer}>
+                    <Feather name="clock" size={14} color="#666" />
+                    <Text style={styles.articleTime}>{formatDateTime(selectedArticle.createdAt)}</Text>
                   </View>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {/* Article Info */}
-            <View style={styles.articleInfo}>
-              <View style={styles.articleMeta}>
-                <View style={styles.timeContainer}>
-                  <Feather name="clock" size={14} color="#666" />
-                  <Text style={styles.articleTime}>{formatDateTime(selectedArticle.createdAt)}</Text>
+                  <View style={[styles.typeContainer, isUpdate ? styles.updateTypeContainer : styles.dropTypeContainer]}>
+                    <Feather name={isUpdate ? "bell" : "package"} size={14} color="white" />
+                    <Text style={styles.typeContainerText}>{isUpdate ? 'UPDATE' : 'DROP'}</Text>
+                  </View>
                 </View>
+
+                <Text style={[styles.articleTitle, isUpdate && styles.updateArticleTitle]}>{selectedArticle.title}</Text>
+
+                <Text style={styles.articleDescription}>{selectedArticle.description}</Text>
+
+                {/* Secondary Images Grid */}
                 {selectedArticle.secondaryImages && selectedArticle.secondaryImages.length > 0 && (
-                  <View style={styles.imageCount}>
-                    <Feather name="image" size={14} color="#666" />
-                    <Text style={styles.imageCountLabel}>{selectedArticle.secondaryImages.length + 1} images</Text>
+                  <View style={styles.secondaryImagesSection}>
+                    <Text style={[styles.sectionTitle, isUpdate && styles.updateSectionTitle]}>
+                      {isUpdate ? "Additional Information" : "More Images"}
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={styles.secondaryImagesContainer}>
+                        {selectedArticle.secondaryImages.map((imageUri, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            style={styles.secondaryImageWrapper}
+                            onPress={() => {
+                              setCurrentImageIndex(index + 1) // +1 because main image is first
+                              openImageViewer(selectedArticle)
+                            }}
+                          >
+                            <Image source={{ uri: imageUri }} style={styles.secondaryImage} resizeMode="cover" />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
                   </View>
                 )}
               </View>
-
-              <Text style={styles.articleTitle}>{selectedArticle.title}</Text>
-
-              <Text style={styles.articleDescription}>{selectedArticle.description}</Text>
-
-              {/* Secondary Images Grid */}
-              {selectedArticle.secondaryImages && selectedArticle.secondaryImages.length > 0 && (
-                <View style={styles.secondaryImagesSection}>
-                  <Text style={styles.sectionTitle}>More Images</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={styles.secondaryImagesContainer}>
-                      {selectedArticle.secondaryImages.map((imageUri, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          style={styles.secondaryImageWrapper}
-                          onPress={() => {
-                            setCurrentImageIndex(index + 1) // +1 because main image is first
-                            openImageViewer(selectedArticle)
-                          }}
-                        >
-                          <Image source={{ uri: imageUri }} style={styles.secondaryImage} resizeMode="cover" />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-              )}
-            </View>
-          </ScrollView>
-        )}
-      </SafeAreaView>
-    </Modal>
-  )
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
+    )
+  }
 
   if (loading) {
-    return <LoadingScreen message="Loading drops..." />
+    return <LoadingScreen message="Loading content..." />
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Enhanced Header */}
+      {/* Enhanced Header with Tabs */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Upcoming Drops</Text>
-          <View style={styles.headerStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{newsArticles.length}</Text>
-              <Text style={styles.statLabel}>Drops</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Feather name="zap" size={16} color="rgba(255, 255, 255, 0.9)" />
-              <Text style={styles.statLabel}>Live Updates</Text>
-            </View>
+          <Text style={styles.headerTitle}>Updates & Drops</Text>
+          <Text style={styles.headerSubtitle}>Stay updated with the latest announcements and upcoming drops</Text>
+          
+          {/* Tab Navigation */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'drops' && styles.activeTab]}
+              onPress={() => setActiveTab('drops')}
+            >
+              <Feather name="package" size={16} color={activeTab === 'drops' ? "white" : "rgba(255, 255, 255, 0.7)"} />
+              <Text style={[styles.tabText, activeTab === 'drops' && styles.activeTabText]}>
+                Drops ({getTabStats('drop')})
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'updates' && styles.activeTab]}
+              onPress={() => setActiveTab('updates')}
+            >
+              <Feather name="bell" size={16} color={activeTab === 'updates' ? "white" : "rgba(255, 255, 255, 0.7)"} />
+              <Text style={[styles.tabText, activeTab === 'updates' && styles.activeTabText]}>
+                Updates ({getTabStats('update')})
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
 
-      {/* Grid Content */}
-      <View style={styles.gridContainer}>
-        {newsArticles.length === 0 ? (
-          <ScrollView
-            contentContainerStyle={styles.emptyStateContainer}
+          {/* Grid Content */}
+          <ScrollView 
+            style={styles.mainScrollContainer}
+            showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#2E6A2E"]} tintColor="#2E6A2E" />
             }
           >
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconContainer}>
-                <Feather name="package" size={48} color="#CCC" />
+            {/* Hero Section */}
+            {newsArticles.length > 0 && renderHeroCarousel()}
+            
+            {/* Section Divider */}
+            {filteredArticles.length > 0 && renderSectionDivider()}
+            
+            {/* Grid Section */}
+            {filteredArticles.length === 0 ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <Feather 
+                    name={activeTab === 'updates' ? "bell-off" : "package"} 
+                    size={48} 
+                    color="#CCC" 
+                  />
+                </View>
+                <Text style={styles.emptyStateText}>
+                  No {activeTab === 'updates' ? 'updates' : 'drops'} available
+                </Text>
+                <Text style={styles.emptyStateSubtext}>
+                  {activeTab === 'updates' 
+                    ? "Check back later for important updates and announcements" 
+                    : "Pull down to refresh and check for new drops"
+                  }
+                </Text>
               </View>
-              <Text style={styles.emptyStateText}>No drops available</Text>
-              <Text style={styles.emptyStateSubtext}>Pull down to refresh and check for new drops</Text>
-            </View>
+            ) : (
+              <View style={styles.gridSection}>
+                <FlatList
+                  data={filteredArticles}
+                  renderItem={renderGridItem}
+                  numColumns={2}
+                  scrollEnabled={false} // Disable FlatList scrolling since we're using ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.gridContent}
+                  columnWrapperStyle={styles.gridRow}
+                  ItemSeparatorComponent={() => <View style={styles.rowSeparator} />}
+                />
+              </View>
+            )}
+            
+            {/* Bottom Padding */}
+            <View style={styles.bottomPadding} />
           </ScrollView>
-        ) : (
-          <FlatList
-            data={newsArticles}
-            renderItem={renderGridItem}
-            numColumns={2}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.gridContent}
-            columnWrapperStyle={styles.gridRow}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#2E6A2E"]} tintColor="#2E6A2E" />
-            }
-            ItemSeparatorComponent={() => <View style={styles.rowSeparator} />}
-          />
-        )}
-      </View>
 
       {renderArticleDetailModal()}
       {renderImageViewer()}
@@ -364,10 +534,10 @@ const styles = StyleSheet.create({
   // Enhanced Header Styles
   header: {
     backgroundColor: "#1A5B1A",
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingVertical: 20, // Reduced slightly for tighter layout
+    paddingHorizontal: 16, // Standardized padding
+    borderBottomLeftRadius: 16, // Slightly smaller radius for balance
+    borderBottomRightRadius: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -378,36 +548,48 @@ const styles = StyleSheet.create({
     flexDirection: "column",
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "800",
     color: "white",
-    marginBottom: 12,
+    marginBottom: 8, // Increased for better spacing
     letterSpacing: -0.5,
   },
-  headerStats: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statItem: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "white",
-    marginRight: 4,
-  },
-  statLabel: {
+  headerSubtitle: {
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.85)",
-    fontWeight: "500",
+    marginBottom: 16, // Adjusted for consistent spacing
+    lineHeight: 18,
   },
-  statDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    marginHorizontal: 16,
+
+  // Tab Navigation
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 12,
+    padding: 6, // Increased padding for touch targets
+    marginHorizontal: 16, // Ensure tabs don't touch edges
+    justifyContent: "space-between", // Evenly distribute tabs
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10, // Adjusted for balance
+    borderRadius: 8,
+    marginHorizontal: 4, // Add small gap between tabs
+  },
+  activeTab: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.7)",
+    marginLeft: 6,
+  },
+  activeTabText: {
+    color: "white",
   },
 
   // Grid Layout Styles
@@ -415,33 +597,38 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gridContent: {
-    padding: 16,
-    paddingBottom: 100,
+    paddingHorizontal: 16, // Reduced to align with hero section
+    paddingVertical: 12, // Consistent vertical padding
   },
   gridRow: {
-    justifyContent: "space-between",
+    justifyContent: "space-between", // Ensure even spacing
+    paddingHorizontal: 0, // Add padding to row for consistency
   },
   rowSeparator: {
-    height: 16,
+    height: 12, // Reduced for tighter grid
   },
 
   // Grid Card Styles
   gridCard: {
-    width: cardWidth,
+    width: (screenWidth - 48) / 2, // Adjusted for consistent spacing
     backgroundColor: "white",
-    borderRadius: 20,
+    borderRadius: 16, // Slightly smaller radius for modern look
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowRadius: 12,
+    elevation: 6,
     overflow: "hidden",
-    position: "relative",
+    marginVertical: 6, // Added vertical margin for balance
+  },
+  updateCard: {
+    borderWidth: 1,
+    borderColor: "rgba(46, 106, 46, 0.9)",
   },
 
   imageContainer: {
     position: "relative",
-    height: 160,
+    height: 150, // Slightly reduced for compact layout
   },
   cardImage: {
     width: "100%",
@@ -454,25 +641,50 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  updatePlaceholder: {
+    backgroundColor: "rgba(52, 152, 219, 0.1)",
+  },
   gradientOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: 60,
-    background: "linear-gradient(transparent, rgba(0,0,0,0.7))",
-    backgroundColor: "rgba(0,0,0,0.1)", // Fallback for React Native
+    backgroundColor: "rgba(0,0,0,0.1)",
   },
 
   // Badges
+  typeBadge: {
+    position: "absolute",
+    bottom: 10, // Adjusted for better alignment
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10, // Smaller radius for consistency
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  updateBadge: {
+    backgroundColor: "rgba(46, 106, 46, 0.9)",
+  },
+  dropBadge: {
+    backgroundColor: "rgba(46, 106, 46, 0.9)",
+  },
+  typeText: {
+    color: "white",
+    fontSize: 9,
+    fontWeight: "800",
+    marginLeft: 3,
+    letterSpacing: 0.5,
+  },
   imageCountBadge: {
     position: "absolute",
-    top: 10,
-    right: 10,
+    top: 8,
+    right: 8,
     backgroundColor: "rgba(0, 0, 0, 0.8)",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -484,12 +696,15 @@ const styles = StyleSheet.create({
   },
   timeBadge: {
     position: "absolute",
-    bottom: 10,
-    left: 10,
+    bottom: 8,
+    right: 8,
     backgroundColor: "rgba(46, 106, 46, 0.9)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+  },
+  updateTimeBadge: {
+    backgroundColor: "rgba(46, 106, 46, 0.9)",
   },
   timeText: {
     color: "white",
@@ -498,15 +713,18 @@ const styles = StyleSheet.create({
   },
   newIndicator: {
     position: "absolute",
-    top: -2,
-    left: -2,
+    top: 0,
+    left: 0,
     backgroundColor: "#FF4757",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 0,
-    borderTopLeftRadius: 20,
-    borderBottomRightRadius: 12,
+    borderTopLeftRadius: 16, // Match card radius
+    borderBottomRightRadius: 10,
     zIndex: 10,
+  },
+  updateNewIndicator: {
+    backgroundColor: "#FF4757",
   },
   newText: {
     color: "white",
@@ -517,21 +735,24 @@ const styles = StyleSheet.create({
 
   // Card Content
   cardContent: {
-    padding: 16,
+    padding: 12, // Reduced for compact layout
     flex: 1,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#135918",
-    marginBottom: 8,
-    lineHeight: 22,
+    marginBottom: 6, // Adjusted for spacing
+    lineHeight: 20,
+  },
+  updateTitle: {
+    color: "#135918",
   },
   cardDescription: {
     fontSize: 13,
     color: "#666",
     lineHeight: 18,
-    marginBottom: 12,
+    marginBottom: 10,
     flex: 1,
   },
   cardFooter: {
@@ -547,6 +768,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(46, 106, 46, 0.1)",
     borderRadius: 8,
   },
+  updateViewButton: {
+    backgroundColor: "rgba(52, 152, 219, 0.1)",
+  },
   viewButtonText: {
     fontSize: 11,
     color: "#2E6A2E",
@@ -554,6 +778,9 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  updateViewButtonText: {
+    color: "#2E6A2E",
   },
 
   // Empty State
@@ -564,8 +791,9 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 80,
-    paddingHorizontal: 40,
+    paddingVertical: 60, // Reduced for better fit
+    paddingHorizontal: 32,
+    minHeight: 280,
   },
   emptyIconContainer: {
     width: 80,
@@ -574,7 +802,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F0F0F0",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   emptyStateText: {
     fontSize: 20,
@@ -590,7 +818,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Image Modal Styles (unchanged)
+  // Modal Styles
   imageModalContainer: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.95)",
@@ -603,9 +831,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: 40, // Adjusted for safe area
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     zIndex: 1000,
     backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
@@ -631,7 +859,7 @@ const styles = StyleSheet.create({
   },
   imageDots: {
     position: "absolute",
-    bottom: 50,
+    bottom: 40, // Adjusted for better positioning
     left: 0,
     right: 0,
     flexDirection: "row",
@@ -652,6 +880,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
 
+  // Article Detail Modal
   articleModalContainer: {
     flex: 1,
     backgroundColor: "#F8F9FA",
@@ -660,8 +889,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: "white",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E5E5",
@@ -670,6 +899,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  updateModalHeader: {
+    backgroundColor: "rgba(52, 152, 219, 0.05)",
+    borderBottomColor: "rgba(52, 152, 219, 0.2)",
   },
   backButton: {
     padding: 8,
@@ -680,6 +913,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#135918",
+    textAlign: "center", // Center title
+  },
+  updateModalTitle: {
+    color: "#135918",
   },
   headerSpacer: {
     width: 40,
@@ -689,7 +926,7 @@ const styles = StyleSheet.create({
   },
   mainImageContainer: {
     position: "relative",
-    height: 250,
+    height: 240, // Slightly reduced for balance
     backgroundColor: "#F0F0F0",
   },
   articleMainImage: {
@@ -698,14 +935,17 @@ const styles = StyleSheet.create({
   },
   galleryIndicator: {
     position: "absolute",
-    bottom: 15,
-    right: 15,
+    bottom: 12,
+    right: 12,
     backgroundColor: "rgba(0, 0, 0, 0.8)",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
+  },
+  updateGalleryIndicator: {
+    backgroundColor: "rgba(46, 106, 46, 0.9)",
   },
   galleryText: {
     color: "white",
@@ -714,14 +954,14 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   articleInfo: {
-    padding: 20,
+    padding: 16, // Standardized padding
     backgroundColor: "white",
   },
   articleMeta: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 12,
   },
   timeContainer: {
     flexDirection: "row",
@@ -733,45 +973,59 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontWeight: "500",
   },
-  imageCount: {
+  typeContainer: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  imageCountLabel: {
-    fontSize: 14,
-    color: "#666",
-    marginLeft: 6,
-    fontWeight: "500",
+  updateTypeContainer: {
+    backgroundColor: "#2E6A2E",
+  },
+  dropTypeContainer: {
+    backgroundColor: "#2E6A2E",
+  },
+  typeContainerText: {
+    color: "white",
+    fontSize: 11,
+    fontWeight: "700",
+    marginLeft: 4,
+    letterSpacing: 0.5,
   },
   articleTitle: {
     fontSize: 24,
     fontWeight: "800",
     color: "#135918",
-    marginBottom: 15,
+    marginBottom: 12,
     lineHeight: 32,
+    textAlign: "left", // Ensure left-aligned for readability
+  },
+  updateArticleTitle: {
+    color: "#135918",
   },
   articleDescription: {
     fontSize: 16,
     color: "#333",
     lineHeight: 24,
-    marginBottom: 25,
+    marginBottom: 20,
   },
   secondaryImagesSection: {
-    marginTop: 10,
+    marginTop: 8,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#135918",
-    marginBottom: 15,
+    marginBottom: 12,
   },
   secondaryImagesContainer: {
     flexDirection: "row",
-    paddingRight: 20,
+    paddingRight: 16,
   },
   secondaryImageWrapper: {
-    marginRight: 12,
-    borderRadius: 12,
+    marginRight: 8, // Reduced for tighter spacing
+    borderRadius: 10,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -780,7 +1034,200 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   secondaryImage: {
-    width: 120,
-    height: 120,
+    width: 110, // Slightly smaller for better fit
+    height: 110,
   },
-})
+
+  // Hero Section
+  heroSection: {
+    paddingVertical: 16, // Adjusted for consistency
+    paddingHorizontal: 16,
+    backgroundColor: "#FFFCF3",
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#135918",
+    marginBottom: 12,
+    letterSpacing: -0.3,
+    textAlign: "left",
+    paddingRight: 16,
+  },
+  heroCard: {
+    width: screenWidth - 40, // Adjusted for proper full width display
+    height: 200,
+    marginRight: 16, // Consistent margin for carousel spacing
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  heroImageContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroPlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#F0F0F0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroUpdatePlaceholder: {
+    backgroundColor: "rgba(52, 152, 219, 0.1)",
+  },
+  heroOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    padding: 16, // Standardized padding
+    justifyContent: "space-between",
+  },
+  heroTypeBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(46, 106, 46, 0.9)",
+  },
+  heroUpdateBadge: {
+    backgroundColor: "rgba(52, 152, 219, 0.9)",
+  },
+  heroDropBadge: {
+    backgroundColor: "rgba(46, 106, 46, 0.9)",
+  },
+  heroTypeText: {
+    color: "white",
+    fontSize: 11,
+    fontWeight: "800",
+    marginLeft: 4,
+    letterSpacing: 0.5,
+  },
+  heroContent: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  heroCardTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "white",
+    marginBottom: 6,
+    lineHeight: 24,
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  heroDescription: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.9)",
+    lineHeight: 20,
+    marginBottom: 10,
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  heroMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  heroTimeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  heroTime: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    marginLeft: 4,
+    fontWeight: "500",
+  },
+  heroImageCount: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  heroImageCountText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    marginLeft: 4,
+    fontWeight: "500",
+  },
+  heroNewBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#FF4757",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderTopRightRadius: 16,
+    borderBottomLeftRadius: 10,
+  },
+  heroNewText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  heroDots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 12, // Adjusted for spacing
+    paddingRight: 16,
+  },
+  heroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#E0E0E0",
+    marginHorizontal: 4,
+  },
+  heroActiveDot: {
+    backgroundColor: "#2E6A2E",
+    width: 16, // Slightly smaller for balance
+    borderRadius: 4,
+  },
+
+  // Section Divider
+  sectionDivider: {
+    paddingHorizontal: 16, // Match container padding
+    paddingVertical: 12,
+    backgroundColor: "#FFFCF3",
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#135918",
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
+  },
+
+  mainScrollContainer: {
+    flex: 1,
+  },
+  gridSection: {
+    paddingHorizontal: 0, // Match gridContent padding
+  },
+  bottomPadding: {
+    height: 80, // Reduced for less empty space
+  },
+});

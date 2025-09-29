@@ -14,7 +14,7 @@ import { LinearGradient } from "expo-linear-gradient"
 import Feather from "react-native-vector-icons/Feather"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
 import { useState, useEffect } from "react"
-import { collection, getDocs, query, orderBy, onSnapshot, doc, getDoc, updateDoc } from "firebase/firestore"
+import { collection, getDocs, query, orderBy, onSnapshot, doc, getDoc, updateDoc, where, limit} from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { useAuth } from "../AuthContext"
@@ -38,7 +38,7 @@ export default function HomeScreen({ navigation }) {
     endingSoon: 0,
     wonItems: 0,
   })
-
+  const [approvedFeedback, setApprovedFeedback] = useState([])
   const [showBidModal, setShowBidModal] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [bidAmount, setBidAmount] = useState("")
@@ -50,7 +50,8 @@ useEffect(() => {
       await Promise.all([
         fetchFeaturedNews(),
         fetchFeaturedBidding(),
-        fetchUserStats()
+        fetchUserStats(),
+        fetchApprovedFeedback()
       ])
       setIsLoadingData(false)
     }
@@ -66,7 +67,7 @@ useEffect(() => {
       const q = query(newsCollection, orderBy("createdAt", "desc"))
       const snapshot = await getDocs(q)
 
-      const news = snapshot.docs.slice(0, 3).map((doc) => ({
+      const news = snapshot.docs.slice(0, 4).map((doc) => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date(),
@@ -120,7 +121,7 @@ useEffect(() => {
             }
           })
           .filter(Boolean)
-          .slice(0, 3)
+          .slice(0, 4)
 
         setFeaturedBidding(items)
       })
@@ -315,6 +316,27 @@ useEffect(() => {
     return "User"
   }
 
+const fetchApprovedFeedback = async () => {
+  try {
+    const feedbackQuery = query(
+      collection(db, "feedbacks"),
+      where("status", "==", "approved"), // Add this line back
+      orderBy("submittedAt", "desc"),
+      limit(4)
+    )
+    
+    const snapshot = await getDocs(feedbackQuery)
+    const feedback = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+    
+    setApprovedFeedback(feedback)
+  } catch (error) {
+    console.error("Error fetching approved feedback:", error)
+  }
+}
+
 if (isLoading || isLoadingData) {
   return <LoadingScreen message="Loading Home..." />
 }
@@ -475,8 +497,46 @@ if (isLoading || isLoadingData) {
               </View>
             ))}
           </View>
-        </SafeAreaView>
+          
+          {/* Customer Reviews */}
+          {approvedFeedback.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Customer Reviews</Text>
+              </View>
+              <Text style={styles.sectionDescription}>What our customers say about their purchases</Text>
 
+              <View style={styles.gridContainer}>
+                {approvedFeedback.map((review) => (
+                  <View key={review.id} style={styles.reviewCard}>
+                    <View style={styles.reviewHeader}>
+                      {review.productImage && (
+                        <Image source={{ uri: review.productImage }} style={styles.reviewProductImage} />
+                      )}
+                      <View style={styles.reviewInfo}>
+                        <Text style={styles.reviewUserName} numberOfLines={1}>{review.userName}</Text>
+                        <Text style={styles.reviewProductTitle} numberOfLines={1}>{review.productTitle}</Text>
+                        <View style={styles.reviewStars}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <MaterialCommunityIcons
+                              key={star}
+                              name={star <= review.rating ? "star" : "star-outline"}
+                              size={14}
+                              color="#FFD700"
+                            />
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                    <Text style={styles.reviewText} numberOfLines={3}>
+                      {review.reviewText || "Great product!"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </SafeAreaView>
         {/* Bottom padding for navigation */}
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -555,6 +615,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     position: 'relative',
     overflow: 'hidden',
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
   },
   decorativeCircle1: {
     position: 'absolute',
@@ -997,6 +1064,54 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   bottomPadding: {
-    height: 50, // Space for bottom navigation
+    height: 100, // Space for bottom navigation
   },
+
+  reviewCard: {
+  backgroundColor: "white",
+  borderRadius: 12,
+  width: (width - 50) / 2,
+  marginBottom: 15,
+  marginHorizontal: 5,
+  padding: 12,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+},
+reviewHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  marginBottom: 8,
+},
+reviewProductImage: {
+  width: 30,
+  height: 30,
+  borderRadius: 15,
+  marginRight: 8,
+},
+reviewInfo: {
+  flex: 1,
+},
+reviewUserName: {
+  fontSize: 12,
+  fontWeight: "600",
+  color: "#333",
+},
+reviewProductTitle: {
+  fontSize: 10,
+  color: "#666",
+  marginBottom: 2,
+},
+reviewStars: {
+  flexDirection: "row",
+},
+reviewText: {
+  fontSize: 12,
+  color: "#666",
+  lineHeight: 16,
+  fontStyle: "italic",
+},
+  
 })

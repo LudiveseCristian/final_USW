@@ -21,6 +21,7 @@ import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from "react-native-safe-area-context"
 import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons"
 
+
 export default function BiddingScreen({ navigation }) {
   const { currentUser } = useAuth()
   const [activeTab, setActiveTab] = useState("live")
@@ -240,6 +241,11 @@ export default function BiddingScreen({ navigation }) {
 
   const handleConfirmBid = async () => {
     const bidValue = Number.parseFloat(bidAmount)
+
+    if (!/^\d{5}$/.test(bidAmount)) {
+    Alert.alert("Invalid Bid", "Please enter a valid 5-digit bid amount.");
+    return;
+  }
 
     if (!bidValue || isNaN(bidValue)) {
       Alert.alert("Invalid Bid", "Please enter a valid bid amount.")
@@ -684,10 +690,17 @@ export default function BiddingScreen({ navigation }) {
                       <TextInput
                         style={styles.bidInput}
                         value={bidAmount}
-                        onChangeText={setBidAmount}
+                        onChangeText={(text) => {
+                          // Allow only digits and enforce 5-digit limit
+                          const numericText = text.replace(/[^0-9]/g, "");
+                          if (numericText.length <= 5) {
+                            setBidAmount(numericText);
+                          }
+                        }}
                         placeholder={selectedItem.nextBid.toString()}
                         keyboardType="numeric"
                         autoFocus={true}
+                        maxLength={5}
                       />
                     </View>
                   </View>

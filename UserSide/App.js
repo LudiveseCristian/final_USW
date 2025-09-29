@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler"; // Add th
 import { AuthProvider, useAuth } from "./AuthContext";
 import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native";
 import { enableScreens } from "react-native-screens";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 // Enable react-native-screens for better performance
 enableScreens();
@@ -34,6 +35,8 @@ import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant";
 import NotificationScreen from "./Screens/NotificationScreen";
 import OrderTrackingScreen from "./Screens/OrderTrackingScreen";
 import FeedbackScreen from "./Screens/FeedbackScreen";
+import PersonalInformationScreen from "./Screens/PersonalInformationScreen";
+import ChangePassword from "./Screens/ChangePasswordScreen";
 
 // Import your NavBarLayout
 import NavBarLayout from "./Layout/NavbarLayout";
@@ -177,6 +180,8 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
+       <Stack.Screen name="PersonalInformation" component={PersonalInformationScreen} />
+       <Stack.Screen name="ChangePassword" component={ChangePassword} />
     </Stack.Navigator>
   );
 }
@@ -187,6 +192,7 @@ const AppWithAssistant = ({ children, currentUser, showAssistant = true }) => {
     <GestureHandlerRootView style={styles.appContainer}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFEF7" />
       {children}
+      
       {showAssistant && currentUser && <UpcycledUserAssistant currentUser={currentUser} />}
     </GestureHandlerRootView>
   );
@@ -205,13 +211,13 @@ function RootNavigator() {
   } = authContext || {};
 
   if (isLoading) {
-    return <LoadingScreen message="Initializing app..." />;
+    return <LoadingScreen message="Success fullInitializing app..." />;
   }
 
   return (
     <NavigationContainer
       theme={{
-        colors: {
+        colors: { 
           background: "#F8F9FA",
         },
       }}

@@ -655,7 +655,7 @@ const styles = StyleSheet.create({
     },
     chatModal: {
         position: 'absolute',
-        top: 0,
+        top: 50,
         left: 0,
         right: 0,
         bottom: 0,
