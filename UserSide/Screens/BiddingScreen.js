@@ -242,12 +242,17 @@ export default function BiddingScreen({ navigation }) {
     const bidValue = Number.parseFloat(bidAmount)
 
     if (!bidValue || isNaN(bidValue)) {
-      Alert.alert("Invalid Bid", "Please enter a valid bid amount.")
+      Alert.alert("Invalid Bid", "Please enter a valid numeric bid amount.")
+      return
+    }
+
+    if (bidValue > 999999) {
+      Alert.alert("Invalid Bid", "Bid amount cannot exceed 6 digits (999,999).")
       return
     }
 
     if (bidValue < selectedItem.nextBid) {
-      Alert.alert("Bid Too Low", `Your bid must be at least ₱${selectedItem.nextBid.toLocaleString()}`)
+      Alert.alert("Bid Too Low", `Your bid must be at least ₱${selectedItem.nextBid.toLocaleString()}.`)
       return
     }
 
@@ -266,7 +271,7 @@ export default function BiddingScreen({ navigation }) {
       const base = Math.max(current || 0, minBid || 0)
       const requiredMin = base > 0 ? Math.ceil(base * 1.05) : minBid
       if (bidValue < requiredMin) {
-        Alert.alert("Bid Too Low", `Latest required bid is ₱${requiredMin.toLocaleString()}`)
+        Alert.alert("Bid Too Low", `Latest required bid is ₱${requiredMin.toLocaleString()}.`)
         return
       }
 
@@ -285,7 +290,7 @@ export default function BiddingScreen({ navigation }) {
         updatedAt: new Date(),
       })
 
-      Alert.alert("Bid Placed!", `Your bid of ₱${bidValue.toLocaleString()} has been placed on ${selectedItem.title}`)
+      Alert.alert("Bid Placed!", `Your bid of ₱${bidValue.toLocaleString()} has been placed on ${selectedItem.title}.`)
       setShowBidModal(false)
       setBidAmount("")
       setSelectedItem(null)
@@ -299,6 +304,16 @@ export default function BiddingScreen({ navigation }) {
     setShowBidModal(false)
     setBidAmount("")
     setSelectedItem(null)
+  }
+
+  const handleBidInputChange = (text) => {
+    // Allow only numeric input and limit to 6 digits
+    const numericText = text.replace(/[^0-9]/g, "")
+    if (numericText.length <= 6) {
+      setBidAmount(numericText)
+    } else {
+      Alert.alert("Input Limit", "Bid amount cannot exceed 6 digits.")
+    }
   }
 
   const renderNextBidText = (item) => {
@@ -684,10 +699,11 @@ export default function BiddingScreen({ navigation }) {
                       <TextInput
                         style={styles.bidInput}
                         value={bidAmount}
-                        onChangeText={setBidAmount}
+                        onChangeText={handleBidInputChange}
                         placeholder={selectedItem.nextBid.toString()}
                         keyboardType="numeric"
                         autoFocus={true}
+                        maxLength={6} // Enforce max 6 digits
                       />
                     </View>
                   </View>

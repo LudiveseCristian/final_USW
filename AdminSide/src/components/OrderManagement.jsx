@@ -152,6 +152,23 @@ const OrderManagement = () => {
           updateData.trackingNumber = trackingNumber.trim()
         }
       } else if (newStatus === 'delivered') {
+         const order = orders.find(o => o.id === orderId);
+      if (order.userRating) {
+        // Create feedback entry in feedbacks collection
+        await addDoc(collection(db, 'feedbacks'), {
+          orderId: orderId,
+          productTitle: order.title,
+          productImage: order.images[0] || null,
+          userName: order.winnerName,
+          userEmail: order.winnerEmail,
+          rating: order.userRating,
+          reviewText: order.userReview || '',
+          status: 'pending',
+          submittedAt: new Date().toISOString(),
+          category: order.category
+        });
+      }
+
         updateData.deliveryDate = new Date().toISOString()
       }
 
@@ -487,30 +504,6 @@ const OrderManagement = () => {
                             View Details
                           </button>
                         </div>
-
-                        {/* Rating Display */}
-                        {order.userRating && (
-                          <div className="border-t pt-3">
-                            <div className="flex items-center mb-1">
-                              <span className="text-sm font-medium text-gray-600 mr-2">Rating:</span>
-                              <div className="flex">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <Star
-                                    key={star}
-                                    className={`w-4 h-4 ${
-                                      star <= order.userRating
-                                        ? 'text-yellow-400 fill-current'
-                                        : 'text-gray-300'
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                            {order.userReview && (
-                              <p className="text-sm text-gray-600 italic">"{order.userReview}"</p>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>

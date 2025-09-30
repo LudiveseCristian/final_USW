@@ -1,22 +1,36 @@
-import { useState, useEffect } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, Dimensions } from "react-native"
+import { useState, useEffect, useCallback } from "react"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, Dimensions, ActivityIndicator } from "react-native"
 import Icon from "react-native-vector-icons/MaterialIcons"
-import { collection, onSnapshot } from "firebase/firestore"
+import { collection, onSnapshot, doc, updateDoc, writeBatch } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import { useAuth } from "../AuthContext"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from "react-native-safe-area-context"
 import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons"
+import { useFocusEffect } from "@react-navigation/native"
+import { useCartCount } from "../hooks/useCartCounts"
 
 export default function WinBiddingScreen({ navigation }) {
   const { currentUser } = useAuth()
   const [winningBids, setWinningBids] = useState([])
   const [loading, setLoading] = useState(true)
+  const { resetCartCount } = useCartCount()
 
   // Modal states for image viewing
   const [imageModalVisible, setImageModalVisible] = useState(false)
   const [selectedImages, setSelectedImages] = useState([])
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [focusTick, setFocusTick] = useState(0)
+  const [imageLoading, setImageLoading] = useState(false)
+  const [imageErrors, setImageErrors] = useState({})
+
+  // Clear the Won badge when this screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      resetCartCount && resetCartCount()
+      setFocusTick((t) => t + 1)
+    }, [resetCartCount]),
+  )
 
   useEffect(() => {
     if (!currentUser?.uid) return
@@ -47,6 +61,7 @@ export default function WinBiddingScreen({ navigation }) {
         }
       })
 
+      wonItems.sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
       setWinningBids(wonItems)
       setLoading(false)
     })
@@ -54,11 +69,53 @@ export default function WinBiddingScreen({ navigation }) {
     return () => unsubscribe()
   }, [currentUser?.uid])
 
+  // When screen is focused and data is loaded, mark all unviewed wins as viewed
+  useEffect(() => {
+    if (!currentUser?.uid || focusTick === 0 || winningBids.length === 0) return
+    const unviewed = winningBids.filter(
+      (item) => item?.raw?.wonStatusByUser?.[currentUser.uid] !== "viewed",
+    )
+    if (unviewed.length === 0) return
+
+    ;(async () => {
+      try {
+        const batch = writeBatch(db)
+        unviewed.forEach((item) => {
+          const ref = doc(db, "products", item.id)
+          batch.update(ref, { [`wonStatusByUser.${currentUser.uid}`]: "viewed" })
+        })
+        await batch.commit()
+      } catch (e) {
+        console.warn("Failed to batch mark items as viewed:", e)
+      }
+    })()
+  }, [focusTick, winningBids, currentUser?.uid])
+
+  // Mark won item as viewed when user opens it
+  const markAsViewed = useCallback(async (productId) => {
+    try {
+      if (!currentUser?.uid || !productId) return
+      const ref = doc(db, "products", productId)
+      await updateDoc(ref, { [`wonStatusByUser.${currentUser.uid}`]: "viewed" })
+    } catch (e) {
+      console.warn("Failed to mark as viewed:", e)
+    }
+  }, [currentUser?.uid])
+
   const openImageViewer = (item) => {
+    if (item?.id) {
+      markAsViewed(item.id)
+    }
     if (item.image && item.raw?.imageUrls) {
       setSelectedImages(item.raw.imageUrls)
       setCurrentImageIndex(0)
+      setImageErrors({})
+      setImageLoading(true)
       setImageModalVisible(true)
+      // Preload adjacent images
+      if (item.raw.imageUrls.length > 1) {
+        Image.prefetch(item.raw.imageUrls[1]).catch((e) => console.warn("Failed to prefetch image:", e))
+      }
     }
   }
 
@@ -76,7 +133,7 @@ export default function WinBiddingScreen({ navigation }) {
   const totalItems = winningBids.length
 
   if (loading) {
-    return <LoadingScreen message="Loading your winning bids summary..." />
+    return <LoadingScreen message="Loading your winning bids..." />
   }
 
   const PesoSymbol = ({ size = 16, color = "#1A5B1A" }) => (
@@ -95,14 +152,25 @@ export default function WinBiddingScreen({ navigation }) {
       visible={imageModalVisible}
       transparent={true}
       animationType="fade"
-      onRequestClose={() => setImageModalVisible(false)}
+      onRequestClose={() => {
+        setImageModalVisible(false)
+        setImageLoading(false)
+        setImageErrors({})
+      }}
     >
       <View style={styles.imageModalContainer}>
         <View style={styles.imageModalHeader}>
           <Text style={styles.imageCounter}>
             {currentImageIndex + 1} of {selectedImages.length}
           </Text>
-          <TouchableOpacity style={styles.closeButton} onPress={() => setImageModalVisible(false)}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              setImageModalVisible(false)
+              setImageLoading(false)
+              setImageErrors({})
+            }}
+          >
             <Icon name="close" size={28} color="white" />
           </TouchableOpacity>
         </View>
@@ -115,12 +183,52 @@ export default function WinBiddingScreen({ navigation }) {
             const { width } = Dimensions.get("window")
             const index = Math.round(event.nativeEvent.contentOffset.x / width)
             setCurrentImageIndex(index)
+            setImageLoading(true)
+            // Preload next and previous images
+            const nextIndex = index + 1
+            const prevIndex = index - 1
+            if (nextIndex < selectedImages.length) {
+              Image.prefetch(selectedImages[nextIndex]).catch((e) => console.warn("Failed to prefetch next image:", e))
+            }
+            if (prevIndex >= 0) {
+              Image.prefetch(selectedImages[prevIndex]).catch((e) => console.warn("Failed to prefetch prev image:", e))
+            }
           }}
           style={styles.imageScrollView}
         >
           {selectedImages.map((imageUrl, index) => (
             <View key={index} style={styles.imageSlideContainer}>
-              <Image source={{ uri: imageUrl }} style={styles.fullScreenImage} resizeMode="contain" />
+              {imageErrors[index] ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>Failed to load image</Text>
+                  <Image
+                    source={{ uri: "https://via.placeholder.com/120x120/CCCCCC/FFFFFF?text=Error" }}
+                    style={styles.fullScreenImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              ) : (
+                <>
+                  {imageLoading && currentImageIndex === index && (
+                    <ActivityIndicator
+                      style={styles.imageLoadingIndicator}
+                      size="large"
+                      color="#FFFFFF"
+                    />
+                  )}
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.fullScreenImage}
+                    resizeMode="contain"
+                    onLoadStart={() => setImageLoading(true)}
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => {
+                      setImageErrors((prev) => ({ ...prev, [index]: true }))
+                      setImageLoading(false)
+                    }}
+                  />
+                </>
+              )}
             </View>
           ))}
         </ScrollView>
@@ -128,7 +236,10 @@ export default function WinBiddingScreen({ navigation }) {
         {selectedImages.length > 1 && (
           <View style={styles.imageDots}>
             {selectedImages.map((_, index) => (
-              <View key={index} style={[styles.dot, currentImageIndex === index && styles.activeDot]} />
+              <View
+                key={index}
+                style={[styles.dot, currentImageIndex === index && styles.activeDot]}
+              />
             ))}
           </View>
         )}
@@ -139,72 +250,114 @@ export default function WinBiddingScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8F7F2" }}>
       <View style={styles.container}>
-        {/* Header */}
+        {/* Enhanced Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Your Auction Wins</Text>
-          <Text style={styles.headerSubtitle}>Explore all your winning bids</Text>
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.headerTitle}>Your Auction Wins</Text>
+              <Text style={styles.headerSubtitle}>
+                {totalItems === 0
+                  ? "Start bidding to see your wins here"
+                  : `${totalItems} item${totalItems > 1 ? "s" : ""} won`}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Summary Cards */}
+        {/* Enhanced Summary Cards */}
         <View style={styles.summaryContainer}>
           <View style={styles.summaryCard}>
-            <MaterialCommunityIcon name="trophy" size={28} color="#1A5B1A" />
-            <Text style={styles.summaryNumber}>{totalItems}</Text>
-            <Text style={styles.summaryLabel}>Items Won</Text>
+            <View style={styles.cardIcon}>
+              <MaterialCommunityIcon name="package-variant" size={24} color="#1A5B1A" />
+            </View>
+            <View style={styles.cardInfo}>
+              <Text style={styles.summaryNumber}>{totalItems}</Text>
+              <Text style={styles.summaryLabel}>Items Won</Text>
+            </View>
           </View>
+
           <View style={styles.summaryCard}>
-            <Icon name="account-balance-wallet" size={28} color="#1A5B1A" />
-            <PesoAmount amount={totalAmount} style={styles.summaryAmount} />
-            <Text style={styles.summaryLabel}>Total Spent</Text>
+            <View style={styles.cardIcon}>
+              <Icon name="account-balance-wallet" size={24} color="#1A5B1A" />
+            </View>
+            <View style={styles.cardInfo}>
+              <PesoAmount amount={totalAmount} style={styles.summaryAmount} />
+              <Text style={styles.summaryLabel}>Total Invested</Text>
+            </View>
           </View>
         </View>
 
         {/* Winning Bids List */}
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
           {winningBids.length === 0 ? (
             <View style={styles.emptyState}>
-              <Icon name="emoji-events" size={80} color="#D3D3D3" />
+              <View style={styles.emptyIcon}>
+                <MaterialCommunityIcon name="gavel" size={80} color="#D3D3D3" />
+              </View>
               <Text style={styles.emptyStateTitle}>No Wins Yet</Text>
               <Text style={styles.emptyStateText}>
-                Start bidding in auctions to see your wins here!
+                Start participating in auctions to build your collection of winning bids!
               </Text>
+              <TouchableOpacity style={styles.exploreButton}>
+                <Text style={styles.exploreButtonText}>Explore Auctions</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.cardList}>
+              <Text style={styles.sectionTitle}>Your Winning Items</Text>
               {winningBids.map((item, index) => (
                 <TouchableOpacity
                   key={item.id}
-                  style={styles.card}
-                  activeOpacity={0.9}
+                  style={[styles.card, index === 0 && styles.firstCard]}
+                  activeOpacity={0.8}
                   onPress={() => openImageViewer(item)}
                 >
-                  <Image source={{ uri: item.image }} style={styles.cardImage} />
+                  <View style={styles.cardImageContainer}>
+                    <Image source={{ uri: item.image }} style={styles.cardImage} />
+                  </View>
+
                   <View style={styles.cardContent}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    <Text style={styles.cardCategory}>{item.category}</Text>
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.cardTitle} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.cardCategory}>{item.category}</Text>
+                    </View>
+
                     <Text style={styles.cardDescription} numberOfLines={2}>
                       {item.description}
                     </Text>
+
                     <View style={styles.cardDetails}>
-                      <Text style={styles.cardDetailText}>L: {item.length}″</Text>
-                      <Text style={styles.cardDetailText}>W: {item.width}″</Text>
+                      <View style={styles.dimensionInfo}>
+                        <Icon name="straighten" size={14} color="#888888" />
+                        <Text style={styles.cardDetailText}>L: {item.length}″</Text>
+                      </View>
+                      <View style={styles.dimensionInfo}>
+                        <Icon name="crop-landscape" size={14} color="#888888" />
+                        <Text style={styles.cardDetailText}>W: {item.width}″</Text>
+                      </View>
                     </View>
+
                     <View style={styles.cardFooter}>
-                      <PesoAmount amount={item.winningBid} style={styles.cardAmount} />
-                      <Text style={styles.cardDate}>{formatDate(item.orderDate)}</Text>
+                      <View style={styles.priceContainer}>
+                        <Text style={styles.priceLabel}>Winning Bid</Text>
+                        <PesoAmount amount={item.winningBid} style={styles.cardAmount} />
+                      </View>
+                      <View style={styles.dateContainer}>
+                        <Icon name="event" size={14} color="#666666" />
+                        <Text style={styles.cardDate}>{formatDate(item.orderDate)}</Text>
+                      </View>
                     </View>
                   </View>
                 </TouchableOpacity>
               ))}
-              <View style={styles.totalCard}>
-                <Text style={styles.totalLabel}>Total Spent</Text>
-                <PesoAmount amount={totalAmount} style={styles.totalAmount} />
-              </View>
             </View>
           )}
-          <View style={styles.bottomPadding} />
         </ScrollView>
 
         {renderImageViewer()}
@@ -216,23 +369,28 @@ export default function WinBiddingScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F7F2",
+    backgroundColor: "#FFFCF3",
   },
   header: {
     backgroundColor: "#1A5B1A",
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     elevation: 8,
   },
+  headerContent: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
+  },
   headerTitle: {
-    fontSize: 26,
-    fontWeight: "700",
+    fontSize: 28,
+    fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
@@ -240,163 +398,205 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "rgba(255, 255, 255, 0.85)",
     marginTop: 4,
+    fontWeight: "400",
   },
   summaryContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginVertical: 20,
-    gap: 12,
+    flexDirection: "column",
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 16,
+    gap: 16,
   },
   summaryCard: {
-    flex: 1,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: "row",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  cardIcon: {
+    backgroundColor: "rgba(26, 91, 26, 0.1)",
+    borderRadius: 16,
+    padding: 12,
+    marginRight: 16,
+  },
+  cardInfo: {
+    flex: 1,
   },
   summaryNumber: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
     color: "#1A5B1A",
-    marginTop: 8,
   },
   summaryAmount: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#1A5B1A",
-    marginTop: 8,
   },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#666666",
-    marginTop: 4,
-    fontWeight: "500",
+    marginTop: 2,
+    fontWeight: "600",
   },
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#333333",
+    marginBottom: 16,
+    paddingHorizontal: 20,
+  },
   emptyState: {
     alignItems: "center",
-    paddingVertical: 60,
+    paddingVertical: 80,
     paddingHorizontal: 40,
   },
+  emptyIcon: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 50,
+    padding: 24,
+    marginBottom: 20,
+  },
   emptyStateTitle: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 24,
+    fontWeight: "700",
     color: "#333333",
-    marginTop: 16,
+    marginBottom: 12,
   },
   emptyStateText: {
     fontSize: 16,
     color: "#888888",
     textAlign: "center",
-    marginTop: 8,
     lineHeight: 24,
+    marginBottom: 30,
+  },
+  exploreButton: {
+    backgroundColor: "#1A5B1A",
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  exploreButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   cardList: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    marginBottom: 50,
+    paddingHorizontal: 20,
   },
   card: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 20,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 6,
     overflow: "hidden",
+    alignItems: "stretch",
+  },
+  firstCard: {
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  cardImageContainer: {
+    position: "relative",
   },
   cardImage: {
-    width: 100,
-    height: 100,
-    borderTopLeftRadius: 16,
-    borderBottomLeftRadius: 16,
+    width: 120,
+    height: 140,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
   },
   cardContent: {
     flex: 1,
-    padding: 12,
+    padding: 16,
+    justifyContent: "space-between",
+    minHeight: 140,
+  },
+  cardHeader: {
+    marginBottom: 8,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "700",
     color: "#333333",
+    lineHeight: 22,
   },
   cardCategory: {
     fontSize: 12,
     color: "#1A5B1A",
-    fontWeight: "500",
-    marginTop: 2,
+    fontWeight: "600",
+    marginTop: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   cardDescription: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#666666",
     lineHeight: 18,
-    marginTop: 4,
+    marginBottom: 12,
   },
   cardDetails: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
+    gap: 16,
+    marginBottom: 12,
+  },
+  dimensionInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   cardDetailText: {
     fontSize: 12,
     color: "#888888",
+    fontWeight: "500",
   },
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
+    alignItems: "flex-end",
+  },
+  priceContainer: {
+    flex: 1,
+  },
+  priceLabel: {
+    fontSize: 11,
+    color: "#888888",
+    fontWeight: "500",
+    marginBottom: 2,
   },
   cardAmount: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
     color: "#1A5B1A",
+  },
+  dateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   cardDate: {
     fontSize: 12,
     color: "#666666",
-  },
-  totalCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-    marginTop: 8,
-  },
-  totalLabel: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333333",
-  },
-  totalAmount: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A5B1A",
+    fontWeight: "500",
   },
   pesoAmountContainer: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  bottomPadding: {
-    height: 40,
   },
   // Image Modal Styles
   imageModalContainer: {
@@ -411,7 +611,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 40,
+    paddingTop: 50,
     paddingHorizontal: 20,
     paddingBottom: 16,
     zIndex: 1000,
@@ -425,7 +625,7 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
   imageScrollView: {
     flex: 1,
@@ -439,10 +639,25 @@ const styles = StyleSheet.create({
   fullScreenImage: {
     width: Dimensions.get("window").width,
     height: Dimensions.get("window").height * 0.75,
+    backgroundColor: "transparent",
+  },
+  imageLoadingIndicator: {
+    position: "absolute",
+    zIndex: 10,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    marginBottom: 10,
   },
   imageDots: {
     position: "absolute",
-    bottom: 40,
+    bottom: 50,
     left: 0,
     right: 0,
     flexDirection: "row",
@@ -453,13 +668,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
     marginHorizontal: 4,
   },
   activeDot: {
     backgroundColor: "#FFFFFF",
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
 })

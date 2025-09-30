@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAlert } from "../contexts/alertContext";
-import { X, CheckCircle, Users } from 'lucide-react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { X, CheckCircle, Users, Trash2 } from 'lucide-react';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-// The handleRejectBid prop is no longer needed
 const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal, setSelectedBidProduct, formatPrice, getTimeLeft, handleAcceptBid }) => {
     const [bids, setBids] = useState(selectedBidProduct?.bids || []);
-    // Correctly destructure showAlert from the context
     const { showAlert } = useAlert();
 
     useEffect(() => {
@@ -15,7 +13,6 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
             setBids([]);
             return;
         }
-
         const productDocRef = doc(db, 'products', selectedBidProduct.id);
         const unsubscribe = onSnapshot(productDocRef, (docSnap) => {
             if (docSnap.exists()) {
@@ -30,10 +27,8 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
             }
         }, (error) => {
             console.error("Error listening to bids:", error);
-            // Use showAlert with the correct parameters
             showAlert('error', 'Failed to update bids in real-time. Please reopen the modal.');
         });
-
         return () => unsubscribe();
     }, [showBidModal, selectedBidProduct?.id, showAlert]);
 
@@ -46,15 +41,32 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
 
     const handleAccept = async (bid) => {
         try {
-            // Pass the entire bid object to handleAcceptBid
             await handleAcceptBid(selectedBidProduct.id, bid);
-            // Use showAlert for success messages
             showAlert('success', 'Bid accepted successfully!', null, null, 5000);
             onClose();
         } catch (error) {
             console.error('Error in handleAccept:', error);
-            // Use showAlert for error messages
             showAlert('error', 'Failed to accept bid. Please try again.', null, null, 5000);
+        }
+    };
+
+    const handleDeleteBid = async (bidIndex) => {
+        try {
+            const productDocRef = doc(db, 'products', selectedBidProduct.id);
+            const updatedBids = bids.filter((_, index) => index !== bidIndex);
+            const highestBid = updatedBids.length > 0 ? Math.max(...updatedBids.map(bid => bid.amount)) : selectedBidProduct.minimumBid;
+            
+            await updateDoc(productDocRef, {
+                bids: updatedBids,
+                currentBid: highestBid,
+                highestBidder: updatedBids.length > 0 ? updatedBids.find(bid => bid.amount === highestBid).bidderId : null,
+                updatedAt: new Date()
+            });
+
+            showAlert('success', 'Bid deleted successfully!', null, null, 5000);
+        } catch (error) {
+            console.error('Error deleting bid:', error);
+            showAlert('error', 'Failed to delete bid. Please try again.', null, null, 5000);
         }
     };
 
@@ -86,8 +98,6 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
                         <X className="h-6 w-6" />
                     </button>
                 </div>
-
-                {/* Auction Info */}
                 <div className="bg-gray-100 rounded-lg p-6 mb-6 border border-gray-200">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
@@ -116,11 +126,8 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
                         </div>
                     </div>
                 </div>
-
-                {/* Bids List */}
                 <div className="space-y-4">
                     <h3 className="text-xl font-bold text-gray-900 mb-4">Top 3 Bids</h3>
-
                     {sortedAndSlicedBids && sortedAndSlicedBids.length > 0 ? (
                         <div className="space-y-3">
                             {sortedAndSlicedBids.map((bid, index) => (
@@ -147,7 +154,6 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
                                             )}
                                         </div>
                                     </div>
-
                                     <div className="flex items-center space-x-4">
                                         <div className="text-right">
                                             <div className="text-2xl font-bold text-gray-900">
@@ -157,7 +163,6 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
                                                 <div className="text-sm text-green-600 font-medium">Highest Bid</div>
                                             )}
                                         </div>
-
                                         <div className="flex space-x-2">
                                             <button
                                                 onClick={() => handleAccept(bid)}
@@ -165,6 +170,13 @@ const BidManagementModal = ({ showBidModal, selectedBidProduct, setShowBidModal,
                                             >
                                                 <CheckCircle className="h-4 w-4" />
                                                 <span>Accept</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteBid(bids.indexOf(bid))}
+                                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-1 transition-colors"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                <span>Delete</span>
                                             </button>
                                         </div>
                                     </div>

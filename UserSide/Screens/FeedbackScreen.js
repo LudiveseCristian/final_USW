@@ -15,9 +15,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Add Firebase Storage imports
-import { db, storage } from "../firebase/firebase"; // Ensure storage is exported from firebase config
+import { collection, onSnapshot, doc, updateDoc, addDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../firebase/firebase";
 import { useAuth } from "../AuthContext";
 import LoadingScreen from "../hooks/LoadingScreen";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -33,7 +33,7 @@ export default function FeedbackScreen({ navigation }) {
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
-  const [uploadingImages, setUploadingImages] = useState(false); // Add state for image upload loading
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   const fetchOrders = () => {
     if (!currentUser?.uid) return;
@@ -46,23 +46,34 @@ export default function FeedbackScreen({ navigation }) {
         const data = d.data();
         const userBid = data.bids?.find((bid) => bid.bidderId === currentUser.uid);
 
-        if (
-          (userBid && data.status === "sold" && data.highestBidder === userBid.bidderName) ||
-          data.winnerBidderId === currentUser.uid
-        ) {
-          if (data.orderStatus === "delivered" && !data.userRating) {
-            userOrders.push({
-              id: d.id,
-              title: data.name,
-              category: data.category || "Uncategorized",
-              winningBid: userBid?.amount || 0,
-              orderStatus: data.orderStatus || "pending",
-              orderDate: data.orderDate || new Date().toISOString(),
-              deliveryDate: data.deliveryDate || null,
-              images: data.imageUrls || [],
-              description: data.description || "No description available",
-            });
-          }
+        if (!userBid) return;
+
+        // Use consistent logic with useCartCount hook
+        const explicitWon =
+          data.status === "sold" &&
+          (data.highestBidder === userBid.bidderName || data.highestBidderId === currentUser.uid);
+
+        let computedWon = false;
+        if (!explicitWon && Array.isArray(data.bids) && data.bids.length > 0) {
+          const topBid = data.bids.reduce(
+            (max, bid) => (bid.amount > (max?.amount || Number.NEGATIVE_INFINITY) ? bid : max),
+            null,
+          );
+          computedWon = data.status === "sold" && topBid && topBid.bidderId === currentUser.uid;
+        }
+
+        if ((explicitWon || computedWon) && data.orderStatus === "delivered" && !data.userRating) {
+          userOrders.push({
+            id: d.id,
+            title: data.name,
+            category: data.category || "Uncategorized",
+            winningBid: userBid?.amount || 0,
+            orderStatus: data.orderStatus || "pending",
+            orderDate: data.orderDate || new Date().toISOString(),
+            deliveryDate: data.deliveryDate || null,
+            images: data.imageUrls || [],
+            description: data.description || "No description available",
+          });
         }
       });
 
@@ -129,45 +140,99 @@ export default function FeedbackScreen({ navigation }) {
     setFeedbackModalVisible(true);
   };
 
-const pickImage = async () => {
-  const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-  if (permissionResult.granted === false) {
-    Alert.alert("Permission Denied", "Please allow access to your photo library to upload images.");
-    return;
-  }
+    if (permissionResult.granted === false) {
+      Alert.alert("Permission Denied", "Please allow access to your photo library to upload images.");
+      return;
+    }
 
-  try {
-    setUploadingImages(true);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images, // Revert to MediaTypeOptions.Images
-      allowsMultipleSelection: true,
-      quality: 0.7,
-    });
+    Alert.alert(
+      "Select Image",
+      "Choose how you want to add photos",
+      [
+        {
+          text: "Camera",
+          onPress: () => openCamera(),
+        },
+        {
+          text: "Photo Library",
+          onPress: () => openGallery(),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
+  };
 
-    if (!result.canceled) {
-      const newImageUris = result.assets.map((asset) => asset.uri);
-      const uploadPromises = newImageUris.map(async (uri) => {
-        const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-        const imageRef = ref(storage, `feedback-images/${currentUser.uid}/${selectedOrder.id}/${filename}`);
+  const openCamera = async () => {
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (!cameraPermission.granted) {
+      Alert.alert("Permission Denied", "Please allow camera access to take photos.");
+      return;
+    }
 
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        const snapshot = await uploadBytes(imageRef, blob);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        return downloadURL;
+    try {
+      setUploadingImages(true);
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        quality: 0.7,
+        allowsEditing: true,
+        aspect: [1, 1],
       });
 
-      const downloadURLs = await Promise.all(uploadPromises);
-      setUploadedImages((prev) => [...prev, ...downloadURLs].slice(0, 3)); // Limit to 3 images
+      if (!result.canceled) {
+        await uploadImages([result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error("Camera error:", error);
+      Alert.alert("Error", "Failed to take photo. Please try again.");
+    } finally {
+      setUploadingImages(false);
     }
-  } catch (error) {
-    console.error("Image upload error:", error);
-    Alert.alert("Error", "Failed to upload images. Please try again.");
-  } finally {
-    setUploadingImages(false);
-  }
-};
+  };
+
+  const openGallery = async () => {
+    try {
+      setUploadingImages(true);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsMultipleSelection: true,
+        quality: 0.7,
+        allowsEditing: false,
+      });
+
+      if (!result.canceled) {
+        const newImageUris = result.assets.map((asset) => asset.uri);
+        await uploadImages(newImageUris);
+      }
+    } catch (error) {
+      console.error("Gallery error:", error);
+      Alert.alert("Error", "Failed to select images. Please try again.");
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  const uploadImages = async (imageUris) => {
+    const uploadPromises = imageUris.map(async (uri) => {
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      const imageRef = ref(storage, `feedback-images/${currentUser.uid}/${selectedOrder.id}/${filename}`);
+
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const snapshot = await uploadBytes(imageRef, blob);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      return downloadURL;
+    });
+
+    const downloadURLs = await Promise.all(uploadPromises);
+    setUploadedImages((prev) => [...prev, ...downloadURLs].slice(0, 3)); // Limit to 3 images
+  };
 
   const submitFeedback = async () => {
     if (!rating) {
@@ -176,15 +241,29 @@ const pickImage = async () => {
     }
 
     try {
-      const orderRef = doc(db, "products", selectedOrder.id);
-      await updateDoc(orderRef, {
-        userRating: rating,
-        userReview: reviewText,
-        ratedAt: new Date().toISOString(),
-        orderStatus: "rated",
-        reviewImages: uploadedImages, // Store download URLs
+    const orderRef = doc(db, "products", selectedOrder.id);
+    await updateDoc(orderRef, {
+      userRating: rating,
+      userReview: reviewText,
+      ratedAt: new Date().toISOString(),
+      orderStatus: "rated",
+      reviewImages: uploadedImages,
+    });
+    await addDoc(collection(db, "feedbacks"), {
+        orderId: selectedOrder.id,
+        productTitle: selectedOrder.title,
+        productImage: selectedOrder.images[0] || null,
+        userName: currentUser.displayName || currentUser.email || "Anonymous",
+        userEmail: currentUser.email,
+        userId: currentUser.uid,
+        rating: rating,
+        reviewText: reviewText,
+        reviewImages: uploadedImages,
+        status: 'pending',
+        submittedAt: new Date().toISOString(),
+        category: selectedOrder.category
       });
-
+        
       setFeedbackModalVisible(false);
       Alert.alert("Success", "Thank you for your feedback!");
     } catch (error) {

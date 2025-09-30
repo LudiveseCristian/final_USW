@@ -18,6 +18,7 @@ import {
 import Feather from "react-native-vector-icons/Feather"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
 import { useAuth } from "../AuthContext"
+import AlertSignIn from "../hooks/AlertModal/AlertModal";
 
 // Import your images
 import Background_SignIn from "../assets/images/SignIn/Bg-SignIn.png"
@@ -34,6 +35,11 @@ export default function SignInScreen({ navigation }) {
   const [isEmailFocused, setIsEmailFocused] = useState(false)
   const [isPasswordFocused, setIsPasswordFocused] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+const [modalVisible, setModalVisible] = useState(false);
+const [modalTitle, setModalTitle] = useState("");
+const [modalMessage, setModalMessage] = useState("");
+const [isSuccess, setIsSuccess] = useState(false);
   
 
   const { signIn } = useAuth() // Remove verifyCredentials as we're using Firebase
@@ -42,34 +48,44 @@ export default function SignInScreen({ navigation }) {
     StatusBar.setBarStyle("light-content", true)
   }, [])
 
-  const handleSignIn = useCallback(async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields")
-      return
+const handleSignIn = useCallback(async () => {
+  if (!email || !password) {
+    setModalTitle("Error");
+    setModalMessage("Please fill in all fields");
+    setIsSuccess(false);
+    setModalVisible(true);
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    console.log("Signed in:", userCredential.user.email);
+    setModalTitle("Success");
+    setModalMessage("Successfully signed in!");
+    setIsSuccess(true);
+    setModalVisible(true);
+    setIsLoading(false);
+  } catch (error) {
+    setIsLoading(false);
+
+    let errorMessage = "Login failed. Please try again.";
+    let title = "Login Failed";
+    if (error.code === "auth/user-not-found") {
+      errorMessage = "No account found with this email.";
+    } else if (error.code === "auth/wrong-password") {
+      errorMessage = "Incorrect password.";
+    } else if (error.code === "auth/invalid-email") {
+      errorMessage = "Invalid email format.";
     }
 
-    setIsLoading(true)
-
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      console.log("Signed in:", userCredential.user.email)
-
-      // The AuthContext will automatically update when Firebase auth state changes
-    } catch (error) {
-      setIsLoading(false)
-
-      let errorMessage = "Login failed. Please try again."
-      if (error.code === "auth/user-not-found") {
-        errorMessage = "No account found with this email."
-      } else if (error.code === "auth/wrong-password") {
-        errorMessage = "Incorrect password."
-      } else if (error.code === "auth/invalid-email") {
-        errorMessage = "Invalid email format."
-      }
-
-      Alert.alert("Login Failed", errorMessage)
-    }
-  }, [email, password])
+    setModalTitle(title);
+    setModalMessage(errorMessage);
+    setIsSuccess(false);
+    setModalVisible(true);
+  }
+}, [email, password]);
 
   const handleSignUp = useCallback(() => {
     console.log("Sign Up pressed")
@@ -163,6 +179,13 @@ export default function SignInScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
+        <AlertSignIn
+          visible={modalVisible}
+          title={modalTitle}
+          message={modalMessage}
+          onClose={() => setModalVisible(false)}
+          isSuccess={isSuccess}
+        />
       </KeyboardAvoidingView>
     </ImageBackground>
   )

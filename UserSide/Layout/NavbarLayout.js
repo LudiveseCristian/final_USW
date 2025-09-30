@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from "@react-navigation/native"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
 import { useCartCount } from "../hooks/useCartCounts"
 
+
 const { width } = Dimensions.get("window")
 
 // Memoized tab configuration
@@ -22,25 +23,30 @@ function NavBarLayout({ children }) {
   const route = useRoute()
   const [isNavigating, setIsNavigating] = useState(false)
 
-  const { cartCount, loading: cartLoading } = useCartCount()
+  const { cartCount, loading: cartLoading, resetCartCount } = useCartCount() 
 
   // Optimized navigation function
   const navigateTo = useCallback(
-    (screenName) => {
-      if (route.name === screenName || isNavigating) return
+      (screenName) => {
+        if (route.name === screenName || isNavigating) return
 
-      setIsNavigating(true)
+        setIsNavigating(true)
 
-      try {
-        navigation.replace(screenName)
-      } catch (error) {
-        console.warn("Navigation error:", error)
-      } finally {
-        setTimeout(() => setIsNavigating(false), 100)
-      }
-    },
-    [navigation, route.name, isNavigating],
-  )
+        try {
+          // 👇 The key change: call the reset function when navigating to the 'Cart' (Won) screen
+          if (screenName === "Cart" && resetCartCount) {
+            resetCartCount()
+          }
+          
+          navigation.replace(screenName)
+        } catch (error) {
+          console.warn("Navigation error:", error)
+        } finally {
+          setTimeout(() => setIsNavigating(false), 100)
+        }
+      },
+      [navigation, route.name, isNavigating, resetCartCount], // Must include resetCartCount
+    )
 
   // Function to render notification badge
   const renderNotificationBadge = (count) => {
@@ -63,7 +69,7 @@ function NavBarLayout({ children }) {
         <View style={styles.bottomNav}>
           {tabs.map((tab) => {
             const isActive = route.name === tab.route
-            const showBadge = tab.name === "Won" && cartCount > 0
+            const showBadge = tab.name === "Won" && cartCount > 1
 
             return (
               <TouchableOpacity
