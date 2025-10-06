@@ -43,6 +43,32 @@ export default function HomeScreen({ navigation }) {
   const [selectedItem, setSelectedItem] = useState(null)
   const [bidAmount, setBidAmount] = useState("")
 
+  const [reviewImageModalVisible, setReviewImageModalVisible] = useState(false)
+  const [selectedReviewImages, setSelectedReviewImages] = useState([])
+  const [reviewImageIndex, setReviewImageIndex] = useState(0)
+
+  const openReviewImageViewer = (review, startIndex = 0) => {
+  const allImages = []
+  
+  // Add product image first if available
+  if (review.productImage) {
+    allImages.push({ uri: review.productImage, type: 'product' })
+  }
+  
+  // Add all review images
+  if (review.reviewImages && review.reviewImages.length > 0) {
+    review.reviewImages.forEach(imgUri => {
+      allImages.push({ uri: imgUri, type: 'customer' })
+    })
+  }
+  
+  if (allImages.length > 0) {
+    setSelectedReviewImages(allImages)
+    setReviewImageIndex(startIndex)
+    setReviewImageModalVisible(true)
+  }
+}
+
 useEffect(() => {
   if (user) {
     const loadData = async () => {
@@ -468,7 +494,15 @@ if (isLoading || isLoadingData) {
             </TouchableOpacity>
           </View>
           <Text style={styles.sectionDescription}>Live auctions with active bidding - place your bids now!</Text>
-
+          {featuredBidding.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons name="tshirt-crew" size={64} color="#ccc" />
+              <Text style={styles.emptyStateTitle}>No Live Bidding</Text>
+              <Text style={styles.emptyStateText}>
+                There are no items up for bidding right now. Please check back later!
+              </Text>
+            </View>
+          ) : (
           <View style={styles.gridContainer}>
             {featuredBidding.slice(0, 4).map((item) => (
               <View key={item.id} style={styles.gridCard}>
@@ -497,26 +531,47 @@ if (isLoading || isLoadingData) {
               </View>
             ))}
           </View>
+          )}
           
-          {/* Customer Reviews */}
+        </SafeAreaView>
+        {/* Customer Reviews */}
           {approvedFeedback.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Customer Reviews</Text>
               </View>
-              <Text style={styles.sectionDescription}>What our customers say about their purchases</Text>
+              <Text style={styles.sectionDescription}>Real feedback from our community</Text>
 
-              <View style={styles.gridContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewScroll}>
                 {approvedFeedback.map((review) => (
-                  <View key={review.id} style={styles.reviewCard}>
-                    <View style={styles.reviewHeader}>
-                      {review.productImage && (
-                        <Image source={{ uri: review.productImage }} style={styles.reviewProductImage} />
-                      )}
-                      <View style={styles.reviewInfo}>
-                        <Text style={styles.reviewUserName} numberOfLines={1}>{review.userName}</Text>
-                        <Text style={styles.reviewProductTitle} numberOfLines={1}>{review.productTitle}</Text>
-                        <View style={styles.reviewStars}>
+                  <View key={review.id} style={styles.reviewCardImproved}>
+                    {/* User Info Header */}
+                    {/* Product Info Header */}
+                      <View style={styles.reviewProductHeader}>
+                        <View style={styles.reviewProductIcon}>
+                          <MaterialCommunityIcons name="tshirt-crew" size={20} color="#2E6A2E" />
+                        </View>
+                        <View style={styles.reviewProductDetails}>
+                          <Text style={styles.reviewProductTitleText} numberOfLines={1}>
+                            {review.productTitle}
+                          </Text>
+                          <View style={styles.reviewPriceContainer}>
+                            <Text style={styles.reviewSoldLabel}>Sold for </Text>
+                            <PesoSymbol size={12} color="#666" />
+                            <Text style={styles.reviewPriceText}>
+                              {(review.winningBid || review.soldPrice || 0).toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Customer Name Below */}
+                      <View style={styles.reviewCustomerRow}>
+                        <MaterialCommunityIcons name="account-circle" size={14} color="#888" />
+                        <Text style={styles.reviewCustomerName} numberOfLines={1}>
+                          {review.userName}
+                        </Text>
+                        <View style={styles.reviewStarsHorizontal}>
                           {[1, 2, 3, 4, 5].map((star) => (
                             <MaterialCommunityIcons
                               key={star}
@@ -527,16 +582,70 @@ if (isLoading || isLoadingData) {
                           ))}
                         </View>
                       </View>
-                    </View>
-                    <Text style={styles.reviewText} numberOfLines={3}>
-                      {review.reviewText || "Great product!"}
+
+                    {/* Product Title */}
+                    <Text style={styles.reviewProductName} numberOfLines={1}>
+                      {review.productTitle}
                     </Text>
+
+                  {/* Images Section - Product + User Uploads */}
+                  <View style={styles.reviewImagesSection}>
+                    {/* Product Image */}
+                    {review.productImage && (
+                      <TouchableOpacity 
+                        style={styles.productImageContainer}
+                        onPress={() => openReviewImageViewer(review, 0)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.imageLabel}>Product</Text>
+                        <Image 
+                          source={{ uri: review.productImage }} 
+                          style={styles.reviewMainImage}
+                        />
+                      </TouchableOpacity>
+                    )}
+
+                    {/* User Uploaded Images */}
+                    {review.reviewImages && review.reviewImages.length > 0 && (
+                      <TouchableOpacity 
+                        style={styles.userImagesContainer}
+                        onPress={() => openReviewImageViewer(review, review.productImage ? 1 : 0)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.imageLabel}>Customer Photo</Text>
+                        <View style={styles.customerImageWrapper}>
+                          <Image 
+                            source={{ uri: review.reviewImages[0] }} 
+                            style={styles.reviewMainImage}
+                          />
+                          {review.reviewImages.length > 1 && (
+                            <View style={styles.multipleImagesOverlay}>
+                              <MaterialCommunityIcons name="image-multiple" size={20} color="white" />
+                              <Text style={styles.multipleImagesText}>
+                                +{review.reviewImages.length - 1}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                    {/* Review Text */}
+                    <Text style={styles.reviewTextImproved} numberOfLines={3}>
+                      {review.reviewText || "Great product! Highly recommended."}
+                    </Text>
+
+                    {/* Verified Badge */}
+                    <View style={styles.verifiedBadge}>
+                      <MaterialCommunityIcons name="check-decagram" size={14} color="#2E6A2E" />
+                      <Text style={styles.verifiedText}>Verified Purchase</Text>
+                    </View>
                   </View>
                 ))}
-              </View>
+              </ScrollView>
             </View>
           )}
-        </SafeAreaView>
         {/* Bottom padding for navigation */}
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -593,6 +702,84 @@ if (isLoading || isLoadingData) {
           </View>
         </View>
       </Modal>
+
+      {/* Review Image Modal */}
+          <Modal
+            visible={reviewImageModalVisible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setReviewImageModalVisible(false)}
+          >
+            <View style={styles.imageModalContainer}>
+              {/* Make header absolute positioned */}
+              <View style={styles.imageModalHeaderAbsolute}>
+                <View style={styles.imageModalInfo}>
+                  <Text style={styles.imageCounter}>
+                    {reviewImageIndex + 1} of {selectedReviewImages.length}
+                  </Text>
+                  <View style={[
+                    styles.imageTypeBadge,
+                    selectedReviewImages[reviewImageIndex]?.type === 'customer' && styles.customerImageBadge
+                  ]}>
+                    <MaterialCommunityIcons 
+                      name={selectedReviewImages[reviewImageIndex]?.type === 'customer' ? "camera" : "package"} 
+                      size={14} 
+                      color="white" 
+                    />
+                    <Text style={styles.imageTypeText}>
+                      {selectedReviewImages[reviewImageIndex]?.type === 'customer' ? 'Customer Photo' : 'Product Image'}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={styles.closeButton} 
+                  onPress={() => setReviewImageModalVisible(false)}
+                >
+                  <Feather name="x" size={24} color="white" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Centered ScrollView */}
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.imageScrollContent}
+                onMomentumScrollEnd={(event) => {
+                  const index = Math.round(event.nativeEvent.contentOffset.x / width)
+                  setReviewImageIndex(index)
+                }}
+                contentOffset={{ x: reviewImageIndex * width, y: 0 }}
+              >
+                {selectedReviewImages.map((image, index) => (
+                  <View key={index} style={styles.imageSlideContainer}>
+                    <View style={styles.imageWrapper}>
+                      <Image 
+                        source={{ uri: image.uri }} 
+                        style={styles.fullScreenImage} 
+                        resizeMode="cover"
+                      />
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+
+              {/* Absolute positioned dots */}
+              {selectedReviewImages.length > 1 && (
+                <View style={styles.imageDotsAbsolute}>
+                  {selectedReviewImages.map((_, index) => (
+                    <View 
+                      key={index} 
+                      style={[
+                        styles.imageDot, 
+                        reviewImageIndex === index && styles.activeImageDot
+                      ]} 
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          </Modal>
     </SafeAreaView>
   )
 }
@@ -1113,5 +1300,237 @@ reviewText: {
   lineHeight: 16,
   fontStyle: "italic",
 },
-  
+
+reviewScroll: {
+  marginTop: 10,
+  paddingHorizontal: 5,
+},
+reviewCardImproved: {
+  backgroundColor: "white",
+  borderRadius: 16,
+  padding: 16,
+  marginRight: 15,
+  width: 300,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 3 },
+  shadowOpacity: 0.12,
+  shadowRadius: 8,
+  elevation: 5,
+},
+reviewProductHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  marginBottom: 10,
+  paddingBottom: 10,
+  borderBottomWidth: 1,
+  borderBottomColor: "#F0F0F0",
+},
+reviewProductIcon: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: "rgba(46, 106, 46, 0.1)",
+  justifyContent: "center",
+  alignItems: "center",
+  marginRight: 12,
+},
+reviewProductDetails: {
+  flex: 1,
+},
+reviewProductTitleText: {
+  fontSize: 15,
+  fontWeight: "700",
+  color: "#333",
+  marginBottom: 4,
+},
+reviewPriceContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+},
+reviewSoldLabel: {
+  fontSize: 12,
+  color: "#666",
+  fontWeight: "500",
+},
+reviewPriceText: {
+  fontSize: 13,
+  fontWeight: "700",
+  color: "#2E6A2E",
+  marginLeft: 2,
+},
+reviewCustomerRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  marginBottom: 10,
+  gap: 6,
+},
+reviewCustomerName: {
+  fontSize: 12,
+  color: "#888",
+  fontWeight: "500",
+  flex: 1,
+},
+reviewStarsHorizontal: {
+  flexDirection: "row",
+  gap: 2,
+},
+reviewProductName: {
+  fontSize: 13,
+  color: "#666",
+  marginBottom: 12,
+  fontStyle: "italic",
+},
+reviewImagesSection: {
+  flexDirection: "row",
+  gap: 10,
+  marginBottom: 12,
+},
+productImageContainer: {
+  flex: 1,
+},
+userImagesContainer: {
+  flex: 1,
+},
+imageLabel: {
+  fontSize: 10,
+  color: "#888",
+  marginBottom: 4,
+  fontWeight: "600",
+  textTransform: "uppercase",
+},
+reviewMainImage: {
+  width: "100%",
+  height: 120,
+  borderRadius: 12,
+  backgroundColor: "#F0F0F0",
+},
+moreImagesOverlay: {
+  position: "absolute",
+  bottom: 8,
+  right: 8,
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  borderRadius: 12,
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+},
+moreImagesText: {
+  color: "white",
+  fontSize: 12,
+  fontWeight: "600",
+},
+reviewTextImproved: {
+  fontSize: 13,
+  color: "#444",
+  lineHeight: 18,
+  marginBottom: 12,
+},
+verifiedBadge: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+},
+verifiedText: {
+  fontSize: 11,
+  color: "#2E6A2E",
+  fontWeight: "600",
+},
+
+customerImageWrapper: {
+  position: 'relative',
+},
+multipleImagesOverlay: {
+  position: "absolute",
+  bottom: 0,
+  right: 0,
+  left: 0,
+  backgroundColor: "rgba(0, 0, 0, 0.75)",
+  paddingVertical: 6,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+  borderBottomLeftRadius: 12,
+  borderBottomRightRadius: 12,
+},
+multipleImagesText: {
+  color: "white",
+  fontSize: 12,
+  fontWeight: "700",
+},
+imageModalContainer: {
+  flex: 1,
+  backgroundColor: "rgba(0, 0, 0, 0.95)",
+  justifyContent: "center", // Add this
+  alignItems: "center", // Add this
+},
+imageModalHeaderAbsolute: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  paddingTop: 50,
+  paddingHorizontal: 20,
+  paddingBottom: 15,
+  zIndex: 10,
+},
+imageScrollContent: {
+  alignItems: "center", // Centers content vertically
+},
+imageSlideContainer: {
+  width: width,
+  height: height,
+  justifyContent: "center",
+  alignItems: "center",
+},
+imageWrapper: {
+  width: width - 40,
+  height: width - 40,
+  backgroundColor: "#1a1a1a",
+  borderRadius: 12,
+  overflow: "hidden",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 8,
+},
+fullScreenImage: {
+  width: "100%",
+  height: "100%",
+},
+imageDotsAbsolute: {
+  position: "absolute",
+  bottom: 50,
+  left: 0,
+  right: 0,
+  flexDirection: "row",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: 6,
+  zIndex: 10,
+},
+
+emptyState: {
+  alignItems: "center",
+  paddingVertical: 80,
+  paddingHorizontal: 40,
+  marginTop: 20,
+},
+emptyStateTitle: {
+  fontSize: 24,
+  fontWeight: "600",
+  color: "#666",
+  marginTop: 20,
+  textAlign: "center",
+},
+emptyStateText: {
+  fontSize: 16,
+  color: "#999",
+  textAlign: "center",
+  marginTop: 12,
+  lineHeight: 24,
+},
 })

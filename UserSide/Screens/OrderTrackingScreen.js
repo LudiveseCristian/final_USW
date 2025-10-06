@@ -18,6 +18,7 @@ import { db } from "../firebase/firebase"
 import { useAuth } from "../AuthContext"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { Feather } from "@expo/vector-icons"
 
 export default function OrderTrackingScreen({ navigation }) {
   const { currentUser } = useAuth()
@@ -490,10 +491,18 @@ const onRefresh = async () => {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Order Tracking</Text>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <Feather name="arrow-left" size={24} color="white" />
+          </TouchableOpacity>
+          <View style={styles.headerTextContainer}>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerTitle}>Order Tracking</Text>
+            </View>
+            <Text style={styles.headerSubtitle}>Track your winning auction orders</Text>
           </View>
-          <Text style={styles.headerSubtitle}>Track your winning auction orders</Text>
         </View>
 
         {/* Search Bar */}
@@ -644,8 +653,10 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#1A5B1A",
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 20,
+    flexDirection: "row",  // ADD THIS LINE
+    alignItems: "center",  // ADD THIS LINE
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     shadowColor: "#000",
@@ -653,6 +664,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 8,
+  },
+  backButton: {
+  padding: 8,
+  marginRight: 15,
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   headerTitleContainer: {
     flexDirection: "row",

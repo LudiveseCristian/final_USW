@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { collection, onSnapshot } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import { useAuth } from "../AuthContext"
@@ -9,6 +9,7 @@ export const useCartCount = () => {
   const { currentUser } = useAuth()
   const [cartCount, setCartCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [wonProductIds, setWonProductIds] = useState([])
 
   useEffect(() => {
     if (!currentUser?.uid) {
@@ -17,36 +18,40 @@ export const useCartCount = () => {
       return
     }
 
-    // Subscribe to products collection to count won bids for current user
     const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
       let wonItemsCount = 0
+      const currentWonIds = []
 
       snapshot.docs.forEach((doc) => {
         const data = doc.data()
+        const productId = doc.id
 
-        // Find user's bid on this product
-        const userBid = (data.bids || []).find((bid) => bid.bidderId === currentUser.uid)
-        if (!userBid) return
+        const bidsArray = Array.isArray(data.bids) ? data.bids : []
+        const userBid = bidsArray.find((bid) => bid.bidderId === currentUser.uid)
+        const topBid = bidsArray.reduce(
+          (max, bid) => (bid.amount > (max?.amount || Number.NEGATIVE_INFINITY) ? bid : max),
+          null,
+        )
 
-        // Determine if user won: prefer explicit highestBidder, else compute
         const explicitWon =
-          data.status === "sold" &&
-          (data.highestBidder === userBid.bidderName || data.highestBidderId === currentUser.uid)
-
-        let computedWon = false
-        if (!explicitWon && Array.isArray(data.bids) && data.bids.length > 0) {
-          const topBid = data.bids.reduce(
-            (max, bid) => (bid.amount > (max?.amount || Number.NEGATIVE_INFINITY) ? bid : max),
-            null,
+          data.status === "sold" && (
+            (userBid && data.highestBidder === userBid.bidderName) ||
+            data.highestBidderId === currentUser.uid ||
+            data.winnerBidderId === currentUser.uid
           )
-          computedWon = data.status === "sold" && topBid && topBid.bidderId === currentUser.uid
-        }
+
+        const computedWon = data.status === "sold" && topBid && topBid.bidderId === currentUser.uid
 
         if (explicitWon || computedWon) {
-          wonItemsCount++
+          currentWonIds.push(productId)
+          const viewed = data?.wonStatusByUser?.[currentUser.uid] === "viewed"
+          if (!viewed) {
+            wonItemsCount++
+          }
         }
       })
 
+      setWonProductIds(currentWonIds)
       setCartCount(wonItemsCount)
       setLoading(false)
     })
@@ -54,5 +59,14 @@ export const useCartCount = () => {
     return () => unsubscribe()
   }, [currentUser?.uid])
 
-  return { cartCount, loading }
+  // Reset cart count to zero
+  const resetCartCount = useCallback(() => {
+    setCartCount(0) // Immediately set count to zero for UI update
+  }, [])
+
+  return {
+    cartCount,
+    loading,
+    resetCartCount,
+  }
 }

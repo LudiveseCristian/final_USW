@@ -2,7 +2,7 @@ import "react-native-gesture-handler"; // Must be at the top
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
-import { GestureHandlerRootView } from "react-native-gesture-handler"; // Add this import
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native";
 import { enableScreens } from "react-native-screens";
@@ -22,6 +22,48 @@ const disableAnimations = {
   cardStyleInterpolator: () => ({}),
 };
 
+// Custom animation for MessagesScreen only
+const messagesScreenAnimation = {
+  animationEnabled: true,
+  gestureEnabled: true,
+  transitionSpec: {
+    open: {
+      animation: "spring",
+      config: {
+        stiffness: 300,
+        damping: 30,
+        mass: 1,
+      },
+    },
+    close: {
+      animation: "spring",
+      config: {
+        stiffness: 300,
+        damping: 30,
+        mass: 1,
+      },
+    },
+  },
+  cardStyleInterpolator: ({ current, layouts }) => {
+    return {
+      cardStyle: {
+        opacity: current.progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 1],
+        }),
+        transform: [
+          {
+            translateX: current.progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [layouts.screen.width, 0],
+            }),
+          },
+        ],
+      },
+    };
+  },
+};
+
 // Import your screen components
 import SignInScreen from "./Screens/SignInScreen";
 import SignUpScreen from "./Screens/SignUpScreen";
@@ -32,11 +74,12 @@ import BiddingScreen from "./Screens/BiddingScreen";
 import ProfileScreen from "./Screens/ProfileScreen";
 import WinningBiddingScreen from "./Screens/WinbiddingScreen";
 import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant";
-import NotificationScreen from "./Screens/NotificationScreen";
+import HelpandSupport from "./Screens/HelpandSupport";
 import OrderTrackingScreen from "./Screens/OrderTrackingScreen";
 import FeedbackScreen from "./Screens/FeedbackScreen";
 import PersonalInformationScreen from "./Screens/PersonalInformationScreen";
 import ChangePassword from "./Screens/ChangePasswordScreen";
+import MessagesScreen from "./Screens/MessagesScreen";
 
 // Import your NavBarLayout
 import NavBarLayout from "./Layout/NavbarLayout";
@@ -136,38 +179,11 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-      <Stack.Screen name="Cart">
-        {(props) => (
-          <NavBarLayout>
-            <WinningBiddingScreen {...props} />
-          </NavBarLayout>
-        )}
-      </Stack.Screen>
+
       <Stack.Screen name="Profile">
         {(props) => (
           <NavBarLayout>
             <ProfileScreen {...props} />
-          </NavBarLayout>
-        )}
-      </Stack.Screen>
-      <Stack.Screen name="Notifications">
-        {(props) => (
-          <NavBarLayout>
-            <NotificationScreen {...props} />
-          </NavBarLayout>
-        )}
-      </Stack.Screen>
-      <Stack.Screen name="OrderTracking">
-        {(props) => (
-          <NavBarLayout>
-            <OrderTrackingScreen {...props} />
-          </NavBarLayout>
-        )}
-      </Stack.Screen>
-      <Stack.Screen name="Feedback">
-        {(props) => (
-          <NavBarLayout>
-            <FeedbackScreen {...props} />
           </NavBarLayout>
         )}
       </Stack.Screen>
@@ -180,8 +196,17 @@ function MainAppStack() {
           </NavBarLayout>
         )}
       </Stack.Screen>
-       <Stack.Screen name="PersonalInformation" component={PersonalInformationScreen} />
-       <Stack.Screen name="ChangePassword" component={ChangePassword} />
+      <Stack.Screen name="PersonalInformation" component={PersonalInformationScreen} options={messagesScreenAnimation}/>
+      <Stack.Screen name="ChangePassword" component={ChangePassword} options={messagesScreenAnimation}/>
+      <Stack.Screen name="Cart" component={WinningBiddingScreen} options={messagesScreenAnimation}/>
+      <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} options={messagesScreenAnimation}/>
+      <Stack.Screen name="Feedback" component={FeedbackScreen} options={messagesScreenAnimation}/>
+      <Stack.Screen name="HelpandSupport" component={HelpandSupport} options={messagesScreenAnimation}/>
+      <Stack.Screen 
+        name="Messages" 
+        component={MessagesScreen}
+        options={messagesScreenAnimation}
+      />
     </Stack.Navigator>
   );
 }
@@ -211,7 +236,7 @@ function RootNavigator() {
   } = authContext || {};
 
   if (isLoading) {
-    return <LoadingScreen message="Success fullInitializing app..." />;
+    return <LoadingScreen message="Successfully Initializing app..." />;
   }
 
   return (

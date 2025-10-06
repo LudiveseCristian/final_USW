@@ -1,22 +1,37 @@
-import { useState, useEffect } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, Dimensions } from "react-native"
+import { useState, useEffect, useCallback } from "react"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, Dimensions, ActivityIndicator } from "react-native"
 import Icon from "react-native-vector-icons/MaterialIcons"
-import { collection, onSnapshot } from "firebase/firestore"
+import { collection, onSnapshot, doc, updateDoc, writeBatch } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import { useAuth } from "../AuthContext"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from "react-native-safe-area-context"
 import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons"
+import { useFocusEffect } from "@react-navigation/native"
+import { useCartCount } from "../hooks/useCartCounts"
+import { Feather } from "@expo/vector-icons";
 
 export default function WinBiddingScreen({ navigation }) {
   const { currentUser } = useAuth()
   const [winningBids, setWinningBids] = useState([])
   const [loading, setLoading] = useState(true)
+  const { resetCartCount } = useCartCount()
 
   // Modal states for image viewing
   const [imageModalVisible, setImageModalVisible] = useState(false)
   const [selectedImages, setSelectedImages] = useState([])
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [focusTick, setFocusTick] = useState(0)
+  const [imageLoading, setImageLoading] = useState(false)
+  const [imageErrors, setImageErrors] = useState({})
+
+  // Clear the Won badge when this screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      resetCartCount && resetCartCount()
+      setFocusTick((t) => t + 1)
+    }, [resetCartCount]),
+  )
 
   useEffect(() => {
     if (!currentUser?.uid) return
@@ -47,7 +62,6 @@ export default function WinBiddingScreen({ navigation }) {
         }
       })
 
-      // Sort by date (newest first)
       wonItems.sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
       setWinningBids(wonItems)
       setLoading(false)
@@ -56,11 +70,53 @@ export default function WinBiddingScreen({ navigation }) {
     return () => unsubscribe()
   }, [currentUser?.uid])
 
+  // When screen is focused and data is loaded, mark all unviewed wins as viewed
+  useEffect(() => {
+    if (!currentUser?.uid || focusTick === 0 || winningBids.length === 0) return
+    const unviewed = winningBids.filter(
+      (item) => item?.raw?.wonStatusByUser?.[currentUser.uid] !== "viewed",
+    )
+    if (unviewed.length === 0) return
+
+    ;(async () => {
+      try {
+        const batch = writeBatch(db)
+        unviewed.forEach((item) => {
+          const ref = doc(db, "products", item.id)
+          batch.update(ref, { [`wonStatusByUser.${currentUser.uid}`]: "viewed" })
+        })
+        await batch.commit()
+      } catch (e) {
+        console.warn("Failed to batch mark items as viewed:", e)
+      }
+    })()
+  }, [focusTick, winningBids, currentUser?.uid])
+
+  // Mark won item as viewed when user opens it
+  const markAsViewed = useCallback(async (productId) => {
+    try {
+      if (!currentUser?.uid || !productId) return
+      const ref = doc(db, "products", productId)
+      await updateDoc(ref, { [`wonStatusByUser.${currentUser.uid}`]: "viewed" })
+    } catch (e) {
+      console.warn("Failed to mark as viewed:", e)
+    }
+  }, [currentUser?.uid])
+
   const openImageViewer = (item) => {
+    if (item?.id) {
+      markAsViewed(item.id)
+    }
     if (item.image && item.raw?.imageUrls) {
       setSelectedImages(item.raw.imageUrls)
       setCurrentImageIndex(0)
+      setImageErrors({})
+      setImageLoading(true)
       setImageModalVisible(true)
+      // Preload adjacent images
+      if (item.raw.imageUrls.length > 1) {
+        Image.prefetch(item.raw.imageUrls[1]).catch((e) => console.warn("Failed to prefetch image:", e))
+      }
     }
   }
 
@@ -97,14 +153,25 @@ export default function WinBiddingScreen({ navigation }) {
       visible={imageModalVisible}
       transparent={true}
       animationType="fade"
-      onRequestClose={() => setImageModalVisible(false)}
+      onRequestClose={() => {
+        setImageModalVisible(false)
+        setImageLoading(false)
+        setImageErrors({})
+      }}
     >
       <View style={styles.imageModalContainer}>
         <View style={styles.imageModalHeader}>
           <Text style={styles.imageCounter}>
             {currentImageIndex + 1} of {selectedImages.length}
           </Text>
-          <TouchableOpacity style={styles.closeButton} onPress={() => setImageModalVisible(false)}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              setImageModalVisible(false)
+              setImageLoading(false)
+              setImageErrors({})
+            }}
+          >
             <Icon name="close" size={28} color="white" />
           </TouchableOpacity>
         </View>
@@ -117,12 +184,52 @@ export default function WinBiddingScreen({ navigation }) {
             const { width } = Dimensions.get("window")
             const index = Math.round(event.nativeEvent.contentOffset.x / width)
             setCurrentImageIndex(index)
+            setImageLoading(true)
+            // Preload next and previous images
+            const nextIndex = index + 1
+            const prevIndex = index - 1
+            if (nextIndex < selectedImages.length) {
+              Image.prefetch(selectedImages[nextIndex]).catch((e) => console.warn("Failed to prefetch next image:", e))
+            }
+            if (prevIndex >= 0) {
+              Image.prefetch(selectedImages[prevIndex]).catch((e) => console.warn("Failed to prefetch prev image:", e))
+            }
           }}
           style={styles.imageScrollView}
         >
           {selectedImages.map((imageUrl, index) => (
             <View key={index} style={styles.imageSlideContainer}>
-              <Image source={{ uri: imageUrl }} style={styles.fullScreenImage} resizeMode="contain" />
+              {imageErrors[index] ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>Failed to load image</Text>
+                  <Image
+                    source={{ uri: "https://via.placeholder.com/120x120/CCCCCC/FFFFFF?text=Error" }}
+                    style={styles.fullScreenImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              ) : (
+                <>
+                  {imageLoading && currentImageIndex === index && (
+                    <ActivityIndicator
+                      style={styles.imageLoadingIndicator}
+                      size="large"
+                      color="#FFFFFF"
+                    />
+                  )}
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.fullScreenImage}
+                    resizeMode="contain"
+                    onLoadStart={() => setImageLoading(true)}
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => {
+                      setImageErrors((prev) => ({ ...prev, [index]: true }))
+                      setImageLoading(false)
+                    }}
+                  />
+                </>
+              )}
             </View>
           ))}
         </ScrollView>
@@ -130,7 +237,10 @@ export default function WinBiddingScreen({ navigation }) {
         {selectedImages.length > 1 && (
           <View style={styles.imageDots}>
             {selectedImages.map((_, index) => (
-              <View key={index} style={[styles.dot, currentImageIndex === index && styles.activeDot]} />
+              <View
+                key={index}
+                style={[styles.dot, currentImageIndex === index && styles.activeDot]}
+              />
             ))}
           </View>
         )}
@@ -143,14 +253,19 @@ export default function WinBiddingScreen({ navigation }) {
       <View style={styles.container}>
         {/* Enhanced Header */}
         <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => navigation.goBack()}
+            >
+              <Feather name="arrow-left" size={24} color="white" />
+            </TouchableOpacity>
           <View style={styles.headerContent}>
             <View>
               <Text style={styles.headerTitle}>Your Auction Wins</Text>
               <Text style={styles.headerSubtitle}>
-                {totalItems === 0 
-                  ? "Start bidding to see your wins here" 
-                  : `${totalItems} item${totalItems > 1 ? 's' : ''} won`
-                }
+                {totalItems === 0
+                  ? "Start bidding to see your wins here"
+                  : `${totalItems} item${totalItems > 1 ? "s" : ""} won`}
               </Text>
             </View>
           </View>
@@ -167,7 +282,7 @@ export default function WinBiddingScreen({ navigation }) {
               <Text style={styles.summaryLabel}>Items Won</Text>
             </View>
           </View>
-          
+
           <View style={styles.summaryCard}>
             <View style={styles.cardIcon}>
               <Icon name="account-balance-wallet" size={24} color="#1A5B1A" />
@@ -180,8 +295,8 @@ export default function WinBiddingScreen({ navigation }) {
         </View>
 
         {/* Winning Bids List */}
-        <ScrollView 
-          style={styles.scrollView} 
+        <ScrollView
+          style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
@@ -211,7 +326,7 @@ export default function WinBiddingScreen({ navigation }) {
                   <View style={styles.cardImageContainer}>
                     <Image source={{ uri: item.image }} style={styles.cardImage} />
                   </View>
-                  
+
                   <View style={styles.cardContent}>
                     <View style={styles.cardHeader}>
                       <Text style={styles.cardTitle} numberOfLines={2}>
@@ -219,11 +334,11 @@ export default function WinBiddingScreen({ navigation }) {
                       </Text>
                       <Text style={styles.cardCategory}>{item.category}</Text>
                     </View>
-                    
+
                     <Text style={styles.cardDescription} numberOfLines={2}>
                       {item.description}
                     </Text>
-                    
+
                     <View style={styles.cardDetails}>
                       <View style={styles.dimensionInfo}>
                         <Icon name="straighten" size={14} color="#888888" />
@@ -234,7 +349,7 @@ export default function WinBiddingScreen({ navigation }) {
                         <Text style={styles.cardDetailText}>W: {item.width}″</Text>
                       </View>
                     </View>
-                    
+
                     <View style={styles.cardFooter}>
                       <View style={styles.priceContainer}>
                         <Text style={styles.priceLabel}>Winning Bid</Text>
@@ -269,17 +384,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    flexDirection: "row",  // ADD THIS
+    alignItems: "center",  // ADD THIS
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
   },
-  headerContent: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
-  },
+    headerContent: {
+      flex: 1,  // CHANGE from flexDirection: "row"
+      justifyContent: "flex-start",
+      alignItems: "flex-start",  // CHANGE from "center"
+    },
   headerTitle: {
     fontSize: 28,
     fontWeight: "800",
@@ -292,28 +409,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: "400",
   },
-  headerStats: {
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 20,
-    padding: 12,
-    minWidth: 60,
-  },
-  headerStatsText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginTop: 4,
-  },
   summaryContainer: {
-    flexDirection: "row",
+    flexDirection: "column",
     paddingHorizontal: 20,
     marginTop: 20,
     marginBottom: 16,
     gap: 16,
   },
   summaryCard: {
-    flex: 1,
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 20,
@@ -427,14 +530,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderBottomLeftRadius: 20,
   },
-  winBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    borderRadius: 12,
-    padding: 4,
-  },
   cardContent: {
     flex: 1,
     padding: 16,
@@ -512,7 +607,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  
   // Image Modal Styles
   imageModalContainer: {
     flex: 1,
@@ -554,6 +648,21 @@ const styles = StyleSheet.create({
   fullScreenImage: {
     width: Dimensions.get("window").width,
     height: Dimensions.get("window").height * 0.75,
+    backgroundColor: "transparent",
+  },
+  imageLoadingIndicator: {
+    position: "absolute",
+    zIndex: 10,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    marginBottom: 10,
   },
   imageDots: {
     position: "absolute",
@@ -577,4 +686,8 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
   },
+  backButton: {
+  padding: 8,
+  marginRight: 15,
+},
 })

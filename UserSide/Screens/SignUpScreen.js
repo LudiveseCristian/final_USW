@@ -59,10 +59,6 @@ const [isSuccess, setIsSuccess] = useState(false);
 
   const { registerUser } = useAuth()
 
-  // MOVED: Early return after all hooks are declared
-  if (isLoading) {
-    return <LoadingScreen message="Creating your account..." />
-  }
 
   // Helper function to capitalize first letter of each word
   const capitalizeWords = (text) => {
@@ -288,6 +284,10 @@ const [isSuccess, setIsSuccess] = useState(false);
 }, [email, firstName, middleName, lastName, phone, address, password, confirmPassword, agreedToTerms, navigation]);
 
   return (
+    <>
+     {isLoading ? (
+      <LoadingScreen message="Creating your account..." />
+    ) : (
     <View style={styles.fullScreenBackground}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardContainer}>
         <ScrollView
@@ -582,7 +582,8 @@ const [isSuccess, setIsSuccess] = useState(false);
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
+      </View>
+      )}
         <TermsModal
         visible={isTermsModalVisible}
         onClose={() => setIsTermsModalVisible(false)}
@@ -600,8 +601,7 @@ const [isSuccess, setIsSuccess] = useState(false);
         }}
         isSuccess={isSuccess}
       />
-
-    </View>
+    </>
   )
 }
 

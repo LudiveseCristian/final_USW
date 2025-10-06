@@ -11,7 +11,8 @@ import {
     Platform,
     Animated,
     Image,
-    ActivityIndicator
+    ActivityIndicator,
+    Keyboard
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import {
@@ -104,6 +105,21 @@ const UpcycledUserAssistant = ({ userId, userProfile }) => {
         };
         setMessages([welcomeMessage]);
     };
+
+    useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+        'keyboardDidShow',
+        () => {
+            setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+        }
+    );
+
+    return () => {
+        keyboardDidShowListener.remove();
+    };
+}, []);
 
     const loadUserStats = async () => {
         if (!userId) return;
@@ -516,10 +532,7 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
                 ]}
                 pointerEvents={isOpen ? 'auto' : 'none'}
             >
-                <KeyboardAvoidingView
-                    style={styles.keyboardAvoid}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                >
+                    <View style={styles.container}> 
                     <View style={styles.header}>
                         <View style={styles.headerLeft}>
                             <View style={styles.avatarContainer}>
@@ -558,6 +571,13 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
                             <Text style={styles.statLabel}>Pending</Text>
                         </View>
                     </View>
+
+                     <KeyboardAvoidingView
+            style={{ flex: 1 }}  // Changed
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={0}
+        >
+
 
                     <FlatList
                         ref={flatListRef}
@@ -614,12 +634,15 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
+                </View>
             </Animated.View>
         </>
     );
 };
 
 const styles = StyleSheet.create({
+
+
     floatingButton: {
         position: 'absolute',
         zIndex: 1000,
@@ -664,6 +687,9 @@ const styles = StyleSheet.create({
     },
     keyboardAvoid: {
         flex: 1,
+    },
+    container: {
+    flex: 1,
     },
     header: {
         flexDirection: 'row',
@@ -809,6 +835,7 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
         paddingHorizontal: 15,
         paddingVertical: 10,
+        paddingBottom: Platform.OS === 'ios' ? 20 : 10,  // Add this
         borderTopWidth: 1,
         borderTopColor: '#e0e0e0',
         backgroundColor: 'white',

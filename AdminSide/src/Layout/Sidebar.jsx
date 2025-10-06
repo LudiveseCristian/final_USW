@@ -2,7 +2,7 @@
 
 import { Link, useLocation } from "react-router-dom"
 import { useState, useEffect } from "react"
-import { LayoutDashboard, Package, TrendingUp, Users, LogOut, Newspaper, ClipboardList, ChevronDown, ChevronRight, EarIcon, Boxes, Store } from "lucide-react"
+import { LayoutDashboard, Package, TrendingUp, Users, LogOut, Newspaper, ClipboardList, ChevronDown, ChevronRight, EarIcon, Boxes, Store, MessageCircle } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { auth } from "../firebase/config"
 
@@ -19,6 +19,7 @@ const Sidebar = () => {
       { path: "/sales", icon: TrendingUp, label: "Sales Analytics" },
       { path: "/customers", icon: Users, label: "Customers" },
       { path: "/feedback", icon: EarIcon, label: "Feedback" },
+      { path: "/messages", icon: MessageCircle, label: "Messages" },
    ]
 
    const productSubItems = [

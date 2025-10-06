@@ -11,7 +11,6 @@ import {
   StatusBar,
   Animated,
 } from "react-native"
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from "expo-video"
 import { LinearGradient } from "expo-linear-gradient"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"

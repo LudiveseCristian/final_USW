@@ -22,6 +22,7 @@ import { useAuth } from "../AuthContext";
 import LoadingScreen from "../hooks/LoadingScreen";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import { Feather } from "@expo/vector-icons";
 
 export default function FeedbackScreen({ navigation }) {
   const { currentUser } = useAuth();
@@ -259,6 +260,8 @@ export default function FeedbackScreen({ navigation }) {
         rating: rating,
         reviewText: reviewText,
         reviewImages: uploadedImages,
+        soldPrice: selectedOrder.winningBid, // Add this line
+        winningBid: selectedOrder.winningBid, // Add this line (backup)
         status: 'pending',
         submittedAt: new Date().toISOString(),
         category: selectedOrder.category
@@ -381,11 +384,19 @@ export default function FeedbackScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFCF3" }}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Feedback</Text>
-            <Icon name="star" size={28} color="white" />
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <Feather name="arrow-left" size={24} color="white" />
+          </TouchableOpacity>
+          <View style={styles.headerTextContainer}>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerTitle}>Feedback</Text>
+              <Icon name="star" size={28} color="white" />
+            </View>
+            <Text style={styles.headerSubtitle}>Share your thoughts</Text>
           </View>
-          <Text style={styles.headerSubtitle}>Share your thoughts</Text>
         </View>
 
         <ScrollView
@@ -457,8 +468,10 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#1A5B1A",
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 20,
+    flexDirection: "row",  // ADD THIS
+    alignItems: "center",  // ADD THIS
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     shadowColor: "#000",
@@ -466,6 +479,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 8,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 15,
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   headerTitleContainer: {
     flexDirection: "row",

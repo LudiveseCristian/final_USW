@@ -13,6 +13,7 @@ import Sidebar from './Layout/Sidebar';
 import { auth } from './firebase/config';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import MessageChatbot from './ai/UpcycledAdminAssistant';
+import Messages from './components/Messages'
 
 // Import the new Alert components and context
 import AlertModal from './modals/AlertModal';
@@ -59,6 +60,7 @@ const AppContent = () => {
           <Route path="/sales" element={<SalesAnalytics />} />
           <Route path="/customers" element={<CustomerManagement />} />
           <Route path="/feedback" element={<FeedbackManagement />} />
+          <Route path="/messages" element={<Messages />} />
         </Routes>
       </main>
 

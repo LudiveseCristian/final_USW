@@ -5,7 +5,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator
 import { useNavigation, useRoute } from "@react-navigation/native"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
 import { useCartCount } from "../hooks/useCartCounts"
-
+import { useMessageCount } from "../hooks/useMessageCounts"
 
 const { width } = Dimensions.get("window")
 
@@ -14,7 +14,7 @@ const tabs = [
   { name: "Home", icon: "home", route: "Home" },
   { name: "Drops", icon: "tag", route: "News" },
   { name: "Bidding", icon: "tshirt-crew", route: "Bidding" },
-  { name: "Won", icon: "party-popper", route: "Cart" },
+  { name: "Chat", icon: "chat", route: "Messages" },
   { name: "Profile", icon: "account", route: "Profile" },
 ]
 
@@ -23,25 +23,35 @@ function NavBarLayout({ children }) {
   const route = useRoute()
   const [isNavigating, setIsNavigating] = useState(false)
 
-  const { cartCount, loading: cartLoading } = useCartCount()
+  const { cartCount, loading: cartLoading, resetCartCount } = useCartCount() 
+  const { messageCount, resetMessageCount } = useMessageCount()
 
   // Optimized navigation function
   const navigateTo = useCallback(
-    (screenName) => {
-      if (route.name === screenName || isNavigating) return
+      (screenName) => {
+        if (route.name === screenName || isNavigating) return
 
-      setIsNavigating(true)
+        setIsNavigating(true)
 
-      try {
-        navigation.replace(screenName)
-      } catch (error) {
-        console.warn("Navigation error:", error)
-      } finally {
-        setTimeout(() => setIsNavigating(false), 100)
-      }
-    },
-    [navigation, route.name, isNavigating],
-  )
+        try {
+          // Pass the current screen as previousScreen parameter when navigating to Messages
+          if (screenName === "Messages") {
+            navigation.replace(screenName, { previousScreen: route.name })
+            if (resetCartCount) {
+              resetCartCount()
+            }
+            if (resetMessageCount) resetMessageCount() 
+          } else {
+            navigation.replace(screenName)
+          }
+        } catch (error) {
+          console.warn("Navigation error:", error)
+        } finally {
+          setTimeout(() => setIsNavigating(false), 100)
+        }
+      },
+      [navigation, route.name, isNavigating, resetCartCount, resetMessageCount],
+    )
 
   // Function to render notification badge
   const renderNotificationBadge = (count) => {
@@ -64,7 +74,7 @@ function NavBarLayout({ children }) {
         <View style={styles.bottomNav}>
           {tabs.map((tab) => {
             const isActive = route.name === tab.route
-            const showBadge = tab.name === "Won" && cartCount > 0
+            const showBadge = tab.name === "Chat" && messageCount > 1
 
             return (
               <TouchableOpacity
@@ -77,7 +87,7 @@ function NavBarLayout({ children }) {
                 <View style={[styles.iconContainer, isActive && styles.activeIconContainer]}>
                   <MaterialCommunityIcons name={tab.icon} size={22} color={isActive ? "#2E6A2E" : "#888"} />
                   {/* Notification Badge */}
-                  {showBadge && renderNotificationBadge(cartCount)}
+                  {showBadge && renderNotificationBadge(messageCount)}
                 </View>
                 <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]}>{tab.name}</Text>
                 {/* Indicator below the text */}
@@ -102,7 +112,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8F9FA",
-    
   },
   content: {
     flex: 1,
@@ -146,7 +155,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4,
     backgroundColor: "transparent",
-    position: "relative", // Added for badge positioning
+    position: "relative",
   },
   activeIconContainer: {
     backgroundColor: "rgba(46, 106, 46, 0.1)",

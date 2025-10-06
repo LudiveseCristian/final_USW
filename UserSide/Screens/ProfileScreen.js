@@ -397,16 +397,23 @@ const stats = [
       onPress: () => navigation.navigate("Bidding"),
     },
     {
+      title: "Won Bids",
+      subtitle: "See items you’ve won",
+      icon: "award",
+      onPress: () => navigation.navigate("Cart"),
+    },
+    
+    {
       title: "Terms and Conditions",
       subtitle: "View our terms and conditions",
       icon: "file-text", 
       onPress: () => setTermsModalVisible(true),
     },
     {
-      title: "Notifications",
-      subtitle: "Manage notification preferences",
-      icon: "bell",
-      onPress: () => navigation.navigate("Notifications"),
+      title: "Help & Support",
+      subtitle: "Get assistance or contact support",
+      icon: "help-circle",
+      onPress: () => navigation.navigate("HelpandSupport"),
     },
     {
       title: "Order Tracking",
