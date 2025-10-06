@@ -134,33 +134,27 @@ const SoldProducts = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9F7F1] p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-cream-100">
         {/* Header Section */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="bg-[#135918] rounded-bl-xl rounded-br-xl shadow-sm p-8 mb-8">
           <div className="flex items-center space-x-3">
-            <div className="mb-8">
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Package className="h-6 w-6 text-primary" />
+            <div className="ml-6 mt-4">
+              <div className="flex items-center space-x-3 mb-2 px-6">
+                <div className=" bg-primary/10 rounded-lg">
                 </div>
-                <h1 className="text-3xl font-bold text-primary">Sold Products</h1>
+                <h1 className="text-3xl font-bold text-cream">Sold Products</h1>
               </div>
-                <p className="text-gray-600 text-lg">
+                <p className="pl-10 text-cream-200 px-6">
                 View a history of all sold upcycled streetwear items
               </p>
-              <div className="flex items-center space-x-6 mt-4">
-                <div className="flex items-center text-sm text-gray-500">
-                  <Package className="h-4 w-4 mr-1" />
-                  {soldExpiredProducts.length} Items
-                </div>
+              <div className="flex items-center space-x-6 mt-4 px-6">
               </div>
             </div>
           </div>
         </div>
 
         {/* Search Section */}
-        <Card className="shadow-md transition-shadow">
+        <Card className="px-10 mx-24 mb-8 shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
@@ -180,7 +174,7 @@ const SoldProducts = () => {
         {/* Products Grid Section */}
         <div>
           {currentProducts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {currentProducts.map((product) => (
                 <Card key={product.id} className="shadow-md hover:shadow-lg transition-shadow overflow-hidden group">
                   <div className="relative">
@@ -345,7 +339,6 @@ const SoldProducts = () => {
           </div>
         )}
       </div>
-    </div>
   );
 };
 

@@ -198,13 +198,13 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-cream-100">
         {/* Header Section */}
-        <div className="bg-[#135918] shadow-lg">
+        <div className="bg-[#135918] rounded-bl-xl rounded-br-xl shadow-sm p-8 mb-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="py-6">
-              <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-              <p className="mt-2 text-green-100">
+            <div className="py-4">
+              <h1 className="text-3xl font-bold text-cream-100">Dashboard</h1>
+              <p className="mt-2 text-cream-200 ">
               Welcome back! Here's an overview of your business performance and recent activity.
               </p>
             </div>
@@ -222,14 +222,14 @@ const Dashboard = () => {
                   <p className="text-2xl font-bold text-gray-900 mt-1">
                     {formatPrice(stats.totalSales)}
                   </p>
-                  {stats.salesGrowth && (
+                  
                     <div className="flex items-center mt-2 text-sm">
                       <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
                       <span className="text-green-600 font-medium">
                         +{stats.salesGrowth}% from last month
                       </span>
                     </div>
-                  )}
+                  
                 </div>
                 <div className="p-3 bg-green-100 rounded-lg">
                   <DollarSign className="h-6 w-6 text-green-600" />
@@ -246,8 +246,6 @@ const Dashboard = () => {
                   <p className="text-gray-600 text-sm font-medium">Total Products</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalProducts}</p>
                   <div className="flex items-center mt-2 text-sm text-gray-500">
-                    <Package className="h-4 w-4 mr-1" />
-                    <span>Active inventory</span>
                   </div>
                 </div>
                 <div className="p-3 bg-blue-100 rounded-lg">
@@ -264,14 +262,14 @@ const Dashboard = () => {
                 <div>
                   <p className="text-gray-600 text-sm font-medium">Total Customers</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalCustomers}</p>
-                  {stats.customerGrowth && (
+                  
                     <div className="flex items-center mt-2 text-sm">
                       <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
                       <span className="text-green-600 font-medium">
                         +{stats.customerGrowth}% growth
                       </span>
                     </div>
-                  )}
+                  
                 </div>
                 <div className="p-3 bg-purple-100 rounded-lg">
                   <Users className="h-6 w-6 text-purple-600" />
@@ -290,8 +288,6 @@ const Dashboard = () => {
                     {formatPrice(stats.monthlySales)}
                   </p>
                   <div className="flex items-center mt-2 text-sm text-gray-500">
-                    <Activity className="h-4 w-4 mr-1" />
-                    <span>Monthly revenue</span>
                   </div>
                 </div>
                 <div className="p-3 bg-orange-100 rounded-lg">

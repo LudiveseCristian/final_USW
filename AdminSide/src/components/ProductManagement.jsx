@@ -627,22 +627,23 @@ const ProductManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-cream p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-cream-100">
         {/* Header Section */}
-        <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
+        <div className="bg-[#135918] rounded-bl-xl rounded-br-xl shadow-sm p-8 mb-8">
           <div className="flex items-center justify-between">
+            <div className="px-10">
             <div>
-              <h1 className="text-4xl font-bold text-green-800 mb-2">Product Management</h1>
-              <p className="text-lg text-gray-600">
+              <h1 className="text-4xl font-bold text-cream mb-2">Product Management</h1>
+              <p className=" text-cream-200 mb-5">
                 Manage your upcycled streetwear inventory and bidding
               </p>
+              </div>
               <div className="flex items-center space-x-6 mt-4">
-                <div className="flex items-center text-sm text-gray-500">
+                <div className="flex items-center text-sm text-cream">
                   <Package className="h-4 w-4 mr-1" />
                   {products.length} Products
                 </div>
-                <div className="flex items-center text-sm text-gray-500">
+                <div className="flex items-center text-sm text-cream">
                   <Gavel className="h-4 w-4 mr-1" />
                   {getBiddingProducts().length} Active Auctions
                 </div>
@@ -668,7 +669,7 @@ const ProductManagement = () => {
         </div>
 
         {/* Tab Navigation Section */}
-        <div className="bg-white rounded-2xl shadow-sm p-4 mb-8">
+        <div className="mx-16 bg-white rounded-2xl shadow-sm p-4 mb-8">
           <div className="flex space-x-1">
             <button
               onClick={() => setActiveTab('products')}
@@ -704,7 +705,7 @@ const ProductManagement = () => {
         {activeTab === 'products' ? (
           <>
             {/* Search and Filter Section */}
-            <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
+            <div className="px-10 mx-16 bg-white rounded-2xl shadow-sm p-6 mb-8">
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
                   <Search className="absolute
@@ -732,7 +733,7 @@ const ProductManagement = () => {
             </div>
 
             {/* Products Grid Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="mx-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {currentProducts.map((product) => (
                 <div
                   key={product.id}
@@ -1117,7 +1118,6 @@ const ProductManagement = () => {
           handleRejectBid={handleRejectBid}
         />
       </div>
-    </div>
   );
 };
 

@@ -367,8 +367,9 @@ const CustomerManagement = () => {
   }
 
   if (loading) {
-    return (
-      <div className="p-8 bg-cream min-h-screen">
+    <div className="min-h-screen bg-cream-100"></div>
+    return (  
+      <div className="bg-[#135918] rounded-bl-xl rounded-br-xl shadow-sm p-8 mb-8">
         <div className="flex items-center justify-center h-96">
           <LoadingSpinner size="lg" />
         </div>
@@ -377,27 +378,21 @@ const CustomerManagement = () => {
   }
 
   return (
-    <div className="p-8 bg-cream min-h-screen">
-      {error && (
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg">
-          <div className="flex items-center justify-between">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-yellow-600 hover:text-yellow-800 transition-colors">
-              <X className="h-4 w-4" />
-            </button>
+      <div className="min-h-screen bg-cream-100">
+        {/* Header Section */}
+        <div className="bg-[#135918] rounded-bl-xl rounded-br-xl shadow-sm p-8 mb-8">
+          <div className="*:max-w-7xl mx-auto px-4 sm:px-6 lg:px-16">
+            <div className="py-4">
+              <h1 className="text-3xl font-bold text-cream">User Management</h1>
+              <p className="mt-2 text-cream-200">
+              Manage your user profiles and track their activity.
+              </p>
+            </div>
           </div>
         </div>
-      )}
-
-      <div className="mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-green-800 text-foreground mb-2">User Management</h1>
-          <p className="text-muted-foreground text-green-700">Manage your user profiles and track their activity</p>
-        </div>
-      </div>
 
       {/* Customer Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="px-24 grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -452,7 +447,7 @@ const CustomerManagement = () => {
       </div>
 
       {/* Search and Filter */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm mb-6">
+      <div className="mx-24 bg-white border border-gray-200 rounded-lg p-6 shadow-sm mb-6">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="flex flex-col md:flex-row gap-4 flex-1">
             <div className="flex-1 relative">
@@ -484,7 +479,7 @@ const CustomerManagement = () => {
       </div>
 
       {/* Users Table */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+      <div className="mx-24 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -779,7 +774,7 @@ const CustomerManagement = () => {
           customer={deletingCustomer || { name: '' }}
         />
     </div>
-  )
+  );
 }
 
 export default CustomerManagement

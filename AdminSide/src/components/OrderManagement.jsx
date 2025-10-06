@@ -256,11 +256,11 @@ const OrderManagement = () => {
   return (
     <div className="min-h-screen bg-cream">
       {/* Header */}
-      <div className="bg-[#135918] shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
-            <h1 className="text-3xl font-bold text-white">Order Management</h1>
-            <p className="mt-2 text-green-100">
+      <div className="bg-[#135918] rounded-bl-xl rounded-br-xl shadow-sm p-8 mb-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6">
+          <div className="py-4 px-2">
+            <h1 className="text-3xl font-bold text-cream">Order Management</h1>
+            <p className="mt-2 text-cream-200">
               Manage and track all winning auction orders • {stats.all} total orders
             </p>
           </div>
@@ -298,7 +298,7 @@ const OrderManagement = () => {
                 placeholder="Search orders by title, winner name, email, or ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-green-200 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-200 transition-colors"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray rounded-lg focus:ring-2 focus:ring-green-200 transition-colors"
               />
             </div>
           </div>

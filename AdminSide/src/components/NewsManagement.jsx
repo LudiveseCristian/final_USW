@@ -129,47 +129,58 @@ const NewsManagement = () => {
           }
         `}
       </style>
-      <div className="min-h-screen bg-cream text-gray-800">
-        {/* Header/Navigation */}
-        <header className="bg-[#135918] backdrop-blur-md sticky top-0 z-50 shadow-lg">
+      <div className="min-h-screen bg-cream text-cream">
+        {/* Header Section */}
+        <div className="bg-[#135918] rounded-bl-xl rounded-br-xl shadow-sm p-8 mb-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
-              <div className="flex items-center space-x-8">
-                <span className="text-2xl font-bold text-cream">Drops Management</span>
-                <nav className="hidden md:flex space-x-4">
-                  <button
-                    onClick={() => setSelectedFilter('all')}
-                    className={`px-3 py-1 font-medium ${selectedFilter === 'all' ? 'text-cream border-b-2 border-primary-500' : 'text-gray-400 hover:text-gray-900'} transition-colors`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setSelectedFilter('update')}
-                    className={`px-3 py-1 font-medium ${selectedFilter === 'update' ? 'text-cream border-b-2 border-primary-500' : 'text-gray-400 hover:text-white'} transition-colors`}
-                  >
-                    Updates
-                  </button>
-                  <button
-                    onClick={() => setSelectedFilter('drop')}
-                    className={`px-3 py-1 font-medium ${selectedFilter === 'drop' ? 'text-cream border-b-2 border-primary-500' : 'text-gray-400 hover:text-white'} transition-colors`}
-                  >
-                    Drops
-                  </button>
-                </nav>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-48 pl-10 pr-4 py-2 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
-              />
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold text-cream">Drops Management</h1>
+                <p className="text-cream-200 mt-2">
+                  Manage your news articles, updates, and product drops.
+                </p>
+              </div>
             </div>
           </div>
-         </div>
-        </header>
+        </div>
+
+        {/* Filter and Search Section */}
+        <div className="pl-14 mx-4 md:mx-6 lg:mx-8 mb-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex md:flex-row md:items-center gap-16">
+              <nav className="flex space-x-8">
+                <button
+                  onClick={() => setSelectedFilter('all')}
+                  className={`px-4 py-2 font-medium rounded-lg ${selectedFilter === 'all' ? 'bg-green-800 text-white' : 'bg-white/50 text-green-900 hover:bg-white'} transition-colors`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setSelectedFilter('update')}
+                  className={` px-2 py-2 font-medium rounded-lg ${selectedFilter === 'update' ? 'bg-green-800 text-white' : 'bg-white/50 text-green-900 hover:bg-white'} transition-colors`}
+                >
+                  Updates
+                </button>
+                <button
+                  onClick={() => setSelectedFilter('drop')}
+                  className={`px-2 py-2 font-medium rounded-lg ${selectedFilter === 'drop' ? 'bg-green-800 text-white' : 'bg-white/50 text-green-900 hover:bg-white'} transition-colors`}
+                >
+                  Drops
+                </button>
+              </nav>
+              <div className="relative flex-1 max-w-4xl">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
+                <input
+                  type="text"
+                  placeholder="Search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#135918] focus:border-[#135918] outline-none transition-colors"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
         
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 no-scrollbar">
           {/* Featured Article Section */}
@@ -180,7 +191,7 @@ const NewsManagement = () => {
             <div className="relative p-8 flex flex-col justify-end h-full">
               <div className="bg-primary-500 text-white text-sm font-semibold px-3 py-1 rounded-full w-max mb-2">Featured Article</div>
               <h2 className="text-4xl font-bold text-white mb-2">{heroArticle?.title || 'No Featured Article'}</h2>
-              <p className="text-gray-300 text-lg mb-4 max-w-lg line-clamp-2">{heroArticle?.description}</p>
+              <p className="text-cream text-lg mb-4 max-w-lg line-clamp-2">{heroArticle?.description}</p>
               <div className="flex items-center space-x-4">
                 <Button onClick={() => { setEditingNews(heroArticle); setShowModal(true); }}>
                   <Edit className="h-4 w-4 mr-2" /> Edit Article
