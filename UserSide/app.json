@@ -3,6 +3,9 @@
     "name": "USW",
     "slug": "USW",
     "version": "1.0.0",
+      "extra": {
+      "REACT_APP_GEMINI_API_KEY": "AIzaSyBMWW7ciLXNVmr73CL7-5QWNXar9eVQ7Gc"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/Welcome/USW-Logo.png",
     "userInterfaceStyle": "light",

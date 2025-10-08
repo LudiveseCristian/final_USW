@@ -73,7 +73,7 @@ import NewsScreen from "./Screens/NewsScreen";
 import BiddingScreen from "./Screens/BiddingScreen";
 import ProfileScreen from "./Screens/ProfileScreen";
 import WinningBiddingScreen from "./Screens/WinbiddingScreen";
-import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant";
+// REMOVED: import UpcycledUserAssistant from "./Screens/UpcycledUserAssistant";
 import HelpandSupport from "./Screens/HelpandSupport";
 import OrderTrackingScreen from "./Screens/OrderTrackingScreen";
 import FeedbackScreen from "./Screens/FeedbackScreen";
@@ -220,15 +220,15 @@ function MainAppStack() {
   );
 }
 
-// Global App Wrapper with Assistant
-const AppWithAssistant = ({ children, currentUser, showAssistant = true }) => {
+// Global App Wrapper
+const AppWithAssistant = ({ children }) => {
   
   return (
     <GestureHandlerRootView style={styles.appContainer}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFEF7" />
       {children}
       
-      {showAssistant && currentUser && <UpcycledUserAssistant currentUser={currentUser} />}
+      {/* REMOVED: {showAssistant && currentUser && <UpcycledUserAssistant currentUser={currentUser} />} */}
     </GestureHandlerRootView>
   );
 };
@@ -257,7 +257,8 @@ function RootNavigator() {
         },
       }}
     >
-      <AppWithAssistant currentUser={currentUser} showAssistant={isLoggedIn && hasCompletedAppOnboarding}>
+      {/* UPDATED: Removed currentUser and showAssistant props */}
+      <AppWithAssistant>
         {(() => {
           if (isLoggedIn) {
             return <MainAppStack />;

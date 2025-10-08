@@ -13,11 +13,15 @@ import {
   Package,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Trash2,
   MoreHorizontal,
+  BarChart2,
 } from 'lucide-react';
 import { collection, onSnapshot, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+
+// NOTE: Assumed presence of custom UI components (LoadingSpinner, StatusBadge) where used.
 
 const FeedbackManagement = () => {
   const [feedback, setFeedback] = useState([]);
@@ -243,84 +247,93 @@ const FeedbackManagement = () => {
 
   return (
     <div className="min-h-screen bg-cream">
-      {/* Header */}
-      <div className="bg-[#135918] shadow-lg">
+      
+      {/* 1. HEADER SECTION - Now contains the cards directly, padding adjusted for cleaner break */}
+      <div className="bg-[#135918] rounded-bl-xl rounded-br-xl shadow-md pt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          
+          {/* Header Text */}
           <div className="py-6">
             <h1 className="text-3xl font-bold text-white">Feedback Management</h1>
-            <p className="mt-2 text-green-100">
-              Review and manage user feedback • Average rating: {stats.averageRating}⭐
+            <p className="mt-2 text-green-200">
+              Review and manage user feedback
             </p>
           </div>
+
+          {/* 2. STATISTICS CARDS - Moved inside the header and using bg-green-50 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-8">
+            
+            {/* Card 1: Total Feedback */}
+            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-green-500 transform transition-transform duration-300 hover:scale-[1.02]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Total Feedback</p>
+                  <p className="text-2xl font-bold text-green-300">{stats.total}</p>
+                </div>
+                <div className="p-3 bg-green-100 rounded-full">
+                  <MessageSquare className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Pending Review */}
+            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-yellow-100 transform transition-transform duration-300 hover:scale-[1.02]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Pending Review</p>
+                  <p className="text-2xl font-bold text-green-300">{stats.pending}</p>
+                </div>
+                <div className="p-3 bg-yellow-100 rounded-full">
+                  <Clock className="w-6 h-6 text-yellow-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Approved */}
+            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-green-100 transform transition-transform duration-300 hover:scale-[1.02]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Approved</p>
+                  <p className="text-2xl font-bold text-green-300">{stats.approved}</p>
+                </div>
+                <div className="p-3 bg-green-100 rounded-full">
+                  <Check className="w-6 h-6 text-[#0d7214]" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Average Rating */}
+            <div className="bg-[#0c5b11] rounded-xl shadow-xl p-6 border border-blue-400 transform transition-transform duration-300 hover:scale-[1.02]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Average Rating</p>
+                  <div className="flex items-center mt-1">
+                    <p className="text-2xl font-bold text-green-300 mr-2">{stats.averageRating}</p>
+                    <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+                  </div>
+                </div>
+                <div className="p-3 bg-blue-100 rounded-full">
+                  <BarChart2 className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow-md p-6 border border-green-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Feedback</p>
-                <p className="text-2xl font-bold text-[#135918]">{stats.total}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-full">
-                <MessageSquare className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border border-yellow-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pending Review</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
-              </div>
-              <div className="p-3 bg-yellow-100 rounded-full">
-                <Clock className="w-6 h-6 text-yellow-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border border-green-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Approved</p>
-                <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-full">
-                <Check className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border border-blue-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Average Rating</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.averageRating}⭐</p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Star className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+      {/* 3. Controls - Starts directly after the header with standard spacing */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-6">
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="md:col-span-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-800 w-5 h-5" />
                 <input
                   type="text"
                   placeholder="Search by user, product, or review text..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border-2 border-green-200 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-200 transition-colors"
+                  className="w-full pl-10 pr-4 py-3 border-2 border-green-800 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-800"
                 />
               </div>
             </div>
@@ -329,7 +342,7 @@ const FeedbackManagement = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-green-200 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-200 transition-colors"
+                className="w-full px-4 py-3 border-2 border-green-800 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-200 transition-colors"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
@@ -342,7 +355,7 @@ const FeedbackManagement = () => {
               <select
                 value={filterRating}
                 onChange={(e) => setFilterRating(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-green-200 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-200 transition-colors"
+                className="w-full px-4 py-3 border-2 border-green-800 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-200 transition-colors"
               >
                 <option value="all">All Ratings</option>
                 <option value="5">5 Stars</option>
@@ -384,7 +397,7 @@ const FeedbackManagement = () => {
         </div>
       </div>
 
-      {/* Feedback Grid */}
+      {/* 4. Feedback Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {filteredFeedback.length === 0 ? (
           <div className="bg-white rounded-xl shadow-md p-12 text-center">
@@ -521,7 +534,7 @@ const FeedbackManagement = () => {
         )}
       </div>
 
-      {/* Feedback Detail Modal */}
+      {/* 5. Feedback Detail Modal */}
       {showModal && selectedFeedback && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -660,7 +673,7 @@ const FeedbackManagement = () => {
         </div>
       )}
 
-      {/* Image Modal */}
+      {/* 6. Image Modal */}
       {showImageModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">

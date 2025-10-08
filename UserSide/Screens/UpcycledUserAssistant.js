@@ -32,6 +32,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Constants from 'expo-constants';
 
 const { width, height } = Dimensions.get('window');
 const MENU_BAR_HEIGHT = 60; // Estimated height of the bottom menu bar
@@ -64,8 +65,8 @@ const UpcycledUserAssistant = ({ userId, userProfile }) => {
         recommendedItems: []
     });
 
-    const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || "AIzaSyBsPOHcydTbrU2rLfFr3cvf7B84L0iBlD0";
-    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+    const GEMINI_API_KEY = Constants.expoConfig?.extra?.REACT_APP_GEMINI_API_KEY;
+    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`;
 
     useEffect(() => {
         if (isOpen) {
@@ -337,7 +338,7 @@ PERSONALITY & GUIDELINES:
 5. Explain sustainable fashion benefits
 6. Alert about ending auctions for items they're bidding on
 7. Suggest styling tips and outfit combinations
-8. Keep responses conversational and under 250 words
+8. Keep responses conversational and under 80 words
 9. Use Philippine Peso (₱) for pricing
 10. Encourage eco-friendly shopping habits
 
@@ -366,8 +367,8 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
                     generationConfig: {
                         temperature: 0.8,
                         topK: 40,
-                        topP: 0.95,
-                        maxOutputTokens: 400,
+                        topP: 0.90,
+                        maxOutputTokens: 120,
                     }
                 })
             });

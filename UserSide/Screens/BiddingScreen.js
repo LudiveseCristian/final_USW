@@ -73,7 +73,9 @@ export default function BiddingScreen({ navigation }) {
         return "ended"
       }
     } else {
-      if (data.currentBid > userBid.amount) {
+      // Ensure currentBid is a number for comparison
+      const currentBidAmount = typeof data.currentBid === "number" ? data.currentBid : Number.parseFloat(data.currentBid || 0);
+      if (currentBidAmount > userBid.amount) {
         return "outbid"
       } else {
         return "winning"
@@ -111,7 +113,7 @@ export default function BiddingScreen({ navigation }) {
                 ? Number.parseFloat(data.minimumBid)
                 : 0
           const base = Math.max(current || 0, minBid || 0)
-          const next = base > 0 ? Math.ceil(base * 1.05) : 0
+          const next = base > 0 ? Math.ceil(base * 1.05) : minBid > 0 ? minBid : 0
 
           const userBid = data.bids?.find((bid) => bid.bidderId === currentUser.uid)
 
@@ -128,7 +130,7 @@ export default function BiddingScreen({ navigation }) {
             raw: data,
             userBid: userBid,
             userBidAmount: userBid?.amount || null,
-            isUserWinning: userBid && userBid.amount === base,
+            isUserWinning: userBid && userBid.amount === base && base > 0, // Ensure base > 0 for winning status
             description: data.description || "No description available",
             length: data.length || "N/A",
             width: data.width || "N/A",
@@ -162,6 +164,7 @@ export default function BiddingScreen({ navigation }) {
       snapshot.docs.forEach((d) => {
         const data = d.data()
         const userBidsArray = data.bids?.filter((bid) => bid.bidderId === currentUser.uid)
+        // Find the latest bid placed by the current user for this item
         const latestUserBid = userBidsArray?.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
 
         if (latestUserBid) {
@@ -171,7 +174,7 @@ export default function BiddingScreen({ navigation }) {
             id: d.id,
             title: data.name,
             myBid: latestUserBid.amount,
-            currentBid: data.currentBid || 0,
+            currentBid: data.currentBid || 0, // Use raw currentBid for display
             status: status,
             timeLeft: getTimeLeftText(data.bidEndTime?.toDate ? data.bidEndTime.toDate() : data.bidEndTime),
             image: data.imageUrls?.[0] || "https://via.placeholder.com/80x80/CCCCCC/FFFFFF?text=Bid+Item",
@@ -232,14 +235,62 @@ export default function BiddingScreen({ navigation }) {
     }
   }
 
-  const handlePlaceBid = (item) => {
-    setSelectedItem(item)
-    setBidAmount(item.nextBid.toString())
-    setShowBidModal(true)
+  const handlePlaceBid = async (item) => {
+    // START FIX: Fetch latest data and ensure nextBid/currentBid are calculated
+    let productData = item.raw;
+    let currentBid = item.currentBid;
+    let nextBid = item.nextBid;
+
+    try {
+        const productRef = doc(db, "products", item.id);
+        const productSnap = await getDoc(productRef);
+        if (productSnap.exists()) {
+            productData = productSnap.data();
+            
+            // Recalculate currentBid and nextBid from the fresh data
+            const current =
+                typeof productData.currentBid === "number"
+                    ? productData.currentBid
+                    : productData.currentBid
+                        ? Number.parseFloat(productData.currentBid)
+                        : 0;
+            const minBid =
+                typeof productData.minimumBid === "number"
+                    ? productData.minimumBid
+                    : productData.minimumBid
+                        ? Number.parseFloat(productData.minimumBid)
+                        : 0;
+            const base = Math.max(current || 0, minBid || 0);
+            currentBid = base;
+            // Calculate next bid: 5% increase or minimum bid if base is 0
+            nextBid = base > 0 ? Math.ceil(base * 1.05) : minBid > 0 ? minBid : 0; 
+        }
+    } catch (e) {
+        console.error("Error fetching product for bid placement:", e);
+        Alert.alert("Error", "Could not load current auction details. Please try again.");
+        return;
+    }
+
+    // Set selectedItem with the recalculated data
+    const updatedItem = {
+      ...item,
+      currentBid: currentBid,
+      nextBid: nextBid,
+      raw: productData,
+    };
+
+    setSelectedItem(updatedItem);
+    
+    // Ensure nextBid is a number before calling .toString()
+    const initialBidAmount = nextBid && !isNaN(nextBid) ? nextBid.toString() : "";
+    setBidAmount(initialBidAmount); // Initialize bid amount with the calculated next bid
+    setShowBidModal(true);
+    // END FIX
   }
 
   const handleConfirmBid = async () => {
     const bidValue = Number.parseFloat(bidAmount)
+    const requiredMin = selectedItem.nextBid; // nextBid is already calculated in handlePlaceBid and stored in selectedItem
 
     if (!bidValue || isNaN(bidValue)) {
       Alert.alert("Invalid Bid", "Please enter a valid numeric bid amount.")
@@ -251,8 +302,9 @@ export default function BiddingScreen({ navigation }) {
       return
     }
 
-    if (bidValue < selectedItem.nextBid) {
-      Alert.alert("Bid Too Low", `Your bid must be at least ₱${selectedItem.nextBid.toLocaleString()}.`)
+    // Use the requiredMin which is calculated from the base bid + 5% or minBid
+    if (bidValue < requiredMin) {
+      Alert.alert("Bid Too Low", `Your bid must be at least ₱${requiredMin.toLocaleString()}.`)
       return
     }
 
@@ -264,14 +316,16 @@ export default function BiddingScreen({ navigation }) {
         return
       }
       const data = productSnap.data()
+      // Re-validate against the absolute latest data before placing the bid
       const current =
         typeof data.currentBid === "number" ? data.currentBid : data.currentBid ? Number.parseFloat(data.currentBid) : 0
       const minBid =
         typeof data.minimumBid === "number" ? data.minimumBid : data.minimumBid ? Number.parseFloat(data.minimumBid) : 0
       const base = Math.max(current || 0, minBid || 0)
-      const requiredMin = base > 0 ? Math.ceil(base * 1.05) : minBid
-      if (bidValue < requiredMin) {
-        Alert.alert("Bid Too Low", `Latest required bid is ₱${requiredMin.toLocaleString()}.`)
+      const latestRequiredMin = base > 0 ? Math.ceil(base * 1.05) : minBid
+
+      if (bidValue < latestRequiredMin) {
+        Alert.alert("Bid Too Low", `A new bid was placed. Latest required bid is ₱${latestRequiredMin.toLocaleString()}.`)
         return
       }
 
@@ -287,6 +341,7 @@ export default function BiddingScreen({ navigation }) {
       await updateDoc(productRef, {
         bids: updatedBids,
         currentBid: bidValue,
+        highestBidder: newBid.bidderName, // Add highestBidder field update
         updatedAt: new Date(),
       })
 
@@ -317,6 +372,7 @@ export default function BiddingScreen({ navigation }) {
   }
 
   const renderNextBidText = (item) => {
+    // This function is not used, keeping it for reference
     if (item.isUserWinning) {
       return "Your Bid"
     }
@@ -327,7 +383,9 @@ export default function BiddingScreen({ navigation }) {
     if (item.isUserWinning) {
       return "Increase Bid"
     }
-    return `Place Bid - ₱${item.nextBid.toLocaleString()}`
+    // Ensure nextBid is a number before calling toLocaleString()
+    const displayNextBid = item.nextBid && !isNaN(item.nextBid) ? item.nextBid : 0;
+    return `Place Bid - ₱${displayNextBid.toLocaleString()}`
   }
 
   const handleViewOrder = (item) => {
@@ -365,7 +423,8 @@ export default function BiddingScreen({ navigation }) {
     <View style={styles.pesoAmountContainer}>
       <PesoSymbol size={style?.fontSize || 16} color={style?.color || "#2E6A2E"} />
       <Text style={[style, { marginLeft: 2 }]}>
-        {amount.toLocaleString()}
+        {/* Ensure amount is a number before calling toLocaleString */}
+        {(amount && !isNaN(amount) ? amount : 0).toLocaleString()}
         {showYou && " (You)"}
       </Text>
     </View>
@@ -543,13 +602,13 @@ export default function BiddingScreen({ navigation }) {
                           <Text style={styles.bidLabel}>Current Bid:</Text>
                           <PesoAmount
                             amount={item.currentBid}
-                            style={[styles.currentBidAmount, item.userBid && item.userBid === item.currentBid && styles.userBidAmount]}
-                            showYou={item.userBid && item.userBid === item.currentBid}
+                            style={[styles.currentBidAmount, item.isUserWinning && styles.userBidAmount]}
+                            showYou={item.isUserWinning}
                           />
                         </View>
                         <View style={styles.bidRow}>
                           <Text style={styles.bidLabel}>Next Bid:</Text>
-                          {item.userBid && item.userBid === item.currentBid ? (
+                          {item.isUserWinning ? (
                             <Text style={[styles.nextBidAmount, styles.yourBidText]}>Your Bid</Text>
                           ) : (
                             <View style={styles.pesoAmountContainer}>
@@ -570,7 +629,7 @@ export default function BiddingScreen({ navigation }) {
                         </View>
                       </View>
                       <TouchableOpacity
-                        style={[styles.bidButton, item.userBid && item.userBid === item.currentBid && styles.increaseBidButton]}
+                        style={[styles.bidButton, item.isUserWinning && styles.increaseBidButton]}
                         onPress={() => handlePlaceBid(item)}
                       >
                         <Text style={styles.bidButtonText}>{renderBidButtonText(item)}</Text>
@@ -630,14 +689,14 @@ export default function BiddingScreen({ navigation }) {
                           <Text style={styles.myBidLabel}>My Bid: </Text>
                           <View style={styles.pesoAmountContainer}>
                             <PesoSymbol size={14} color="#333" />
-                            <Text style={[styles.myBidAmount, { marginLeft: 2 }]}>{item.myBid}</Text>
+                            <Text style={[styles.myBidAmount, { marginLeft: 2 }]}>{(item.myBid && !isNaN(item.myBid) ? item.myBid : 0).toLocaleString()}</Text>
                           </View>
                         </View>
                         <View style={styles.myBidRowContainer}>
                           <Text style={styles.myBidLabel}>Current: </Text>
                           <View style={styles.pesoAmountContainer}>
                             <PesoSymbol size={14} color="#2E6A2E" />
-                            <Text style={[styles.currentBidAmount, { marginLeft: 2 }]}>{item.currentBid}</Text>
+                            <Text style={[styles.currentBidAmount, { marginLeft: 2 }]}>{(item.currentBid && !isNaN(item.currentBid) ? item.currentBid : 0).toLocaleString()}</Text>
                           </View>
                         </View>
                       </View>
@@ -681,7 +740,8 @@ export default function BiddingScreen({ navigation }) {
                     <View style={styles.pesoAmountContainer}>
                       <PesoSymbol size={16} color="#666" />
                       <Text style={[styles.modalCurrentBid, { marginLeft: 2 }]}>
-                        {selectedItem.currentBid.toLocaleString()}
+                        {/* Ensure currentBid is a number before calling toLocaleString() */}
+                        {(selectedItem.currentBid && !isNaN(selectedItem.currentBid) ? selectedItem.currentBid : 0).toLocaleString()}
                       </Text>
                     </View>
                   </View>
@@ -689,7 +749,10 @@ export default function BiddingScreen({ navigation }) {
                     <Text style={styles.modalMinBid}>Minimum Bid: </Text>
                     <View style={styles.pesoAmountContainer}>
                       <PesoSymbol size={16} color="#2E6A2E" />
-                      <Text style={[styles.modalMinBid, { marginLeft: 2 }]}>{selectedItem.nextBid.toLocaleString()}</Text>
+                      <Text style={[styles.modalMinBid, { marginLeft: 2 }]}>
+                        {/* Ensure nextBid is a number before calling toLocaleString() */}
+                        {(selectedItem.nextBid && !isNaN(selectedItem.nextBid) ? selectedItem.nextBid : 0).toLocaleString()}
+                      </Text>
                     </View>
                   </View>
                   <View style={styles.inputContainer}>
@@ -700,7 +763,7 @@ export default function BiddingScreen({ navigation }) {
                         style={styles.bidInput}
                         value={bidAmount}
                         onChangeText={handleBidInputChange}
-                        placeholder={selectedItem.nextBid.toString()}
+                        placeholder={(selectedItem.nextBid && !isNaN(selectedItem.nextBid) ? selectedItem.nextBid : 0).toString()}
                         keyboardType="numeric"
                         autoFocus={true}
                         maxLength={6} // Enforce max 6 digits
@@ -1035,12 +1098,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    flex: 1,
+    flexShrink: 1, // FIX: Allow title to shrink
+    marginRight: 10, // FIX: Add margin to separate from badge
   },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    minWidth: 60, // FIX: Give it a minimum width
+    alignItems: 'center', // FIX: Center the text
   },
   statusText: {
     fontSize: 10,

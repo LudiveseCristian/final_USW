@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  Search, 
-  Filter, 
-  Package, 
-  Truck, 
-  CheckCircle, 
+import {
+  Search,
+  Truck,
+  CheckCircle,
   Star,
   Clock,
   Eye,
-  Edit3,
   Camera,
   X,
   ChevronLeft,
@@ -16,13 +13,34 @@ import {
   Calendar,
   User,
   MapPin,
-  Phone,
   Mail,
-  DollarSign
+  PhilippinePeso,
+  Package,
+  Tag,
+  ThumbsUp,
+  ListOrdered
 } from 'lucide-react'
 import { collection, onSnapshot, updateDoc, doc, addDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import { Card, CardContent, CardHeader, CardTitle, Button, Pagination, LoadingSpinner, EmptyState, StatusBadge } from './ui'
+// Assuming these are custom UI components
+import { Button, Pagination, LoadingSpinner, StatusBadge } from './ui'
+
+
+// Helper component for displaying the rating stars
+const RatingStars = ({ rating }) => {
+  const fullStars = Math.floor(rating);
+  const stars = [];
+  for (let i = 0; i < 5; i++) {
+    stars.push(
+      <Star
+        key={i}
+        className={`w-4 h-4 ${i < fullStars ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`}
+      />
+    );
+  }
+  return <div className="flex space-x-0.5">{stars}</div>;
+};
+
 
 const OrderManagement = () => {
   const [orders, setOrders] = useState([])
@@ -38,7 +56,8 @@ const OrderManagement = () => {
   const [trackingNumber, setTrackingNumber] = useState('')
   const [editingStatus, setEditingStatus] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(10)
+  // Set itemsPerPage to 8
+  const [itemsPerPage] = useState(8) 
 
   // Statistics
   const [stats, setStats] = useState({
@@ -55,11 +74,11 @@ const OrderManagement = () => {
 
       snapshot.docs.forEach((d) => {
         const data = d.data()
-        
+
         // Check if this is a won auction item
         if (data.status === 'sold' || data.winnerBidderId) {
-          const winnerBid = data.bids?.find(bid => 
-            bid.bidderName === data.highestBidder || 
+          const winnerBid = data.bids?.find(bid =>
+            bid.bidderName === data.highestBidder ||
             bid.bidderId === data.winnerBidderId
           )
 
@@ -92,9 +111,9 @@ const OrderManagement = () => {
 
       // Sort by order date (newest first)
       wonOrders.sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
-      
+
       setOrders(wonOrders)
-      
+
       // Calculate statistics
       const newStats = {
         all: wonOrders.length,
@@ -104,7 +123,7 @@ const OrderManagement = () => {
         rated: wonOrders.filter(o => o.orderStatus === 'rated').length
       }
       setStats(newStats)
-      
+
       setLoading(false)
     })
 
@@ -145,6 +164,7 @@ const OrderManagement = () => {
         orderStatus: newStatus,
         updatedAt: new Date().toISOString()
       }
+      const order = orders.find(o => o.id === orderId);
 
       if (newStatus === 'shipped') {
         updateData.shippingDate = new Date().toISOString()
@@ -152,28 +172,29 @@ const OrderManagement = () => {
           updateData.trackingNumber = trackingNumber.trim()
         }
       } else if (newStatus === 'delivered') {
-         const order = orders.find(o => o.id === orderId);
-      if (order.userRating) {
-        // Create feedback entry in feedbacks collection
-        await addDoc(collection(db, 'feedbacks'), {
-          orderId: orderId,
-          productTitle: order.title,
-          productImage: order.images[0] || null,
-          userName: order.winnerName,
-          userEmail: order.winnerEmail,
-          rating: order.userRating,
-          reviewText: order.userReview || '',
-          status: 'pending',
-          submittedAt: new Date().toISOString(),
-          category: order.category
-        });
-      }
-
         updateData.deliveryDate = new Date().toISOString()
+        // Check if the order has a user rating/review upon delivery
+        if (order?.userRating) {
+          // Create feedback entry in feedbacks collection
+          await addDoc(collection(db, 'feedbacks'), {
+            orderId: orderId,
+            productTitle: order.title,
+            productImage: order.images[0] || null,
+            userName: order.winnerName,
+            userEmail: order.winnerEmail,
+            rating: order.userRating,
+            reviewText: order.userReview || '',
+            status: 'pending',
+            submittedAt: new Date().toISOString(),
+            category: order.category
+          });
+        }
+      } else if (newStatus === 'rated') {
+        updateData.ratedAt = new Date().toISOString();
       }
 
       await updateDoc(doc(db, 'products', orderId), updateData)
-      
+
       setEditingStatus(null)
       setTrackingNumber('')
       alert(`Order status updated to ${newStatus} successfully!`)
@@ -192,30 +213,30 @@ const OrderManagement = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'shipped':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'delivered':
-        return 'bg-green-100 text-green-800 border-green-200'
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'rated':
-        return 'bg-purple-100 text-purple-800 border-purple-200'
+        return 'bg-purple-100 text-purple-800 border-purple-200';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   }
 
   const getStatusIcon = (status) => {
     switch (status) {
       case 'pending':
-        return <Clock className="w-4 h-4" />
+        return <Clock className="w-4 h-4" />;
       case 'shipped':
-        return <Truck className="w-4 h-4" />
+        return <Truck className="w-4 h-4" />;
       case 'delivered':
-        return <Package className="w-4 h-4" />
+        return <CheckCircle className="w-4 h-4" />;
       case 'rated':
-        return <Star className="w-4 h-4" />
+        return <Star className="w-4 h-4" />;
       default:
-        return <Clock className="w-4 h-4" />
+        return <Clock className="w-4 h-4" />;
     }
   }
 
@@ -231,15 +252,16 @@ const OrderManagement = () => {
   }
 
   const formatCurrency = (amount) => {
-    return `₱${amount.toLocaleString()}`
+    if (typeof amount !== 'number') return '₱0.00';
+    return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   const tabs = [
-    { id: 'all', label: 'All Orders', count: stats.all },
-    { id: 'pending', label: 'Pending', count: stats.pending },
-    { id: 'shipped', label: 'Shipped', count: stats.shipped },
-    { id: 'delivered', label: 'Delivered', count: stats.delivered },
-    { id: 'rated', label: 'Completed', count: stats.rated }
+    { id: 'all', label: 'All Orders', count: stats.all, icon: ListOrdered }, // Add icon for 'all' tab
+    { id: 'pending', label: 'Pending', count: stats.pending, icon: Clock },
+    { id: 'shipped', label: 'Shipped', count: stats.shipped, icon: Truck },
+    { id: 'delivered', label: 'Delivered', count: stats.delivered, icon: CheckCircle },
+    { id: 'rated', label: 'Completed', count: stats.rated, icon: Star }
   ]
 
   if (loading) {
@@ -255,40 +277,53 @@ const OrderManagement = () => {
 
   return (
     <div className="min-h-screen bg-cream">
-      {/* Header */}
-      <div className="bg-[#135918] shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
-            <h1 className="text-3xl font-bold text-white">Order Management</h1>
-            <p className="mt-2 text-green-100">
-              Manage and track all winning auction orders • {stats.all} total orders
-            </p>
+      {/* 🟢 HEADER STYLE: Darker Green */}
+      <div className="bg-[#135918] rounded-b-3xl shadow-xl p-8 mb-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6">
+          <div className="flex justify-between items-start py-4">
+            <div>
+              <h1 className="text-4xl font-extrabold text-white flex items-center">
+                <ListOrdered className="w-8 h-8 mr-3 text-green-300" /> {/* Adjusted icon color */}
+                Order Management Dashboard
+              </h1>
+              <p className="mt-2 text-green-300 text-lg"> {/* Adjusted text color */}
+                View, track, and manage all winning auction orders.
+              </p>
+            </div>
+            {/* Main Total Order Stat */}
+            <div className="text-right">
+                <p className="text-6xl font-bold text-white leading-none">{stats.all}</p>
+                <p className="text-green-300 mt-1">Total Orders</p> {/* Adjusted text color */}
+            </div>
+          </div>
+
+          {/* Integrated Statistics Cards */}
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
+            {tabs.filter(tab => tab.id !== 'all').map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <div 
+                  key={tab.id} 
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-green-700/30 text-white shadow-md transition-all duration-300 hover:bg-white/20" // Adjusted border color
+                >
+                  <div className="flex items-center space-x-3">
+                    <Icon className="w-6 h-6 text-green-300" />
+                    <div>
+                      <p className="text-sm font-medium opacity-80">{tab.label}</p>
+                      <p className="text-2xl font-bold">{tab.count}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
-
-      {/* Statistics Cards */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {tabs.slice(1).map((tab) => (
-            <div key={tab.id} className="bg-white rounded-xl shadow-md p-6 border border-green-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{tab.label}</p>
-                  <p className="text-2xl font-bold text-[#135918]">{tab.count}</p>
-                </div>
-                <div className="p-3 bg-green-100 rounded-full">
-                  {getStatusIcon(tab.id)}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* END HEADER STYLE */}
 
       {/* Controls */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-        <div className="bg-white rounded-xl shadow-md p-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 -mt-6">
+        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
           {/* Search Bar */}
           <div className="mb-6">
             <div className="relative">
@@ -298,44 +333,47 @@ const OrderManagement = () => {
                 placeholder="Search orders by title, winner name, email, or ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-green-200 rounded-lg focus:border-[#135918] focus:ring-2 focus:ring-green-200 transition-colors"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-colors"
               />
             </div>
           </div>
 
           {/* Tab Navigation */}
           <div className="flex flex-wrap gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-[#135918] text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {tab.id !== 'all' && getStatusIcon(tab.id)}
-                <span className={tab.id !== 'all' ? 'ml-2' : ''}>{tab.label}</span>
-                {tab.count > 0 && (
-                  <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+            {tabs.map((tab) => {
+              const Icon = tab.icon || ListOrdered;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-white text-[#135918]'
-                      : 'bg-gray-300 text-gray-700'
-                  }`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
+                      ? 'bg-[#135918] text-white shadow-md' // Adjusted active tab background color
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${tab.id !== 'all' ? 'mr-2' : ''}`} />
+                  <span>{tab.label}</span>
+                  {tab.count > 0 && (
+                    <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                      activeTab === tab.id
+                        ? 'bg-white text-[#135918] font-bold' // Adjusted active tab text color
+                        : 'bg-gray-300 text-gray-700'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
 
-      {/* Orders List */}
+      {/* Orders Table List */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-md p-12 text-center">
+          <div className="bg-white rounded-xl shadow-md p-12 text-center border border-gray-200">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No orders found</h3>
             <p className="text-gray-500">
@@ -345,189 +383,179 @@ const OrderManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {currentOrders.map((order) => (
-              <div key={order.id} className="bg-white rounded-xl shadow-md overflow-hidden border border-green-100 hover:shadow-lg transition-shadow">
-                <div className="p-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                    {/* Product Image and Info */}
-                    <div className="lg:col-span-2">
-                      <div className="flex space-x-4">
-                        <div className="relative flex-shrink-0">
+          <div className="bg-white rounded-xl shadow-lg overflow-x-auto border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Product
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Winner/Bid
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {currentOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-green-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 w-12 h-12">
                           <img
+                            className="w-12 h-12 object-cover rounded-md cursor-pointer"
                             src={order.images[0] || 'https://via.placeholder.com/120x120/CCCCCC/FFFFFF?text=No+Image'}
                             alt={order.title}
-                            className="w-24 h-24 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
                             onClick={() => openImageModal(order.images, 0)}
                           />
-                          {order.images.length > 1 && (
-                            <div className="absolute -top-2 -right-2 bg-green-700 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
-                              {order.images.length}
-                            </div>
-                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-bold text-green-800 mb-1 truncate">
-                            {order.title}
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                            {order.description}
-                          </p>
-                          <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                            <span>Length: {order.length}″</span>
-                            <span>Width: {order.width}″</span>
-                            <span className="inline-flex items-center px-2 py-1 bg-gray-100 rounded">
-                              {order.category}
-                            </span>
+                        <div className="ml-4">
+                          <div className="text-sm font-semibold text-gray-900 truncate max-w-xs">{order.title}</div>
+                          <div className="text-xs text-gray-500 flex items-center mt-1">
+                            <Tag className='w-3 h-3 mr-1' /> {order.category}
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Winner Info */}
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-                        <User className="w-4 h-4 mr-2" />
-                        Winner Details
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center text-gray-600">
-                          <span className="font-medium">{order.winnerName}</span>
-                        </div>
-                        <div className="flex items-center text-gray-600">
-                          <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                          <span className="truncate">{order.winnerEmail}</span>
-                        </div>
-                        <div className="flex items-center text-green-700 font-bold">
-                          <DollarSign className="w-4 h-4 mr-2" />
-                          <span>{formatCurrency(order.winningBid)}</span>
-                        </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-800">{order.winnerName}</div>
+                      <div className="text-xs text-green-700 font-bold flex items-center mt-1">
+                        <PhilippinePeso className="w-3 h-3 mr-1" />
+                        {formatCurrency(order.winningBid)}
                       </div>
-                    </div>
-
-                    {/* Order Status and Actions */}
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-                        <Package className="w-4 h-4 mr-2" />
-                        Order Status
-                      </h4>
-                      <div className="space-y-3">
-                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(order.orderStatus)}`}>
-                          {getStatusIcon(order.orderStatus)}
-                          <span className="ml-2 capitalize">{order.orderStatus}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {/* Status Badge */}
+                      <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.orderStatus)}`}>
+                        {getStatusIcon(order.orderStatus)}
+                        <span className="ml-2 capitalize">{order.orderStatus}</span>
+                      </div>
+                      {/* Rating Indicator */}
+                      {order.orderStatus === 'rated' && order.userRating && (
+                        <div className='mt-2'>
+                          <RatingStars rating={order.userRating} />
                         </div>
-                        
-                        <div className="text-sm text-gray-600 space-y-1">
-                          <div className="flex items-center">
-                            <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                            <span>Ordered: {formatDate(order.orderDate)}</span>
-                          </div>
-                          {order.shippingDate && (
-                            <div className="flex items-center">
-                              <Truck className="w-4 h-4 mr-2 text-gray-400" />
-                              <span>Shipped: {formatDate(order.shippingDate)}</span>
-                            </div>
-                          )}
-                          {order.deliveryDate && (
-                            <div className="flex items-center">
-                              <CheckCircle className="w-4 h-4 mr-2 text-gray-400" />
-                              <span>Delivered: {formatDate(order.deliveryDate)}</span>
-                            </div>
-                          )}
-                          {order.trackingNumber && (
-                            <div className="flex items-center">
-                              <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                              <span>Tracking: {order.trackingNumber}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Status Update Buttons */}
-                        <div className="flex flex-wrap gap-2">
-                          {order.orderStatus === 'pending' && (
-                            <div className="space-y-2 w-full">
-                              {editingStatus === order.id ? (
-                                <div className="space-y-2">
-                                  <input
-                                    type="text"
-                                    placeholder="Tracking number (optional)"
-                                    value={trackingNumber}
-                                    onChange={(e) => setTrackingNumber(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:border-green-500 focus:ring-2 focus:ring-green-200"
-                                  />
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => handleStatusUpdate(order.id, 'shipped')}
-                                      className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center"
-                                    >
-                                      <Truck className="w-4 h-4 mr-1" />
-                                      Ship
-                                    </button>
-                                    <button
-                                      onClick={() => setEditingStatus(null)}
-                                      className="px-3 py-2 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400 transition-colors"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-700 flex items-center">
+                        <Calendar className="w-3 h-3 mr-1 text-gray-400" />
+                        {formatDate(order.orderDate)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {order.trackingNumber ? `Tracking: ${order.trackingNumber}` : 'No tracking yet'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      {/* Status Update/Action Buttons */}
+                      <div className="space-y-2">
+                        {order.orderStatus === 'pending' && (
+                          <div className='w-full'>
+                            {editingStatus === order.id ? (
+                              <div className='space-y-1'>
+                                <input
+                                  type="text"
+                                  placeholder="Tracking #"
+                                  value={trackingNumber}
+                                  onChange={(e) => setTrackingNumber(e.target.value)}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-green-500 focus:border-green-500"
+                                />
+                                <div className='flex gap-1'>
+                                  <Button
+                                    onClick={() => handleStatusUpdate(order.id, 'shipped')}
+                                    className="flex-1 bg-blue-600 text-white px-2 py-1 text-xs hover:bg-blue-700"
+                                    size="sm"
+                                  >
+                                    <Truck className="w-3 h-3 mr-1" /> Ship
+                                  </Button>
+                                  <Button
+                                    onClick={() => setEditingStatus(null)}
+                                    className="bg-gray-300 text-gray-700 px-2 py-1 text-xs hover:bg-gray-400"
+                                    size="sm"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
                                 </div>
-                              ) : (
-                                <button
-                                  onClick={() => setEditingStatus(order.id)}
-                                  className="w-full bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center"
-                                >
-                                  <Truck className="w-4 h-4 mr-2" />
-                                  Mark as Shipped
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          
-                          {order.orderStatus === 'shipped' && (
-                            <button
-                              onClick={() => handleStatusUpdate(order.id, 'delivered')}
-                              className="w-full bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors flex items-center justify-center"
-                            >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Mark as Delivered
-                            </button>
-                          )}
-                          
-                          <button
-                            onClick={() => {
-                              setSelectedOrder(order)
-                              setShowModal(true)
-                            }}
-                            className="w-full bg-gray-600 text-white px-3 py-2 rounded text-sm hover:bg-gray-700 transition-colors flex items-center justify-center"
+                              </div>
+                            ) : (
+                              <Button
+                                onClick={() => {
+                                  setEditingStatus(order.id);
+                                  setTrackingNumber(order.trackingNumber || '');
+                                }}
+                                className="w-full bg-blue-600 text-white px-3 py-2 text-sm hover:bg-blue-700"
+                                size="sm"
+                              >
+                                <Truck className="w-4 h-4 mr-2" /> Ship
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {order.orderStatus === 'shipped' && (
+                          <Button
+                            onClick={() => handleStatusUpdate(order.id, 'delivered')}
+                            className="w-full bg-green-600 text-white px-3 py-2 text-sm hover:bg-green-700"
+                            size="sm"
                           >
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Details
-                          </button>
-                        </div>
+                            <CheckCircle className="w-4 h-4 mr-2" /> Delivered
+                          </Button>
+                        )}
+                        
+                        {order.orderStatus === 'delivered' && !order.userRating && (
+                            <Button
+                                onClick={() => handleStatusUpdate(order.id, 'rated')}
+                                className="w-full bg-purple-600 text-white px-3 py-2 text-sm hover:bg-purple-700"
+                                size="sm"
+                            >
+                                <ThumbsUp className="w-4 h-4 mr-2" /> Complete
+                            </Button>
+                        )}
+                        
+                        {/* Always show View Details */}
+                        <Button
+                          onClick={() => {
+                            setSelectedOrder(order)
+                            setShowModal(true)
+                          }}
+                          className="w-full bg-gray-600 text-white px-3 py-2 text-sm hover:bg-gray-700"
+                          size="sm"
+                        >
+                          <Eye className="w-4 h-4 mr-2" /> View
+                        </Button>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-8">
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={setCurrentPage}
-                  itemsPerPage={itemsPerPage}
-                  totalItems={filteredOrders.length}
-                />
-              </div>
-            )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="mt-8">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredOrders.length}
+            />
           </div>
         )}
       </div>
 
-      {/* Order Details Modal */}
+
+      {/* Order Details Modal (Unchanged) */}
       {showModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -573,7 +601,7 @@ const OrderManagement = () => {
                     <div><strong>Winning Bid:</strong> {formatCurrency(selectedOrder.winningBid)}</div>
                   </div>
                 </div>
-                
+
                 <div>
                   <h3 className="font-semibold text-gray-800 mb-3">Order Timeline</h3>
                   <div className="space-y-2 text-sm">
@@ -590,6 +618,12 @@ const OrderManagement = () => {
                     {selectedOrder.trackingNumber && (
                       <div><strong>Tracking Number:</strong> {selectedOrder.trackingNumber}</div>
                     )}
+                    <div className='pt-2'>
+                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(selectedOrder.orderStatus)}`}>
+                            {getStatusIcon(selectedOrder.orderStatus)}
+                            <span className="ml-2 capitalize">{selectedOrder.orderStatus}</span>
+                        </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -603,12 +637,26 @@ const OrderManagement = () => {
                   <div><strong>User ID:</strong> {selectedOrder.winnerId}</div>
                 </div>
               </div>
+              
+              {/* Review/Rating Section */}
+              {selectedOrder.userRating && (
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+                    <Star className="w-4 h-4 mr-2 text-amber-500" /> User Feedback
+                  </h3>
+                  <div className="bg-amber-50 rounded-lg p-4 space-y-2 text-sm border border-amber-200">
+                    <RatingStars rating={selectedOrder.userRating} />
+                    <div className="font-medium text-gray-700">Review:</div>
+                    <p className="text-gray-600 italic">"{selectedOrder.userReview || 'No review text provided.'}"</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Image Modal */}
+      {/* Image Modal (Unchanged) */}
       {showImageModal && (
         <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50">
           <div className="relative w-full h-full flex items-center justify-center">
@@ -618,11 +666,11 @@ const OrderManagement = () => {
             >
               <X className="w-6 h-6" />
             </button>
-            
+
             {selectedImages.length > 1 && (
               <>
                 <button
-                  onClick={() => setCurrentImageIndex(prev => 
+                  onClick={() => setCurrentImageIndex(prev =>
                     prev > 0 ? prev - 1 : selectedImages.length - 1
                   )}
                   className="absolute left-4 p-2 bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-70 transition-colors z-10"
@@ -630,7 +678,7 @@ const OrderManagement = () => {
                   <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
-                  onClick={() => setCurrentImageIndex(prev => 
+                  onClick={() => setCurrentImageIndex(prev =>
                     prev < selectedImages.length - 1 ? prev + 1 : 0
                   )}
                   className="absolute right-4 p-2 bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-70 transition-colors z-10"
@@ -639,11 +687,11 @@ const OrderManagement = () => {
                 </button>
               </>
             )}
-            
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-50 px-4 py-2 rounded-full">
+
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-50 px-4 py-2 rounded-full z-10">
               {currentImageIndex + 1} of {selectedImages.length}
             </div>
-            
+
             <img
               src={selectedImages[currentImageIndex]}
               alt="Full size view"

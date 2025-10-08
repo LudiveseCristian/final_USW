@@ -16,6 +16,11 @@ import {
 import { db, storage } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
+// Define the primary dark green color
+const PRIMARY_COLOR = '#135918';
+const LIGHT_ACCENT_COLOR = 'text-green-300';
+const RING_COLOR = 'focus:ring-[#135918]/50 focus:border-[#135918]';
+
 const AdminMessages = () => {
   const [selectedChat, setSelectedChat] = useState(null);
   const [message, setMessage] = useState('');
@@ -35,49 +40,49 @@ const AdminMessages = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
 
   const handleImageUpload = async (event) => {
-  const file = event.target.files[0];
-  if (!file || !selectedChat?.id) return;
+    const file = event.target.files[0];
+    if (!file || !selectedChat?.id) return;
 
-  try {
-    setUploadingImage(true);
+    try {
+      setUploadingImage(true);
 
-    // Upload to Firebase Storage
-    const filename = `chat-images/${selectedChat.id}/${Date.now()}-${file.name}`;
-    const imageRef = ref(storage, filename);
-    
-    await uploadBytes(imageRef, file);
-    const downloadURL = await getDownloadURL(imageRef);
+      // Upload to Firebase Storage
+      const filename = `chat-images/${selectedChat.id}/${Date.now()}-${file.name}`;
+      const imageRef = ref(storage, filename);
+      
+      await uploadBytes(imageRef, file);
+      const downloadURL = await getDownloadURL(imageRef);
 
-    // Send message with image
-    const messagesRef = collection(db, 'conversations', selectedChat.id, 'messages');
-    await addDoc(messagesRef, {
-      senderId: 'admin',
-      senderType: 'admin',
-      imageUrl: downloadURL,
-      type: 'image',
-      timestamp: serverTimestamp(),
-      status: 'delivered'
-    });
+      // Send message with image
+      const messagesRef = collection(db, 'conversations', selectedChat.id, 'messages');
+      await addDoc(messagesRef, {
+        senderId: 'admin',
+        senderType: 'admin',
+        imageUrl: downloadURL,
+        type: 'image',
+        timestamp: serverTimestamp(),
+        status: 'delivered'
+      });
 
-    // Update conversation metadata
-    const conversationRef = doc(db, 'conversations', selectedChat.id);
-    const conversationDoc = await getDoc(conversationRef);
-    const userUid = conversationDoc.data()?.userProfile?.uid;
-    const currentUnread = conversationDoc.data()?.unreadCount?.[userUid] || 0;
-    
-    await updateDoc(conversationRef, {
-      lastMessage: '📷 Photo',
-      lastMessageTime: serverTimestamp(),
-      [`unreadCount.${userUid}`]: currentUnread + 1,
-    });
+      // Update conversation metadata
+      const conversationRef = doc(db, 'conversations', selectedChat.id);
+      const conversationDoc = await getDoc(conversationRef);
+      const userUid = conversationDoc.data()?.userProfile?.uid;
+      const currentUnread = conversationDoc.data()?.unreadCount?.[userUid] || 0;
+      
+      await updateDoc(conversationRef, {
+        lastMessage: '📷 Photo',
+        lastMessageTime: serverTimestamp(),
+        [`unreadCount.${userUid}`]: currentUnread + 1,
+      });
 
-  } catch (error) {
-    console.error('Upload error:', error);
-    alert('Failed to send image');
-  } finally {
-    setUploadingImage(false);
-  }
-};
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Failed to send image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   // Listen to all conversations
   useEffect(() => {
@@ -211,12 +216,13 @@ const AdminMessages = () => {
       // Update conversation metadata
       const conversationRef = doc(db, 'conversations', selectedChat.id);
       const conversationDoc = await getDoc(conversationRef);
-      const currentUnread = conversationDoc.data()?.unreadCount?.[conversationDoc.data()?.userProfile?.uid] || 0;
+      const userUid = conversationDoc.data()?.userProfile?.uid;
+      const currentUnread = conversationDoc.data()?.unreadCount?.[userUid] || 0;
       
       await updateDoc(conversationRef, {
         lastMessage: messageText,
         lastMessageTime: serverTimestamp(),
-        [`unreadCount.${conversationDoc.data()?.userProfile?.uid}`]: currentUnread + 1,
+        [`unreadCount.${userUid}`]: currentUnread + 1,
         adminTyping: false
       });
 
@@ -301,86 +307,84 @@ const AdminMessages = () => {
   const filteredConversations = conversations
     .filter(conv => {
       const matchesSearch = conv.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          conv.user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
+                           conv.user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesFilter = filterType === 'all' ? true :
-                          filterType === 'active' ? conv.status === 'active' :
-                          filterType === 'resolved' ? conv.status === 'resolved' : true;
+                            filterType === 'active' ? conv.status === 'active' :
+                            filterType === 'resolved' ? conv.status === 'resolved' : true;
       
       return matchesSearch && matchesFilter;
     });
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="h-screen flex flex-col bg-[#F9F7F1]">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+      <div className="bg-[#135918] shadow-xl">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <MessageCircle className="text-green-600" size={28} />
+              {/* Updated Header Title */}
+              <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                <MessageCircle className={LIGHT_ACCENT_COLOR} size={28} />
                 Admin Messaging Center
               </h1>
-              <p className="text-sm text-gray-500 mt-1">Manage customer conversations in real-time</p>
+              {/* Updated Subtitle Color */}
+              <p className={`text-sm ${LIGHT_ACCENT_COLOR} mt-1 opacity-80`}>Manage customer conversations in real-time</p>
             </div>
             <div className="flex items-center gap-4">
-              <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <Bell size={20} className="text-gray-600" />
+              <button className="relative p-2 hover:bg-[#1f7c22] rounded-lg transition-colors text-white">
+                <Bell size={20} className="text-white" />
                 {stats.pending > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
                 )}
               </button>
-              <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg">
-                <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-semibold">
-                  A
-                </div>
-                <span className="text-sm font-medium text-gray-700">Admin</span>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* Stats Bar */}
+        {/* Stats Bar - Kept for visual separation but removed white background on stats for a cleaner look */}
         <div className="px-6 pb-4 grid grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-4 border border-gray-200 shadow-sm">
+          {/* Stats card updates */}
+          <div className="bg-white/10 rounded-lg p-4 border border-white/20 shadow-sm text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 uppercase font-medium">Active Chats</p>
-                <p className="text-2xl font-bold text-gray-800 mt-1">{stats.activeChats}</p>
+                <p className="text-xs text-white/70 uppercase font-medium">Active Chats</p>
+                <p className="text-2xl font-bold mt-1">{stats.activeChats}</p>
               </div>
-              <div className="w-10 h-10 bg-green-500 rounded-lg opacity-20"></div>
+              <div className="w-10 h-10 bg-white rounded-lg opacity-20"></div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="bg-white/10 rounded-lg p-4 border border-white/20 shadow-sm text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 uppercase font-medium">Pending</p>
-                <p className="text-2xl font-bold text-gray-800 mt-1">{stats.pending}</p>
+                <p className="text-xs text-white/70 uppercase font-medium">Pending</p>
+                <p className="text-2xl font-bold mt-1">{stats.pending}</p>
               </div>
-              <div className="w-10 h-10 bg-yellow-500 rounded-lg opacity-20"></div>
+              <div className="w-10 h-10 bg-yellow-400 rounded-lg opacity-20"></div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="bg-white/10 rounded-lg p-4 border border-white/20 shadow-sm text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 uppercase font-medium">Resolved Today</p>
-                <p className="text-2xl font-bold text-gray-800 mt-1">{stats.resolvedToday}</p>
+                <p className="text-xs text-white/70 uppercase font-medium">Resolved Today</p>
+                <p className="text-2xl font-bold mt-1">{stats.resolvedToday}</p>
               </div>
-              <div className="w-10 h-10 bg-blue-500 rounded-lg opacity-20"></div>
+              <div className="w-10 h-10 bg-blue-400 rounded-lg opacity-20"></div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="bg-white/10 rounded-lg p-4 border border-white/20 shadow-sm text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 uppercase font-medium">Avg Response</p>
-                <p className="text-2xl font-bold text-gray-800 mt-1">{stats.avgResponse}</p>
+                <p className="text-xs text-white/70 uppercase font-medium">Avg Response</p>
+                <p className="text-2xl font-bold mt-1">{stats.avgResponse}</p>
               </div>
-              <div className="w-10 h-10 bg-purple-500 rounded-lg opacity-20"></div>
+              <div className="w-10 h-10 bg-purple-400 rounded-lg opacity-20"></div>
             </div>
           </div>
         </div>
       </div>
+      {/* End Header */}
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar - Conversations List */}
@@ -394,14 +398,16 @@ const AdminMessages = () => {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                // Updated focus ring color
+                className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${RING_COLOR}`}
               />
             </div>
             <div className="flex gap-2 mt-3">
+              {/* Updated Filter Button active state */}
               <button 
                 onClick={() => setFilterType('all')}
                 className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  filterType === 'all' ? 'bg-green-600 text-white' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                  filterType === 'all' ? 'bg-[#135918] text-white' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
                 }`}
               >
                 All
@@ -409,7 +415,7 @@ const AdminMessages = () => {
               <button 
                 onClick={() => setFilterType('active')}
                 className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  filterType === 'active' ? 'bg-green-600 text-white' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                  filterType === 'active' ? 'bg-[#135918] text-white' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
                 }`}
               >
                 Active
@@ -417,7 +423,7 @@ const AdminMessages = () => {
               <button 
                 onClick={() => setFilterType('resolved')}
                 className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  filterType === 'resolved' ? 'bg-green-600 text-white' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                  filterType === 'resolved' ? 'bg-[#135918] text-white' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
                 }`}
               >
                 Resolved
@@ -434,13 +440,15 @@ const AdminMessages = () => {
               <div
                 key={conv.id}
                 onClick={() => setSelectedChat(conv)}
+                // Updated selected chat background and border colors
                 className={`p-4 border-b border-gray-100 cursor-pointer transition-all hover:bg-gray-50 ${
-                  selectedChat?.id === conv.id ? 'bg-green-50 border-l-4 border-l-green-600' : ''
+                  selectedChat?.id === conv.id ? 'bg-green-50 border-l-4 border-l-[#135918]' : ''
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div className="relative flex-shrink-0">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white font-bold">
+                    {/* Updated Avatar Gradient */}
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-[#135918] rounded-full flex items-center justify-center text-white font-bold">
                       {conv.user.avatar}
                     </div>
                     <div className={`absolute bottom-0 right-0 w-3 h-3 ${getStatusColor(conv.user.status)} rounded-full border-2 border-white`}></div>
@@ -453,7 +461,8 @@ const AdminMessages = () => {
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-gray-600 truncate">{conv.lastMessage || 'No messages yet'}</p>
                       {conv.unread > 0 && (
-                        <span className="ml-2 flex-shrink-0 w-5 h-5 bg-green-600 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                        // Updated Unread Badge color
+                        <span className="ml-2 flex-shrink-0 w-5 h-5 bg-[#135918] text-white text-xs rounded-full flex items-center justify-center font-medium">
                           {conv.unread}
                         </span>
                       )}
@@ -484,7 +493,8 @@ const AdminMessages = () => {
               <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white font-bold">
+                    {/* Updated Avatar Gradient */}
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-[#135918] rounded-full flex items-center justify-center text-white font-bold">
                       {selectedChat.user.avatar}
                     </div>
                     <div className={`absolute bottom-0 right-0 w-3 h-3 ${getStatusColor(selectedChat.user.status)} rounded-full border-2 border-white`}></div>
@@ -495,9 +505,10 @@ const AdminMessages = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Updated Resolve Button color */}
                   <button 
                     onClick={handleResolveChat}
-                    className="px-4 py-2 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-[#135918] bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                   >
                     Mark Resolved
                   </button>
@@ -521,9 +532,9 @@ const AdminMessages = () => {
                       <div
                         className={`px-4 py-3 rounded-2xl ${
                           isWinNotification 
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white border-2 border-green-400'
+                            ? 'bg-gradient-to-r from-green-600 to-[#135918] text-white border-2 border-green-400' // Updated gradient to use primary color
                             : msg.senderType === 'admin'
-                            ? 'bg-green-600 text-white rounded-br-sm'
+                            ? 'bg-[#135918] text-white rounded-br-sm' // Updated admin bubble color
                             : 'bg-white text-gray-800 border border-gray-200 rounded-bl-sm'
                         }`}
                       >
@@ -556,7 +567,8 @@ const AdminMessages = () => {
                           {msg.timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                         </span>
                         {msg.senderType === 'admin' && (
-                          <span className="text-green-600">
+                          // Updated checkmark color for contrast
+                          <span className={LIGHT_ACCENT_COLOR}> 
                             {msg.status === 'read' ? <CheckCheck size={14} /> : 
                             msg.status === 'delivered' ? <CheckCheck size={14} /> : 
                             <Check size={14} />}
@@ -574,20 +586,21 @@ const AdminMessages = () => {
               <div className="bg-white border-t border-gray-200 p-4">
                 <div className="flex items-end gap-3">
                   <div className="flex gap-2">
-                          <label className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
-                            {uploadingImage ? (
-                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
-                            ) : (
-                              <Image size={20} />
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleImageUpload}
-                              className="hidden"
-                              disabled={uploadingImage}
-                            />
-                          </label>
+                            <label className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                              {uploadingImage ? (
+                                // Updated spinner border color
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#135918]"></div>
+                              ) : (
+                                <Image size={20} />
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                className="hidden"
+                                disabled={uploadingImage}
+                              />
+                            </label>
                   </div>
                   <div className="flex-1 relative">
                     <textarea
@@ -601,14 +614,16 @@ const AdminMessages = () => {
                       }}
                       placeholder="Type your message..."
                       rows="1"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                      // Updated focus ring color
+                      className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 ${RING_COLOR} resize-none`}
                       style={{ minHeight: '48px', maxHeight: '120px' }}
                     />
                   </div>
+                  {/* Updated Send Button color */}
                   <button 
                     onClick={handleSendMessage}
                     disabled={!message.trim()}
-                    className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors flex items-center gap-2 font-medium shadow-lg shadow-green-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-3 bg-[#135918] text-white rounded-xl hover:bg-[#1f7c22] transition-colors flex items-center gap-2 font-medium shadow-lg shadow-[#135918]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send size={18} />
                     Send

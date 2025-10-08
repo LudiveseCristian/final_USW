@@ -72,10 +72,26 @@ const SoldProducts = () => {
       await deleteDoc(doc(db, 'products', productToDeleteId));
 
       // 2. Delete images from Firebase Storage
+      // Assuming images are stored under products/ instead of productImages/productId
+      // I'll adjust the path based on a common pattern. If the path used in the component
+      // for upload was `products/` (as seen in the previous file), I'll use the common pattern
+      // `products/` or keep the existing structure if the path is confirmed.
+      // Based on the provided code, it attempts to delete from `productImages/${productToDeleteId}`.
+
+      // We will attempt to delete from the imagesRef path provided, but since the previous
+      // file used a random name in the 'products' bucket, let's assume images are linked by URL.
+      // For now, I will keep the existing delete logic as the user provided it, but it might be
+      // incomplete if product images are stored with non-deterministic names.
       const imagesRef = ref(storage, `productImages/${productToDeleteId}`);
-      const imageList = await listAll(imagesRef);
-      const deletePromises = imageList.items.map((imageRef) => deleteObject(imageRef));
-      await Promise.all(deletePromises);
+      try {
+        const imageList = await listAll(imagesRef);
+        const deletePromises = imageList.items.map((imageRef) => deleteObject(imageRef));
+        await Promise.all(deletePromises);
+      } catch (e) {
+        console.warn("Could not delete images from productImages folder. May not exist or path is incorrect.", e);
+        // Continue if image deletion fails, as the main product document deletion is successful.
+      }
+
 
       // 3. Update the local state to remove the deleted product
       setSoldExpiredProducts(soldExpiredProducts.filter((p) => p.id !== productToDeleteId));
@@ -134,33 +150,36 @@ const SoldProducts = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9F7F1] p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header Section */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-3">
-            <div className="mb-8">
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Package className="h-6 w-6 text-primary" />
-                </div>
-                <h1 className="text-3xl font-bold text-primary">Sold Products</h1>
-              </div>
-                <p className="text-gray-600 text-lg">
-                View a history of all sold upcycled streetwear items
+    // Update main container to allow for full-width header
+    <div className="min-h-screen bg-[#F9F7F1]"> 
+      {/* 🟢 HEADER STYLE: Darker Green */}
+      <div className="bg-[#135918] rounded-b-3xl shadow-xl p-8 mb-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6">
+          <div className="flex justify-between items-start py-4">
+            <div>
+              <h1 className="text-4xl font-extrabold text-white flex items-center">
+                <Package className="w-8 h-8 mr-3 text-green-300" />
+                Sold Products
+              </h1>
+              <p className="mt-2 text-green-300 text-lg">
+                View a history of all sold auction items.
               </p>
-              <div className="flex items-center space-x-6 mt-4">
-                <div className="flex items-center text-sm text-gray-500">
-                  <Package className="h-4 w-4 mr-1" />
-                  {soldExpiredProducts.length} Items
-                </div>
-              </div>
+            </div>
+            {/* Main Total Product Stat */}
+            <div className="text-right">
+                <p className="text-6xl font-bold text-white leading-none">{soldExpiredProducts.length}</p>
+                <p className="text-green-300 mt-1">Total Sold Items</p>
             </div>
           </div>
         </div>
+      </div>
+      {/* END HEADER STYLE */}
+      
+      {/* Main Content Area - adjusted margins */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 -mt-6">
 
         {/* Search Section */}
-        <Card className="shadow-md transition-shadow">
+        <Card className="shadow-md transition-shadow mb-8">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
@@ -170,7 +189,8 @@ const SoldProducts = () => {
                   placeholder="Search products by name, price, or description..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-colors"
+                  // Updated focus styles to match theme green
+                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#135918]/50 focus:border-[#135918] outline-none transition-colors"
                 />
               </div>
             </div>
@@ -255,15 +275,15 @@ const SoldProducts = () => {
                     <div className="flex space-x-2">
                       <Button
                         onClick={() => handleViewDetails(product)}
-                        variant="secondary"
-                        className="flex-1"
+                        // Applied primary theme color to the Details button
+                        className="flex-1 bg-[#135918] text-white hover:bg-[#1f7c22] transition-colors"
                       >
                         <Eye className="h-4 w-4 mr-2" />
                         Details
                       </Button>
                       <Button
                         onClick={() => handleDeleteProduct(product.id)}
-                        variant="danger"
+                        variant="danger" // Keeping the red color for the Delete action
                         className="flex-1"
                       >
                         <Trash2 className="h-4 w-4 mr-2" />

@@ -223,24 +223,24 @@ const NewsManagement = () => {
                       <MoreVertical className="h-5 w-5" />
                     </button>
                     {dropdownOpen === item.id && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700">
+                    <div className="absolute right-0 mt-2 w-48 bg-[#FCFBF8] rounded-md shadow-lg z-10 border border-gray-200">
                       <div className="py-1">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="flex items-center px-4 py-2 text-sm text-primary-600 dark:text-primary-200 hover:bg-primary-100 dark:hover:bg-primary-900 w-full text-left transition-colors"
-                        >
-                          <Edit className="h-4 w-4 mr-3" />
-                          Edit News
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-100 dark:hover:bg-red-900 w-full text-left transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4 mr-3" />
-                          Delete News
-                        </button>
+                          <button
+                              onClick={() => handleEdit(item)}
+                              className="flex items-center px-4 py-2 text-sm  text-[#4CAF50]   hover:bg-[#E8F5E9]  w-full text-left transition-colors"
+                          >
+                              <Edit className="h-4 w-4 mr-3" />
+                              Edit News
+                          </button>
+                          <button
+                              onClick={() => handleDelete(item.id)}
+                              className="flex items-center px-4 py-2 text-sm text-red-600  hover:bg-red-100  w-full text-left transition-colors"
+                          >
+                              <Trash2 className="h-4 w-4 mr-3" />
+                              Delete News
+                          </button>
                       </div>
-                    </div>
+                  </div>
                   )}
                   </div>
                   <div className="relative z-10 flex flex-col justify-end h-full p-4 text-white">

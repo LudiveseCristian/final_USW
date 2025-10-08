@@ -15,6 +15,7 @@ import {
   Gavel,
   Timer,
   TrendingUp,
+  ListOrdered
 } from 'lucide-react';
 import {
   collection,
@@ -25,8 +26,8 @@ import {
   getDocs,
   getDoc,
   onSnapshot,
-  query,      
-  where      
+  query,
+  where
 } from 'firebase/firestore';
 import { db, storage } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -34,6 +35,7 @@ import ProductsModal from '../modals/ProductsModal';
 import BidManagementModal from '../modals/BidManagementModal';
 import CategoryModal from '../modals/CategoryModal';
 import { useAlert } from "../contexts/alertContext";
+// Assuming these are custom UI components
 import { Card, CardContent, Button, Pagination, LoadingSpinner, EmptyState, StatusBadge } from './ui';
 
 const ProductManagement = () => {
@@ -77,6 +79,48 @@ const ProductManagement = () => {
     highestBidder: null,
     orderId: '',
   });
+
+  // --- Theme Helpers ---
+  const formatPrice = (amount) => {
+    if (typeof amount !== 'number') return '₱0.00';
+    return `₱${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  const getTimeLeft = (endTime) => {
+    if (!endTime) return 'N/A';
+    const now = new Date();
+    const end = new Date(endTime);
+    const diff = end - now;
+
+    if (diff <= 0) return 'Expired';
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    let timeString = '';
+    if (days > 0) timeString += `${days}d `;
+    if (hours > 0) timeString += `${hours}h `;
+    if (minutes > 0) timeString += `${minutes}m`;
+
+    return timeString.trim() || '< 1m';
+  };
+
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'available':
+        return { label: 'Available', color: 'bg-green-100 text-green-800 border-green-200', icon: Tag };
+      case 'ending soon':
+        return { label: 'Ending Soon', color: 'bg-amber-100 text-amber-800 border-amber-200', icon: Timer };
+      case 'expired':
+        return { label: 'Expired', color: 'bg-red-100 text-red-800 border-red-200', icon: Clock };
+      case 'sold':
+        return { label: 'Sold', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: DollarSign };
+      default:
+        return { label: 'Draft', color: 'bg-gray-100 text-gray-800 border-gray-200', icon: Shirt };
+    }
+  };
+  // --- End Theme Helpers ---
 
   useEffect(() => {
     // Implement real-time listener for products collection
@@ -158,7 +202,7 @@ const ProductManagement = () => {
         ) {
           const timeLeft = new Date(product.bidEndTime) - now;
           const oneHourInMillis = 60 * 60 * 1000;
-          
+
           // Change status to 'ending soon' if less than 1 hour remains
           if (timeLeft > 0 && timeLeft < oneHourInMillis) {
             updateProductStatus(product.id, 'ending soon');
@@ -397,7 +441,6 @@ const ProductManagement = () => {
             lastMessageTime: new Date(),
             [`unreadCount.${acceptedBid.bidderId}`]: currentUnreadCount + 1
           });
-
           console.log('Win notification sent successfully');
         }
       } catch (notificationError) {
@@ -443,7 +486,9 @@ const ProductManagement = () => {
       console.error('Failed to create order document:', orderErr);
     }
 
-    showAlert('success',
+
+    showAlert(
+      'success',
       `Bid accepted! Product sold to ${acceptedBid.bidderName} for ₱${acceptedBid.amount.toLocaleString()}`
     );
     setShowBidModal(false);
@@ -456,13 +501,17 @@ const ProductManagement = () => {
   const handleRejectBid = async (productId, bid) => {
     try {
       const product = products.find((p) => p.id === productId);
+
       // Find the bid to remove by checking its properties
-      const updatedBids = product.bids.filter((b) => b.bidderId !== bid.bidderId || b.amount !== bid.amount || b.timestamp !== bid.timestamp);
+      const updatedBids = product.bids.filter(
+        (b) => b.bidderId !== bid.bidderId || b.amount !== bid.amount || b.timestamp !== bid.timestamp
+      );
 
       await updateDoc(doc(db, 'products', productId), {
         bids: updatedBids,
         updatedAt: new Date(),
       });
+
       setProducts(products.map((p) => (p.id === productId ? { ...p, bids: updatedBids } : p)));
       showAlert('success', 'Bid rejected successfully');
     } catch (error) {
@@ -478,18 +527,19 @@ const ProductManagement = () => {
       price: product.price?.toString() || '',
       minimumBid: product.minimumBid?.toString() || '',
       bidEndTime: product.bidEndTime
-        ? new Date(product.bidEndTime).toISOString().slice(0, 16)
+        ? new Date(product.bidEndTime).toISOString().substring(0, 16)
         : '',
-      orderId: product.orderId || '',
+      imageUrls: product.imageUrls || [],
     });
+    setImageFiles([]); // Clear new files when editing existing product
     setShowModal(true);
   };
 
   const handleDelete = async (productId) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
+    if (window.confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
       try {
         await deleteDoc(doc(db, 'products', productId));
-        setProducts(products.filter((p) => p.id !== productId));
+        setProducts(products.filter((product) => product.id !== productId));
         showAlert('success', 'Product deleted successfully!');
       } catch (error) {
         console.error('Error deleting product:', error);
@@ -498,12 +548,13 @@ const ProductManagement = () => {
     }
   };
 
-  const handleViewBids = (product) => {
+  const handleManageBids = (product) => {
     setSelectedBidProduct(product);
     setShowBidModal(true);
   };
 
   const resetForm = () => {
+    setEditingProduct(null);
     setFormData({
       name: '',
       description: '',
@@ -523,10 +574,11 @@ const ProductManagement = () => {
       highestBidder: null,
       orderId: '',
     });
-    setEditingProduct(null);
     setImageFiles([]);
-    setUploadProgress(0);
+    setDragActive(false);
   };
+
+  // --- Image Upload Handlers (Kept logic, adjusted styles if applicable in Modal) ---
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -542,593 +594,305 @@ const ProductManagement = () => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleImageFileChange({ target: { files: e.dataTransfer.files } });
     }
   };
 
   const handleImageFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    const validFiles = files.filter((file) => {
-      if (!file.type.startsWith('image/')) {
-        showAlert('error', `${file.name} is not an image file`);
-        return false;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        showAlert('error', `${file.name} is too large. Maximum size is 5MB`);
-        return false;
-      }
-      return true;
-    });
-    setImageFiles([...imageFiles, ...validFiles]);
+    if (e.target.files) {
+      // Convert FileList to Array and append to existing files
+      setImageFiles((prevFiles) => [...prevFiles, ...Array.from(e.target.files)]);
+      // Optionally reset the input value to allow selecting the same files again later
+      e.target.value = null;
+    }
   };
 
-  const removeImageFile = (indexToRemove) => {
-    setImageFiles(imageFiles.filter((_, index) => index !== indexToRemove));
+  const removeImageFile = (index) => {
+    setImageFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
   };
 
-  const removeImageUrl = (indexToRemove) => {
-    setFormData({
-      ...formData,
-      imageUrls: formData.imageUrls.filter((_, index) => index !== indexToRemove),
-    });
+  const removeImageUrl = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      imageUrls: prev.imageUrls.filter((_, i) => i !== index),
+    }));
   };
 
-  // --- Utility Functions ---
-  const getTimeLeft = (endTime) => {
-    if (!endTime) return 'No end time';
-    const now = new Date();
-    const end = new Date(endTime);
-    const diff = end - now;
-    if (diff <= 0) return 'Expired';
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
+  // --- Filtering and Pagination ---
 
-  const getBiddingProducts = () => {
-    return products
-      .filter((product) => product.biddingEnabled && product.bids?.length > 0)
-      .map((product) => {
-        const highestBid = product.bids.reduce((latest, current) => {
-          return new Date(latest.timestamp) > new Date(current.timestamp) ? latest : current;
-        }, product.bids[0]);
-
-        return {
-          ...product,
-          latestBid: highestBid,
-        };
-      });
-  };
+  const productStatuses = [
+    { id: 'all', label: 'All', icon: ListOrdered, color: 'text-gray-600' },
+    { id: 'available', label: 'Available', icon: Tag, color: 'text-green-500' },
+    { id: 'ending soon', label: 'Ending Soon', icon: Timer, color: 'text-amber-500' },
+    { id: 'expired', label: 'Expired', icon: Clock, color: 'text-red-500' },
+  ];
   
+  // Define the statuses that should be shown in the default 'all' view
+  const allowedStatusesForDefaultView = ['available', 'ending soon', 'expired'];
+
   const filteredProducts = products.filter((product) => {
+    
+    // Status check
+    let matchesStatus = false;
+    
+    if (filterStatus === 'all') {
+      // For the 'all' view, only include the explicitly allowed statuses (excluding 'sold')
+      matchesStatus = allowedStatusesForDefaultView.includes(product.status);
+    } else {
+      // For any other filter (e.g., 'sold', 'available', etc.), check for an exact match
+      matchesStatus = product.status === filterStatus;
+    }
+    
+    // Search check
     const matchesSearch =
-      product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.finalPrice && product.finalPrice.toString().includes(searchTerm)) ||
-      (product.price && product.price.toString().includes(searchTerm));
-
-    const matchesStatus =
-      filterStatus === 'all' || product.status === filterStatus;
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.id.toLowerCase().includes(searchTerm.toLowerCase());
       
-    // New condition to filter out sold and expired products
-    const isNotSold = product.status !== 'sold';
-    // Combine all filters
-    return matchesSearch && matchesStatus && isNotSold;
+    return matchesStatus && matchesSearch;
   });
+  
+  const productStatusWithCounts = productStatuses.map(status => ({
+    ...status,
+    count: status.id === 'all' ? products.filter(p => allowedStatusesForDefaultView.includes(p.status)).length : products.filter(p => p.status === status.id).length
+  }));
 
-  const formatPrice = (price) => {
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    return `₱${numPrice?.toLocaleString() || '0'}`;
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'available':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'sold':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'reserved':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'expired':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-      case 'ending soon':
-        return 'bg-orange-500 text-white border-orange-600';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getConditionIcon = (condition) => {
-    switch (condition) {
-      case 'Excellent':
-        return <Star className="h-4 w-4 text-yellow-500 fill-current" />;
-      case 'Good':
-        return <Star className="h-4 w-4 text-yellow-400" />;
-      case 'Fair':
-        return <Star className="h-4 w-4 text-yellow-300" />;
-      default:
-        return <Star className="h-4 w-4 text-gray-400" />;
-    }
-  };
+  // Fix: Calculate the total product count from the full 'products' array, not the filtered default view
+  const totalProductsCount = products.filter(product => product.status !== 'sold').length;
 
   // Pagination logic
-  const indexOfLastProduct = currentPage * productsPerPage;
-  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
   const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
-  const pageNumbers = [];
-  for (let i = 1; i <= totalPages; i++) {
-    pageNumbers.push(i);
-  }
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const startIndex = (currentPage - 1) * productsPerPage;
+  const endIndex = startIndex + productsPerPage;
+  const currentProducts = filteredProducts.slice(startIndex, endIndex);
 
-  // --- Rendered JSX ---
+  // --- Render ---
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center h-96">
-            <LoadingSpinner size="lg" />
-          </div>
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-700 mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-600">Loading products...</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
-    <div className="min-h-screen bg-cream p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-cream">
+      {/* 🟢 HEADER STYLE: Darker Green */}
+      <div className="bg-[#135918] rounded-b-3xl shadow-xl p-8 mb-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6">
+          <div className="flex justify-between items-start py-4">
             <div>
-              <h1 className="text-4xl font-bold text-green-800 mb-2">Product Management</h1>
-              <p className="text-lg text-gray-600">
-                Manage your upcycled streetwear inventory and bidding
+              <h1 className="text-4xl font-extrabold text-white flex items-center">
+                <Package className="w-8 h-8 mr-3 text-green-300" />
+                Product Management
+              </h1>
+              <p className="mt-2 text-green-300 text-lg">
+                Manage all auction products, inventory, and bidding details.
               </p>
-              <div className="flex items-center space-x-6 mt-4">
-                <div className="flex items-center text-sm text-gray-500">
-                  <Package className="h-4 w-4 mr-1" />
-                  {products.length} Products
-                </div>
-                <div className="flex items-center text-sm text-gray-500">
-                  <Gavel className="h-4 w-4 mr-1" />
-                  {getBiddingProducts().length} Active Auctions
-                </div>
-              </div>
             </div>
-            <div className='flex items-center gap-3'>
-              <button
+            {/* Main Total Product Stat */}
+            <div className="text-right">
+                <p className="text-6xl font-bold text-white leading-none">{totalProductsCount}</p>
+                <p className="text-green-300 mt-1">Total Products</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* END HEADER STYLE */}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 -mt-6">
+        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+          
+          {/* Action Buttons and Category Button */}
+          <div className="flex justify-between items-center mb-6">
+            <div className="space-x-4">
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setShowModal(true);
+                }}
+                className="bg-[#135918] text-white hover:bg-[#1f7c22] transition-colors"
+              >
+                <Plus className="w-5 h-5 mr-2" /> Add Product
+              </Button>
+              <Button
                 onClick={() => setShowCategoryModal(true)}
-                className="bg-[#135918] hover:bg-[#0F4713] text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-200"
+                className="bg-gray-600 text-white hover:bg-gray-700 transition-colors"
               >
-                <Plus className="h-5 w-5" />
-                <span>Add Category</span>
-              </button>
-              <button
-                onClick={() => setShowModal(true)}
-                className="bg-[#135918] hover:bg-[#0F4713] text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                <Plus className="h-5 w-5" />
-                <span>Add Product</span>
-              </button>
+                <Shirt className="w-5 h-5 mr-2" /> Manage Categories
+              </Button>
             </div>
           </div>
-        </div>
 
-        {/* Tab Navigation Section */}
-        <div className="bg-white rounded-2xl shadow-sm p-4 mb-8">
-          <div className="flex space-x-1">
-            <button
-              onClick={() => setActiveTab('products')}
-              className={`flex-1 px-4 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 transition-colors ${
-                activeTab === 'products'
-                  ? 'bg-[#135918] text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <Package className="h-5 w-5" />
-              <span>Products</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('bidding')}
-              className={`flex-1 px-4 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 transition-colors ${
-                activeTab === 'bidding'
-                  ? 'bg-[#135918] text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <Gavel className="h-5 w-5" />
-              <span>Bid Management</span>
-              {getBiddingProducts().length > 0 && (
-                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] h-5 flex items-center justify-center">
-                  {getBiddingProducts().length}
-                </span>
-              )}
-            </button>
+          {/* Search Bar */}
+          <div className="relative mb-6">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search products by name or ID..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1); // Reset page on search
+              }}
+              className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-colors"
+            />
+          </div>
+
+          {/* Status Tabs */}
+          <div className="flex flex-wrap gap-2">
+            {productStatusWithCounts.map((status) => {
+              const Icon = status.icon;
+              return (
+                <button
+                  key={status.id}
+                  onClick={() => {
+                    setFilterStatus(status.id);
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                    filterStatus === status.id
+                      ? 'bg-[#135918] text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 mr-2 ${filterStatus === status.id ? 'text-green-300' : status.color}`} />
+                  <span>{status.label}</span>
+                  {status.count >= 0 && ( // Ensure count is always displayed
+                    <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                      filterStatus === status.id
+                        ? 'bg-white text-[#135918] font-bold'
+                        : 'bg-gray-300 text-gray-700'
+                    }`}>
+                      {status.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
+      </div>
 
-        {/* Main Content: Products or Bid Management */}
-        {activeTab === 'products' ? (
-          <>
-            {/* Search and Filter Section */}
-            <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute
-                    left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                  <input
-                    type="text"
-                    placeholder="Search products by name, description, or category..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#135918] focus:border-[#135918] outline-none transition-colors"
-                  />
-                </div>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#135918] focus:border-[#135918] outline-none bg-white min-w-[160px]"
-                >
-                  <option value="all">All Status</option>
-                  <option value="available">Available</option>
-                  <option value="upcoming">Upcoming</option>
-                  <option value="expired">Expired</option>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {filteredProducts.length === 0 ? (
+          <EmptyState
+            title="No Products Found"
+            message={
+              searchTerm
+                ? 'No products match your search criteria.'
+                : `No ${filterStatus === 'all' ? '' : filterStatus} products available.`
+            }
+            icon={Package}
+          >
+            {filterStatus === 'all' && (
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setShowModal(true);
+                }}
+                className="bg-[#135918] text-white hover:bg-[#1f7c22] mt-4 transition-colors"
+              >
+                <Plus className="w-5 h-5 mr-2" /> Add Your First Product
+              </Button>
+            )}
+          </EmptyState>
+        ) : (
+          <Card className="rounded-xl shadow-lg overflow-hidden border border-gray-200">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {currentProducts.map((product) => {
+                  const statusInfo = getStatusInfo(product.status);
+                  const imageUrl = product.imageUrls?.[0] || 'https://via.placeholder.com/400x300/CCCCCC/FFFFFF?text=No+Image';
 
-                </select>
-              </div>
-            </div>
-
-            {/* Products Grid Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {currentProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
-                >
-                  <div className="relative">
-                    {product.imageUrls
-                    && product.imageUrls.length > 0 ? (
-                      <div className="relative h-48 overflow-hidden">
+                  return (
+                    <Card key={product.id} className="shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+                      <div className="relative h-48">
                         <img
-                          src={product.imageUrls[0]}
+                          src={imageUrl}
                           alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => {
-                            e.target.src = '/placeholder-image.png';
-                          }}
+                          className="w-full h-full object-cover"
                         />
-                        {product.imageUrls.length > 1 && (
-                          <div
-                            className="absolute top-3 right-3 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full flex items-center">
-                            <Eye className="h-3 w-3 mr-1" />
-                            {product.imageUrls.length}
+                        <div className="absolute top-2 left-2">
+                          <StatusBadge
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${statusInfo.color}`}
+                          >
+                            <statusInfo.icon className="w-3 h-3 mr-1" />
+                            {statusInfo.label}
+                          </StatusBadge>
+                        </div>
+                        {product.biddingEnabled && product.status !== 'sold' && product.status !== 'expired' && (
+                          <div className="absolute top-2 right-2 bg-black/60 text-white text-xs font-medium px-2 py-1 rounded-full flex items-center">
+                            <Timer className='w-3 h-3 mr-1 text-green-300' />
+                            {getTimeLeft(product.bidEndTime)} left
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="h-48 bg-gray-100 flex items-center justify-center">
-                        <Package className="h-12 w-12 text-gray-400" />
-                      </div>
-                    )}
-
-                    <div className="absolute top-3 left-3 flex flex-col gap-1">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
-                          product.status
-                        )}`}
-                      >
-                        {product.status}
-                      </span>
-                      {product.biddingEnabled && (
-                        <span className="bg-orange-100 text-orange-800 border-orange-200 px-3 py-1 rounded-full text-xs font-semibold border flex items-center">
-                          <Gavel className="h-3 w-3 mr-1" />
-                          Auction
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-5">
-                    <div className="flex items-start justify-between
-                      mb-3">
-                      <h3 className="text-lg font-bold text-gray-900 line-clamp-2 flex-1 mr-2">
-                        {product.name}
-                      </h3>
-                      <span className="text-xl font-bold text-[#135918]">
-                        {product.biddingEnabled && product.minimumBid
-                          ? formatPrice(product.minimumBid)
-                          : formatPrice(product.price)}
-                      </span>
-                    </div>
-
-                    <p className="text-gray-600 text-sm line-clamp-2 mb-4">
-                      {product.description}
-                    </p>
-
-                    {product.biddingEnabled && (
-                      <div className="mb-4 p-3 bg-orange-50 rounded-lg">
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-600">Highest Bid:</span>
-                          <span className="font-semibold">{formatPrice(product.currentBid)}</span>
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-semibold text-gray-800 truncate">{product.name}</h3>
+                            <span className="text-xs text-gray-500">#{product.numericId}</span>
                         </div>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-600">Bids:</span>
-                          <span className="font-semibold">{product.bids?.length || 0}</span>
+                        <div className="text-2xl font-bold text-green-700">
+                          {formatPrice(product.currentBid || product.price)}
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 flex items-center">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Time Left:
-                          </span>
-                          <span className="font-semibold text-orange-600">
-                            {getTimeLeft(product.bidEndTime)}
-                          </span>
+                        <div className="flex justify-between text-sm text-gray-600">
+                            <span className="flex items-center">
+                                <Users className="w-4 h-4 mr-1 text-gray-400" />
+                                {product.bids?.length || 0} Bids
+                            </span>
+                            <span className="flex items-center">
+                                <Tag className="w-4 h-4 mr-1 text-gray-400" />
+                                {product.category || 'N/A'}
+                            </span>
                         </div>
-                      </div>
-                    )}
+                        <div className="pt-2 border-t border-gray-100 space-y-2">
+                          {/* Action Buttons */}
+                          <Button
+                            onClick={() => handleManageBids(product)}
+                            className="w-full flex items-center justify-center bg-[#135918] text-white hover:bg-[#1f7c22] transition-colors"
+                            size="sm"
+                            disabled={!product.biddingEnabled}
+                          >
+                            <Gavel className="w-4 h-4 mr-2" /> Manage Bids ({product.bids?.length || 0})
+                          </Button>
+                          <div className="flex space-x-2">
+                            <Button
+                              onClick={() => handleEdit(product)}
+                              className="flex-1 bg-blue-500 text-white hover:bg-blue-600"
+                              size="sm"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              onClick={() => handleDelete(product.id)}
+                              className="flex-1 bg-red-500 text-white hover:bg-red-600"
+                              size="sm"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
 
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center text-gray-500">
-                          <Tag className="h-4 w-4 mr-1" />
-                          {product.category}
-                        </div>
-                        <div className="flex items-center text-gray-500">
-                          <Shirt className="h-4 w-4
-                            mr-1" />
-                          {product.size}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center text-gray-500">
-                          {getConditionIcon(product.condition)}
-                          <span className="ml-1">{product.condition}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(product)}
-                        className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-1 transition-colors"
-                      >
-                        <Edit className="h-4 w-4"
-                        />
-                        <span>Edit</span>
-                      </button>
-                      {product.biddingEnabled && product.bids?.length > 0 && (
-                        <button
-                          onClick={() => handleViewBids(product)}
-                          className="flex-1 bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-1 transition-colors"
-                        >
-                          <Users className="h-4 w-4" />
-                          <span>Bids</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(product.id)}
-                        className="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg font-medium flex items-center justify-center transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
+              {/* Pagination */}
               <div className="mt-8">
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  onPageChange={paginate}
+                  onPageChange={setCurrentPage}
                   itemsPerPage={productsPerPage}
                   totalItems={filteredProducts.length}
                 />
               </div>
-            )}
-
-          </>
-        ) : (
-          /* Bidding Management Section */
-          <div className="space-y-6">
-            {/* Bidding Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
-                <div className="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                  <Gavel className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="text-2xl font-bold
-                  text-gray-900">
-                  {getBiddingProducts().length}
-                </div>
-                <div className="text-sm text-gray-600">Active Auctions</div>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
-                <div className="bg-green-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                  <TrendingUp className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {getBiddingProducts().reduce((sum, product) => sum + (product.bids?.length ||
-                    0), 0)}
-                </div>
-                <div className="text-sm text-gray-600">Total Bids</div>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
-                <div className="bg-purple-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                  <Timer className="h-6 w-6 text-purple-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {
-                    products.filter(
-                      (p) =>
-                        p.biddingEnabled &&
-                        p.bidEndTime &&
-                        new Date(p.bidEndTime) > new Date() &&
-                        new Date(p.bidEndTime) - new Date() < 24 * 60 * 60 * 1000
-                    ).length
-                  }
-                </div>
-                <div className="text-sm text-gray-600">Ending
-                  Soon</div>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
-                <div className="bg-orange-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                  <DollarSign className="h-6 w-6 text-orange-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {formatPrice(
-                    getBiddingProducts().reduce((sum, product) => sum + (product.currentBid ||
-                      0), 0)
-                  )}
-                </div>
-                <div className="text-sm text-gray-600">Total Value</div>
-              </div>
-            </div>
-
-            {/* Active Auctions with Bids */}
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900">Active Auctions</h2>
-              {getBiddingProducts().length === 0 ? (
-                <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-                  <Gavel className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Auctions</h3>
-                  <p className="text-gray-500 mb-6">No products currently have active bids</p>
-                </div>
-              ) : (
-                getBiddingProducts().map((product) => (
-                  <div key={product.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Left Column (75% width): Product Image, Name, and Description */}
-                        <div className="flex flex-col md:flex-row items-center md:items-start space-x-4 col-span-2">
-                          {product.imageUrls?.[0] && (
-                            <img
-                              src={product.imageUrls[0]}
-                              alt={product.name}
-                              className="w-24 h-24 rounded-lg object-cover flex-shrink-0"
-                            />
-                          )}
-                          <div className="flex-1 text-center md:text-left mt-4 md:mt-0">
-                            <h3 className="text-xl font-bold text-gray-900 mb-1">
-                              {product.name}
-                            </h3>
-                            <p className="text-gray-600 text-sm mb-2">{product.description}</p>
-                            <div className="flex items-center justify-center md:justify-start space-x-4 text-sm">
-                              <span className="flex items-center text-gray-500">
-                                <Clock className="h-4 w-4 mr-1" />
-                                {getTimeLeft(product.bidEndTime)}
-                              </span>
-                              <span className="flex items-center text-gray-500">
-                                <Users className="h-4 w-4 mr-1" />
-                                {product.bids?.length || 0} bids
-                              </span>
-                            </div>
-                            <div className="mt-4 text-center md:text-left">
-                              <div className="text-sm text-gray-500 mb-1">Current Highest Bid</div>
-                              <div className="text-2xl font-bold text-green-600">
-                                {formatPrice(product.currentBid)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Right Column (25% width): Highest Bidder & Manage Bids */}
-                        <div className="flex flex-col justify-between col-span-1 mt-4 md:mt-0">
-                          <div>
-                            {product.bids && product.bids.length > 0 && (
-                              <>
-                                <h4 className="font-semibold text-gray-900 mb-3 text-center md:text-left">Highest Bidder</h4>
-                                {(() => {
-                                  // Find the highest bid based on amount
-                                  const highestBid = product.bids.reduce((highest, current) => {
-                                    return current.amount > highest.amount ? current : highest;
-                                  }, product.bids[0]);
-
-                                  return (
-                                    <div
-                                      key={highestBid.timestamp}
-                                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                                    >
-                                      <div className="flex items-center space-x-3">
-                                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                          <span className="text-blue-600 font-semibold text-sm">
-                                            {highestBid.bidderName?.charAt(0)?.toUpperCase()}
-                                          </span>
-                                        </div>
-                                        <div>
-                                          <div className="font-medium text-gray-900">
-                                            {highestBid.bidderName}
-                                          </div>
-                                          <div className="text-sm text-gray-500">
-                                            {new Date(highestBid.timestamp).toLocaleDateString()} at{' '}
-                                            {new Date(highestBid.timestamp).toLocaleTimeString()}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="text-lg font-bold text-gray-900">
-                                        {formatPrice(highestBid.amount)}
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
-                              </>
-                            )}
-                          </div>
-                          <div className="mt-4">
-                            <button
-                              onClick={() => handleViewBids(product)}
-                              className="w-full bg-[#135918] hover:bg-[#0F4713] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                            >
-                              Manage Bids
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {filteredProducts.length === 0 && activeTab === 'products' && (
-          <Card>
-            <CardContent className="p-12">
-              <EmptyState
-                icon={Package}
-                title="No products found"
-                description={
-                  searchTerm || filterStatus !== 'all'
-                    ? 'Try adjusting your search or filters'
-                    : 'Get started by adding your first product'
-                }
-                action={
-                  !searchTerm && filterStatus === 'all' ? (
-                    <Button
-                      onClick={() => setShowModal(true)}
-                      size="lg"
-                    >
-                      <Plus className="h-5 w-5 mr-2" />
-                      Add Your First Product
-                    </Button>
-                  ) : null
-                }
-              />
             </CardContent>
           </Card>
         )}
