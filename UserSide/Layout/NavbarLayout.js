@@ -74,7 +74,7 @@ function NavBarLayout({ children }) {
         <View style={styles.bottomNav}>
           {tabs.map((tab) => {
             const isActive = route.name === tab.route
-            const showBadge = tab.name === "Chat" && messageCount > 1
+            const showBadge = tab.name === "Chat" && messageCount > 0
 
             return (
               <TouchableOpacity

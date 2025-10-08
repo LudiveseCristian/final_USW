@@ -443,10 +443,10 @@ export default function BiddingScreen({ navigation }) {
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Bidding Center</Text>
+            <Text style={styles.headerTitle}>Bid Thrift Vintage</Text>
           </View>
           <Text style={styles.headerSubtitle}>
-            Place bids and track your auctions • {biddingCounts.activeBids} active bids
+            Place bids and track your bids • {biddingCounts.activeBids} active bids
           </Text>
         </View>
         <View style={styles.tabContainer}>

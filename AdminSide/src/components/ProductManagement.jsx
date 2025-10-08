@@ -24,7 +24,9 @@ import {
   doc,
   getDocs,
   getDoc,
-  onSnapshot
+  onSnapshot,
+  query,      
+  where      
 } from 'firebase/firestore';
 import { db, storage } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -330,74 +332,126 @@ const ProductManagement = () => {
       }
     };
 
-  const handleAcceptBid = async (productId, acceptedBid) => {
+    const handleAcceptBid = async (productId, acceptedBid) => {
+  try {
+    const product = products.find((p) => p.id === productId);
+
+    let userProfile = null;
     try {
-      // The acceptedBid object is now passed directly, no need for product.bids[bidIndex]
-      const product = products.find((p) => p.id === productId);
-
-      let userProfile = null;
-      try {
-        if (acceptedBid.bidderId) {
-          const userRef = doc(db, 'users', acceptedBid.bidderId);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists()) {
-            userProfile = userSnap.data();
-          }
+      if (acceptedBid.bidderId) {
+        const userRef = doc(db, 'users', acceptedBid.bidderId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          userProfile = userSnap.data();
         }
-      } catch (e) {
-        console.warn('Could not fetch user profile for order creation:', e);
       }
-
-      await updateDoc(doc(db, 'products', productId), {
-        status: 'sold',
-        biddingEnabled: false,
-        highestBidder: acceptedBid.bidderName,
-        finalPrice: acceptedBid.amount,
-        soldAt: new Date(),
-        updatedAt: new Date(),
-      });
-      setProducts(
-        products.map((p) =>
-          p.id === productId
-            ? {
-                ...p,
-                status: 'sold',
-                biddingEnabled: false,
-                highestBidder: acceptedBid.bidderName,
-                finalPrice: acceptedBid.amount,
-              }
-            : p
-        )
-      );
-      try {
-        const ordersRef = collection(db, 'orders');
-        await addDoc(ordersRef, {
-          customerId: acceptedBid.bidderId || null,
-          customerName: userProfile?.name || acceptedBid.bidderName || null,
-          customerEmail: acceptedBid.bidderEmail || null,
-          contactNumber: userProfile?.contactNumber || null,
-          address: userProfile?.address || null,
-          productId: productId,
-          product: product.name,
-          productImage: product.imageUrls?.[0] || null,
-          category: product.category || null,
-          price: acceptedBid.amount,
-          status: 'pending',
-          date: new Date(),
-        });
-      } catch (orderErr) {
-        console.error('Failed to create order document:', orderErr);
-      }
-
-      showAlert('success',
-        `Bid accepted! Product sold to ${acceptedBid.bidderName} for ₱${acceptedBid.amount.toLocaleString()}`
-      );
-      setShowBidModal(false);
-    } catch (error) {
-      console.error('Error accepting bid:', error);
-      showAlert('error', 'Failed to accept bid. Please try again.');
+    } catch (e) {
+      console.warn('Could not fetch user profile for order creation:', e);
     }
-  };
+
+    // Update product status
+    await updateDoc(doc(db, 'products', productId), {
+      status: 'sold',
+      biddingEnabled: false,
+      highestBidder: acceptedBid.bidderName,
+      finalPrice: acceptedBid.amount,
+      soldAt: new Date(),
+      updatedAt: new Date(),
+      winnerBidderId: acceptedBid.bidderId, // ADD THIS LINE - Important for MessagesScreen detection
+    });
+
+    // **NEW CODE: Send win notification to user's conversation**
+    if (acceptedBid.bidderId) {
+      try {
+        // Find user's conversation
+        const conversationsRef = collection(db, 'conversations');
+        const q = query(
+          conversationsRef,
+          where('participants', 'array-contains', acceptedBid.bidderId)
+        );
+        const conversationSnapshot = await getDocs(q);
+
+        if (!conversationSnapshot.empty) {
+          const conversationId = conversationSnapshot.docs[0].id;
+          const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+
+          // Send win notification message
+          await addDoc(messagesRef, {
+            senderId: 'admin',
+            senderType: 'admin',
+            text: `🎉 Congratulations! You've won "${product.name}" with a bid of ₱${acceptedBid.amount.toLocaleString()}! Your item is ready for checkout.`,
+            type: 'win_notification',
+            productId: productId,
+            imageUrl: product.imageUrls?.[0] || null,
+            timestamp: new Date(),
+            status: 'delivered'
+          });
+
+          // Update conversation metadata
+          const conversationRef = doc(db, 'conversations', conversationId);
+          const conversationDoc = await getDoc(conversationRef);
+          const currentUnreadCount = conversationDoc.data()?.unreadCount?.[acceptedBid.bidderId] || 0;
+
+          await updateDoc(conversationRef, {
+            lastMessage: `🎉 You won: ${product.name}`,
+            lastMessageTime: new Date(),
+            [`unreadCount.${acceptedBid.bidderId}`]: currentUnreadCount + 1
+          });
+
+          console.log('Win notification sent successfully');
+        }
+      } catch (notificationError) {
+        console.error('Error sending win notification:', notificationError);
+        // Don't throw error - continue with the rest of the process
+      }
+    }
+    // **END NEW CODE**
+
+    setProducts(
+      products.map((p) =>
+        p.id === productId
+          ? {
+              ...p,
+              status: 'sold',
+              biddingEnabled: false,
+              highestBidder: acceptedBid.bidderName,
+              finalPrice: acceptedBid.amount,
+              winnerBidderId: acceptedBid.bidderId, // ADD THIS LINE
+            }
+          : p
+      )
+    );
+
+    // Create order document
+    try {
+      const ordersRef = collection(db, 'orders');
+      await addDoc(ordersRef, {
+        customerId: acceptedBid.bidderId || null,
+        customerName: userProfile?.name || acceptedBid.bidderName || null,
+        customerEmail: acceptedBid.bidderEmail || null,
+        contactNumber: userProfile?.contactNumber || null,
+        address: userProfile?.address || null,
+        productId: productId,
+        product: product.name,
+        productImage: product.imageUrls?.[0] || null,
+        category: product.category || null,
+        price: acceptedBid.amount,
+        status: 'pending',
+        date: new Date(),
+      });
+    } catch (orderErr) {
+      console.error('Failed to create order document:', orderErr);
+    }
+
+    showAlert('success',
+      `Bid accepted! Product sold to ${acceptedBid.bidderName} for ₱${acceptedBid.amount.toLocaleString()}`
+    );
+    setShowBidModal(false);
+  } catch (error) {
+    console.error('Error accepting bid:', error);
+    showAlert('error', 'Failed to accept bid. Please try again.');
+  }
+};
 
   const handleRejectBid = async (productId, bid) => {
     try {

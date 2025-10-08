@@ -37,9 +37,11 @@ export const useMessageCount = () => {
       
       setConversationId(conversationDoc.id)
       
-      // Get unread count for this user
-      const unreadCount = data?.unreadCount?.[currentUser.uid] || 0
-      setMessageCount(unreadCount)
+      // Get unread count for this user from conversation
+      const conversationUnreadCount = data?.unreadCount?.[currentUser.uid] || 0
+      
+      // Set the total message count
+      setMessageCount(conversationUnreadCount)
       setLoading(false)
     })
 

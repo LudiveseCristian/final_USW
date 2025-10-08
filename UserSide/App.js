@@ -6,7 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native";
 import { enableScreens } from "react-native-screens";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { WinNotificationProvider } from './hooks/useWinNotification';
 
 // Enable react-native-screens for better performance
 enableScreens();
@@ -199,7 +199,6 @@ function MainAppStack() {
       <Stack.Screen name="PersonalInformation" component={PersonalInformationScreen} options={messagesScreenAnimation}/>
       <Stack.Screen name="ChangePassword" component={ChangePassword} options={messagesScreenAnimation}/>
       <Stack.Screen name="Cart" component={WinningBiddingScreen} options={messagesScreenAnimation}/>
-      <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} options={messagesScreenAnimation}/>
       <Stack.Screen name="Feedback" component={FeedbackScreen} options={messagesScreenAnimation}/>
       <Stack.Screen name="HelpandSupport" component={HelpandSupport} options={messagesScreenAnimation}/>
       <Stack.Screen 
@@ -207,12 +206,23 @@ function MainAppStack() {
         component={MessagesScreen}
         options={messagesScreenAnimation}
       />
+
+      <Stack.Screen 
+        name="OrderTracking" 
+        component={OrderTrackingScreen} 
+        options={{
+          ...messagesScreenAnimation,
+          gestureEnabled: false,  
+        }}
+      />
     </Stack.Navigator>
+
   );
 }
 
 // Global App Wrapper with Assistant
 const AppWithAssistant = ({ children, currentUser, showAssistant = true }) => {
+  
   return (
     <GestureHandlerRootView style={styles.appContainer}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFEF7" />
@@ -266,7 +276,9 @@ function RootNavigator() {
 export default function App() {
   return (
     <AuthProvider>
+      <WinNotificationProvider>
       <RootNavigator />
+      </WinNotificationProvider>
     </AuthProvider>
   );
 }

@@ -75,41 +75,6 @@ const MessagesScreen = ({ route }) => {
 };
 
 
-const sendWinNotification = async (wonItem) => {
-  try {
-    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-    
-    // Send automated win message
-    await addDoc(messagesRef, {
-      senderId: 'admin',
-      senderType: 'admin',
-      text: `🎉 Congratulations! You've won "${wonItem.title}" with a bid of ₱${wonItem.winningBid.toLocaleString()}! Your item is ready for checkout.`,
-      type: 'win_notification',
-      productId: wonItem.productId,
-      imageUrl: wonItem.imageUrl,
-      timestamp: serverTimestamp(),
-      status: 'delivered'
-    });
-
-    // Update conversation
-    const conversationRef = doc(db, 'conversations', conversationId);
-    await updateDoc(conversationRef, {
-      lastMessage: `🎉 You won: ${wonItem.title}`,
-      lastMessageTime: serverTimestamp(),
-      [`unreadCount.${currentUser.uid}`]: increment(1)
-    });
-
-    // Mark as notification sent in product document
-    const productRef = doc(db, 'products', wonItem.productId);
-    await updateDoc(productRef, {
-      [`winNotificationSent.${currentUser.uid}`]: true
-    });
-
-  } catch (error) {
-    console.error('Error sending win notification:', error);
-  }
-};
-
 const pickImageFromCamera = async () => {
   try {
     const result = await ImagePicker.launchCameraAsync({
@@ -225,41 +190,7 @@ const uploadAndSendImage = async (imageUri) => {
         };
     }, [conversationId]);
 
-    useEffect(() => {
-  if (!currentUser?.uid || !conversationId) return;
 
-  const unsubscribe = onSnapshot(collection(db, "products"), async (snapshot) => {
-    const wonItems = [];
-    
-    snapshot.docs.forEach((d) => {
-      const data = d.data();
-      const userBid = data.bids?.find((bid) => bid.bidderId === currentUser.uid);
-
-      // Check if user won (same logic as WinBiddingScreen)
-      if (
-        (userBid && data.status === "sold" && data.highestBidder === userBid.bidderName) ||
-        data.winnerBidderId === currentUser.uid
-      ) {
-        // Check if we haven't sent a notification for this item yet
-        if (!data.winNotificationSent?.[currentUser.uid]) {
-          wonItems.push({
-            productId: d.id,
-            title: data.name,
-            winningBid: userBid.amount,
-            imageUrl: data.imageUrls?.[0]
-          });
-        }
-      }
-    });
-
-    // Send win notification messages
-    for (const item of wonItems) {
-      await sendWinNotification(item);
-    }
-  });
-
-  return () => unsubscribe();
-}, [currentUser?.uid, conversationId]);
 
     const initializeConversation = async () => {
         try {

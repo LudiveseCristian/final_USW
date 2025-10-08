@@ -388,7 +388,7 @@ if (isLoading || isLoadingData) {
                 />
                 <Text style={styles.logoText}>Upcycled Streetwear</Text>
               </View>
-              <TouchableOpacity style={styles.profileButton}>
+              <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate("Profile")}>
                 <View style={styles.profileAvatar}>
                   <Text style={styles.profileInitial}>{getUserFirstName().charAt(0).toUpperCase()}</Text>
                 </View>

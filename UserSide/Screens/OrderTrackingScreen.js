@@ -526,7 +526,11 @@ const onRefresh = async () => {
 
         {/* Tabs */}
         <View style={styles.tabContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScrollContent}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}      
+          decelerationRate="fast"
+          snapToInterval={100}  // Adjust based on your tab width
+          snapToAlignment="start">
+          <View style={styles.tabScrollContent}>
             {tabs.map((tab) => (
               <TouchableOpacity
                 key={tab.id}
@@ -550,6 +554,7 @@ const onRefresh = async () => {
                 )}
               </TouchableOpacity>
             ))}
+            </View>
           </ScrollView>
         </View>
 
@@ -721,12 +726,13 @@ const styles = StyleSheet.create({
   tabScrollContent: {
     paddingHorizontal: 15,
     gap: 10,
+    flexDirection: 'row',
   },
   tab: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     backgroundColor: "white",
     borderRadius: 25,
     borderWidth: 2,
@@ -737,6 +743,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     gap: 6,
+    minWidth: 120,            
+    justifyContent: 'center',
   },
   activeTab: {
     backgroundColor: "#2E6A2E",
