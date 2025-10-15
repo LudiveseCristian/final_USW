@@ -13,23 +13,22 @@ import {
   Activity,
   Clock,
   AlertCircle,
-  List, // Added for the header icon
+  List,
 } from 'lucide-react';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase/config.js';
 import { Card, CardHeader, CardContent, CardTitle, Button, LoadingSpinner, EmptyState, Modal, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui';
 
 // --- Theme Colors ---
-const PRIMARY_DARK_GREEN = '#135918'; // Dark green for the main header background
-const CARD_LIGHT_GREEN = '#227227'; // Lighter shade of the primary dark green for header cards background
-const BG_CREAM = '#F7F3E8'; // Light cream background
-const TEXT_DARK = '#1f2937'; // Dark gray for general text
+const PRIMARY_DARK_GREEN = '#135918';
+const CARD_LIGHT_GREEN = '#227227';
+const BG_CREAM = '#F7F3E8';
+const TEXT_DARK = '#1f2937';
 
-const LOW_STOCK_THRESHOLD = 5; // Define your threshold for low stock
+const LOW_STOCK_THRESHOLD = 5;
 
-// --- Reusable Component for Header Stat Cards (Copied from the desired style) ---
+// --- Reusable Component for Header Stat Cards ---
 const DashboardStatCard = ({ title, value, icon: Icon, trendText }) => {
-    // Trend text logic for color and icon rotation
     const isPercentage = trendText && (trendText.includes('% from last month') || trendText.includes('% growth'));
     let trendValue = 0;
     if (isPercentage) {
@@ -39,24 +38,19 @@ const DashboardStatCard = ({ title, value, icon: Icon, trendText }) => {
 
     const isPositive = trendValue > 0;
 
-    // Lighter color for stat comments/trend text
-    let trendColor = 'text-white/70'; // Default light color for non-percentage comments
+    let trendColor = 'text-white/70';
     if (isPercentage) {
-        // High-contrast colors for positive/negative growth percentages
         trendColor = isPositive ? 'text-lime-300' : 'text-red-300';
     }
 
     return (
       <div
-        // Use lighter shade of green for card background
         style={{ backgroundColor: CARD_LIGHT_GREEN }}
         className={`rounded-xl p-5 shadow-lg transition-all duration-300 hover:brightness-110`}
       >
         <div className="flex flex-col space-y-3">
             <div className="flex items-center justify-between">
-                {/* Text is white/light */}
                 <p className="text-sm font-medium text-white/80">{title}</p>
-                {/* Icon color changed to amber for contrast */}
                 <Icon className={`w-5 h-5 text-amber-300`} />
             </div>
           <p className="text-3xl font-extrabold text-white">{value}</p>
@@ -81,8 +75,8 @@ const Dashboard = () => {
     totalProducts: 0,
     totalCustomers: 0,
     monthlySales: 0,
-    salesGrowth: 0, // Added for DashboardStatCard
-    customerGrowth: 0, // Added for DashboardStatCard
+    salesGrowth: 0,
+    customerGrowth: 0,
     lowStockCount: 0,
     outOfStockCount: 0
   });
@@ -96,7 +90,6 @@ const Dashboard = () => {
   const formatDate = (value) => {
     if (!value) return "";
     if (value && value.toDate) {
-      // Firestore Timestamp
       return value.toDate().toLocaleString();
     }
     if (typeof value === "string" || typeof value === "number") {
@@ -117,25 +110,36 @@ const Dashboard = () => {
       const products = productsSnap.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        stock: doc.data().stock || 0 // Ensure stock is a number, default to 0
+        stock: doc.data().stock || 0
       }));
 
-      // Inventory Status Calculation
+      // Filter sold products only
+      const soldProducts = products.filter(product => product.status === "sold");
+
+      // Inventory Status Calculation (for all products)
       const outOfStockCount = products.filter(product => product.stock <= 0).length;
       const lowStockCount = products.filter(
         product => product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD
       ).length;
 
-      // Fetch all orders
-      const ordersSnap = await getDocs(collection(db, "orders"));
-      const orders = ordersSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: formatDate(doc.data().date)
+      // Transform sold products into order format
+      const orders = soldProducts.map(product => ({
+        id: product.id,
+        customerName: product.highestBidder || 'N/A',
+        customerEmail: product.bids && product.bids.length > 0 ? product.bids[product.bids.length - 1].bidderEmail : '',
+        customerId: product.winnerBidderId || '',
+        product: product.name,
+        productId: product.id,
+        price: product.finalPrice || product.currentBid || product.price || 0,
+        status: product.orderStatus || 'sold',
+        date: product.soldAt ? formatDate(product.soldAt) : '',
+        soldAt: product.soldAt,
+        category: product.category
       }));
 
-      // Helper to get month/year from string/Date
+      // Helper to get month/year from date
       const getMonthYear = (dateStr) => {
+        if (!dateStr) return { month: -1, year: -1 };
         const d = new Date(dateStr);
         return { month: d.getMonth(), year: d.getFullYear() };
       };
@@ -160,13 +164,13 @@ const Dashboard = () => {
       // Calculate totals
       const totalSales = orders.reduce((sum, order) => sum + (order.price || 0), 0);
       const totalProducts = products.length;
-      const totalCustomers = new Set(orders.map(order => order.customerId)).size;
+      const totalCustomers = new Set(orders.map(order => order.customerId).filter(id => id)).size;
 
       const monthlySales = currentMonthOrders.reduce((sum, order) => sum + (order.price || 0), 0);
       const prevMonthlySales = prevMonthOrders.reduce((sum, order) => sum + (order.price || 0), 0);
 
-      const currentMonthCustomers = new Set(currentMonthOrders.map(order => order.customerId)).size;
-      const prevMonthCustomers = new Set(prevMonthOrders.map(order => order.customerId)).size;
+      const currentMonthCustomers = new Set(currentMonthOrders.map(order => order.customerId).filter(id => id)).size;
+      const prevMonthCustomers = new Set(prevMonthOrders.map(order => order.customerId).filter(id => id)).size;
 
       // Growth calculation helper
       const calcGrowth = (current, prev) => {
@@ -190,19 +194,17 @@ const Dashboard = () => {
         outOfStockCount: outOfStockCount
       });
 
-      // Fetch recent orders (last 6)
-      const recentOrdersQuery = query(
-        collection(db, "orders"),
-        orderBy("date", "desc"),
-        limit(6)
-      );
-      const recentOrdersSnap = await getDocs(recentOrdersQuery);
-      const recentOrders = recentOrdersSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: formatDate(doc.data().date)
-      }));
-      setRecentOrders(recentOrders);
+      // Get recent sold orders (last 6)
+      const recentSoldOrders = orders
+        .sort((a, b) => {
+          if (!a.soldAt || !b.soldAt) return 0;
+          const dateA = a.soldAt.toDate ? a.soldAt.toDate() : new Date(a.soldAt);
+          const dateB = b.soldAt.toDate ? b.soldAt.toDate() : new Date(b.soldAt);
+          return dateB - dateA;
+        })
+        .slice(0, 6);
+      
+      setRecentOrders(recentSoldOrders);
 
       // Fetch latest 3 news
       const newsQuery = query(
@@ -227,12 +229,16 @@ const Dashboard = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'mine':
+      case 'sold':
+        return 'bg-green-100 text-green-800';
+      case 'rated':
         return 'bg-blue-100 text-blue-800';
-      case 'grab':
+      case 'shipped':
+        return 'bg-purple-100 text-purple-800';
+      case 'delivered':
+        return 'bg-teal-100 text-teal-800';
+      case 'pending':
         return 'bg-yellow-100 text-yellow-800';
-      case 'steal':
-        return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -243,8 +249,6 @@ const Dashboard = () => {
     return `₱${Number(price).toLocaleString()}`;
   };
 
-
-  // Define the missing functions
   const handleAddNewProduct = () => {
     setShowAddProductModal(true);
   };
@@ -254,7 +258,7 @@ const Dashboard = () => {
   };
 
   const handleManageInventory = () => {
-    setShowInventoryModal(true);
+    navigate('/products');
   };
 
   if (loading) {
@@ -272,7 +276,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen" style={{ backgroundColor: BG_CREAM, color: TEXT_DARK }}>
 
-      {/* Header Section (Dark Green) - STYLED TO MATCH REQUESTED STYLE */}
+      {/* Header Section (Dark Green) */}
       <div style={{ backgroundColor: PRIMARY_DARK_GREEN }} className="rounded-b-[40px] shadow-2xl p-8 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -299,7 +303,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Sales Statistics Cards - Below the main counter */}
+          {/* Sales Statistics Cards */}
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-green-300">
 
             <DashboardStatCard
@@ -344,7 +348,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <Clock className="h-5 w-5 text-gray-500" />
-                    <CardTitle>Recent Orders</CardTitle>
+                    <CardTitle>Recent Sold Orders</CardTitle>
                   </div>
                   <Button
                     variant="ghost"
@@ -359,8 +363,8 @@ const Dashboard = () => {
                 {recentOrders.length === 0 ? (
                   <EmptyState
                     icon={Package}
-                    title="No recent orders found"
-                    description="Orders will appear here once customers start making purchases."
+                    title="No sold orders found"
+                    description="Sold orders will appear here once products are sold through bidding."
                   />
                 ) : (
                   <Table>
@@ -387,7 +391,7 @@ const Dashboard = () => {
                           </TableCell>
                           <TableCell>
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusColor(order.status)}`}>
-                              {order.status || 'pending'}
+                              {order.status || 'sold'}
                             </span>
                           </TableCell>
                           <TableCell className="text-gray-500 text-sm">{order.date}</TableCell>
@@ -513,7 +517,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Add Product Modal (Remains the same) */}
+        {/* Add Product Modal */}
         <Modal
           isOpen={showAddProductModal}
           onClose={() => setShowAddProductModal(false)}
@@ -546,7 +550,7 @@ const Dashboard = () => {
           </div>
         </Modal>
 
-        {/* Inventory Management Modal (Remains the same) */}
+        {/* Inventory Management Modal */}
         <Modal
           isOpen={showInventoryModal}
           onClose={() => setShowInventoryModal(false)}

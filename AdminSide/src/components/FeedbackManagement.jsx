@@ -264,7 +264,7 @@ const FeedbackManagement = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-8">
             
             {/* Card 1: Total Feedback */}
-            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-green-500 transform transition-transform duration-300 hover:scale-[1.02]">
+            <div className="bg-[#2e7334] rounded-xl shadow-xl p-6 border border-green-500 transform transition-transform duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">Total Feedback</p>
@@ -277,7 +277,7 @@ const FeedbackManagement = () => {
             </div>
 
             {/* Card 2: Pending Review */}
-            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-yellow-100 transform transition-transform duration-300 hover:scale-[1.02]">
+            <div className="bg-[#2e7334] rounded-xl shadow-xl p-6 border border-yellow-100 transform transition-transform duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">Pending Review</p>
@@ -290,7 +290,7 @@ const FeedbackManagement = () => {
             </div>
 
             {/* Card 3: Approved */}
-            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-green-100 transform transition-transform duration-300 hover:scale-[1.02]">
+            <div className="bg-[#2e7334] rounded-xl shadow-xl p-6 border border-green-100 transform transition-transform duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">Approved</p>
@@ -303,7 +303,7 @@ const FeedbackManagement = () => {
             </div>
 
             {/* Card 4: Average Rating */}
-            <div className="bg-[#0c5b11] rounded-xl shadow-xl p-6 border border-blue-400 transform transition-transform duration-300 hover:scale-[1.02]">
+            <div className="bg-[#2e7334] rounded-xl shadow-xl p-6 border border-blue-400 transform transition-transform duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">Average Rating</p>

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAlert } from '../contexts/alertContext';
-// NOTE: Card, CardContent, CardTitle, Button, EmptyState, Pagination removed from ui import as they are not used/defined in the provided code snippet
 import { LoadingSpinner } from './ui'; 
 import ExportModal from '../modals/ExportModal';
 import {
@@ -16,10 +15,28 @@ import {
   Download,
   X,
 } from 'lucide-react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Legend, Tooltip } from 'recharts';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
-// Existing Modals (keeping for functionality, but condensed for brevity)
+// Custom Legend Component (No change)
+const CustomPieChartLegend = ({ data, colors }) => {
+    return (
+        <div className="flex flex-col space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-2">
+            {data.map((entry, index) => (
+                <div key={`legend-item-${index}`} className="flex items-center">
+                    <div 
+                        className="w-3 h-3 rounded-full mr-2" 
+                        style={{ backgroundColor: colors[index % colors.length] }}
+                    ></div>
+                    <span className="text-sm text-gray-700 font-medium truncate" title={entry.name}>
+                        {entry.name}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+};
 
+// Customer Analytics Modal (No change)
 const CustomerAnalyticsModal = ({ onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -48,6 +65,7 @@ const CustomerAnalyticsModal = ({ onClose }) => {
   );
 };
 
+// Report Modal (No change)
 const ReportModal = ({ onClose, onGenerate }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -76,7 +94,7 @@ const ReportModal = ({ onClose, onGenerate }) => {
                 <span className="text-sm">Yes</span>
               </label>
             </div>
-          </div>
+            </div>
         </div>
         <div className="flex space-x-3">
           <button
@@ -97,7 +115,7 @@ const ReportModal = ({ onClose, onGenerate }) => {
   );
 };
 
-// 🌟 NEW Component: PeriodFilterButtons 🌟
+// Period Filter Buttons (No change)
 const PeriodFilterButtons = ({ currentPeriod, onPeriodChange }) => {
     const periods = [
         { value: 'week', label: 'Week' },
@@ -116,8 +134,8 @@ const PeriodFilterButtons = ({ currentPeriod, onPeriodChange }) => {
                     className={`
                         px-4 py-2 rounded-full text-sm font-medium transition-all duration-200
                         ${currentPeriod === period.value
-                            ? 'bg-[#135918] text-white shadow-md' // Active style
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200' // Inactive style
+                            ? 'bg-[#135918] text-white shadow-md'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }
                     `}
                 >
@@ -128,20 +146,15 @@ const PeriodFilterButtons = ({ currentPeriod, onPeriodChange }) => {
     );
 };
 
-// --------------------------------------------------------------------------------
-
+// Main Component
 const SalesAnalytics = () => {
   const [salesData, setSalesData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
-  // Default to 'month' as the initial filter period
   const [filterPeriod, setFilterPeriod] = useState('month'); 
-  // Removed startDate/endDate as custom range is deprecated in favor of buttons
   const [loading, setLoading] = useState(true);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showCustomerAnalyticsModal, setShowCustomerAnalyticsModal] = useState(false);
-
-  // State for pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 7;
   const [exportScope, setExportScope] = useState('all');
@@ -152,32 +165,33 @@ const SalesAnalytics = () => {
     fetchSalesData();
   }, []);
   
-  // Updated useEffect to apply filter based on period only (removed custom dates)
   useEffect(() => {
     applyFilter(filterPeriod);
   }, [salesData, filterPeriod]);
 
   const fetchSalesData = async () => {
     try {
-      const ordersRef = collection(db, 'orders');
-      const ordersSnapshot = await getDocs(ordersRef);
+      const productsRef = collection(db, 'products');
+      const productsSnapshot = await getDocs(productsRef);
 
-      if (!ordersSnapshot.empty) {
-        // NOTE: Uses the provided database structure reference fields (customerName, product, category, price, status) 
-        // with mock data fallbacks to ensure display.
-        const ordersData = ordersSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          // Ensure Price is a number, with a random fallback
-          price: parseFloat(doc.data().price) || (Math.random() * 1000 + 100).toFixed(2), 
-          // Ensure Date is handled, with a random fallback
-          date: doc.data().date || doc.data().createdAt || doc.data().timestamp || new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString(),
-          customer: doc.data().customerName || doc.data().customer || `Customer ${Math.floor(Math.random() * 50) + 1}`,
-          product: doc.data().product || `Product ${Math.floor(Math.random() * 10) + 1}`,
-          category: doc.data().category || ['Skirt', 'Watch', 'Apparel', 'Accessories', 'Home Goods'][Math.floor(Math.random() * 5)],
-          status: doc.data().status || ['pending', 'grab', 'steal', 'confirmed', 'unknown'][Math.floor(Math.random() * 5)],
-        }));
-        setSalesData(ordersData);
+      if (!productsSnapshot.empty) {
+        const soldProducts = productsSnapshot.docs
+          .filter(doc => doc.data().status === 'sold')
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              price: parseFloat(data.finalPrice) || parseFloat(data.price) || 0,
+              date: data.soldAt || data.createdAt,
+              customer: data.highestBidder || 'Unknown',
+              product: data.name || 'Unknown Product',
+              category: data.category || 'Uncategorized',
+              // Set a default of 'pending' if orderStatus is not defined, 
+              // as per the common flow for a sold item awaiting fulfillment.
+              status: data.orderStatus || 'pending', 
+            };
+          });
+        setSalesData(soldProducts);
       } else {
         setSalesData([]);
       }
@@ -189,12 +203,11 @@ const SalesAnalytics = () => {
     }
   };
 
-  // Simplified applyFilter to use only the period
+  // applyFilter remains the same (No change)
   const applyFilter = (period) => {
     let finalStartDate = null;
     const now = new Date();
 
-    // Determine the start date based on the selected period
     switch (period) {
       case 'week':
         finalStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
@@ -211,10 +224,8 @@ const SalesAnalytics = () => {
       case 'all':
       default:
         finalStartDate = new Date(0);
-        // All time
     }
     
-    // Set finalEndDate to today for the comparison
     const finalEndDate = now;
 
     const filtered = salesData.filter(sale => {
@@ -224,24 +235,23 @@ const SalesAnalytics = () => {
       } else if (typeof sale.date === 'string') {
         saleDate = new Date(sale.date);
       } else {
-        // Fallback for cases where the date field is missing or malformed
         saleDate = new Date(0);
       }
 
-      // Check if the sale date is between the calculated start date and the end date (now)
       const isAfterStartDate = saleDate >= finalStartDate;
-      // We check for isBeforeEndDate only to prevent future-dated mocked data from showing up if an order date is later than 'now'
       const isBeforeEndDate = saleDate <= finalEndDate;
 
       return isAfterStartDate && isBeforeEndDate;
     });
 
     setFilteredData(filtered);
-    setCurrentPage(1); // Reset to first page whenever filter changes
+    setCurrentPage(1);
   };
 
+  /**
+   * UPDATED: Groups the raw order statuses into the requested categories for the pie chart.
+   */
   const calculateStats = (data) => {
-    // Ensure all price fields are treated as numbers
     const cleanedData = data.map(sale => ({
       ...sale,
       price: parseFloat(sale.price) || 0
@@ -250,14 +260,38 @@ const SalesAnalytics = () => {
     const totalSales = cleanedData.reduce((sum, sale) => sum + (sale.price || 0), 0);
     const totalOrders = cleanedData.length;
     const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+    
+    // --- START OF REQUIRED CHANGE ---
     const statusCounts = cleanedData.reduce((acc, sale) => {
-      const status = sale.status || 'unknown';
-      acc[status] = (acc[status] || 0) + 1;
+      const rawStatus = sale.status ? sale.status.toLowerCase() : 'pending';
+      let groupedStatus;
+
+      switch (rawStatus) {
+        case 'pending':
+          groupedStatus = 'Pending';
+          break;
+        case 'shipped':
+          groupedStatus = 'Shipped';
+          break;
+        case 'delivered':
+          groupedStatus = 'Delivered';
+          break;
+        case 'rated': // Mapped the final state ('rated') to 'Completed'
+        case 'completed': // Include 'completed' just in case
+          groupedStatus = 'Completed';
+          break;
+        default:
+          groupedStatus = 'Other';
+          break;
+      }
+
+      acc[groupedStatus] = (acc[groupedStatus] || 0) + 1;
       return acc;
     }, {});
+    // --- END OF REQUIRED CHANGE ---
+    
     const categorySales = cleanedData.reduce((acc, sale) => {
       const category = sale.category || 'uncategorized';
-      // Group similar categories (preserving original logic)
       let groupedCategory;
       if (['Jeans', 'Skirt', 'Longsleeve'].includes(category)) {
         groupedCategory = 'Apparel';
@@ -269,18 +303,18 @@ const SalesAnalytics = () => {
       acc[groupedCategory] = (acc[groupedCategory] || 0) + (sale.price || 0);
       return acc;
     }, {});
+    
     return {
       totalSales,
       totalOrders,
       avgOrderValue,
-      statusCounts,
+      statusCounts, // This now holds the new grouped statuses
       categorySales
     };
   };
 
   const stats = calculateStats(filteredData);
 
-  // Data structure for the header cards
   const cardStats = [
     { id: 'sales', label: 'Total Sales', value: stats.totalSales, icon: PhilippinePeso, bgColor: 'bg-green-100', iconColor: 'text-green-600' },
     { id: 'orders', label: 'Total Orders', value: stats.totalOrders, icon: Package, bgColor: 'bg-blue-100', iconColor: 'text-blue-600' },
@@ -290,7 +324,6 @@ const SalesAnalytics = () => {
 
   const totalItems = filteredData.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  // Calculate the sales for the current page
   const currentSales = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const getInsight = (stats) => {
@@ -317,14 +350,26 @@ const SalesAnalytics = () => {
     return `₱${(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  /**
+   * UPDATED: Maps the new grouped status names to specific colors for the table and pie chart legend.
+   */
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800'; 
-      case 'mine': return 'bg-blue-100 text-blue-800';
-      case 'grab': return 'bg-yellow-100 text-yellow-800';
-      case 'steal': return 'bg-red-100 text-red-800';
-      case 'confirmed': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+    // The status here will be the RAW status from the database, but we map its visual representation
+    // to match the logical flow of the new grouped chart names.
+    const rawStatus = status ? status.toLowerCase() : 'pending';
+
+    switch (rawStatus) {
+      case 'rated': 
+      case 'completed': 
+        return 'bg-green-100 text-green-800'; // Completed/Rated gets a 'final' color
+      case 'delivered': 
+        return 'bg-teal-100 text-teal-800'; // Delivered
+      case 'shipped': 
+        return 'bg-purple-100 text-purple-800'; // Shipped/In Transit
+      case 'pending': 
+        return 'bg-yellow-100 text-yellow-800'; // Pending/Processing
+      default: 
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -336,7 +381,6 @@ const SalesAnalytics = () => {
     setShowExportModal(true);
   };
   
-  // Pagination navigation functions
   const handlePreviousPage = () => {
     setCurrentPage(prev => Math.max(prev - 1, 1));
   };
@@ -345,7 +389,6 @@ const SalesAnalytics = () => {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
   
-  // Handler for period buttons
   const handlePeriodChange = (period) => {
       setFilterPeriod(period);
   };
@@ -362,24 +405,23 @@ const SalesAnalytics = () => {
     );
   }
 
-  // Data preparation for the category chart
   const categoryChartData = Object.entries(stats.categorySales).map(([category, sales]) => ({
     name: category,
     sales: sales
-  }));
+  })).sort((a, b) => b.sales - a.sales); 
 
-  // Data preparation for the status chart
+  // --- START OF PIE CHART DATA USING NEW GROUPED STATUSES ---
   const statusChartData = Object.entries(stats.statusCounts).map(([status, count]) => ({
     name: status,
     value: count
-  }));
+  })).sort((a, b) => b.value - a.value); 
+  // --- END OF PIE CHART DATA USING NEW GROUPED STATUSES ---
 
-  const PIE_COLORS_STATUS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8A2BE2'];
-  const PIE_COLORS_CATEGORY = ['#8A2BE2', '#FF8042', '#FFBB28', '#00C49F', '#0088FE'];
+  const PIE_COLORS_STATUS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#14b8a6'];
+  const PIE_COLORS_CATEGORY = ['#8b5cf6', '#f59e0b', '#10b981', '#3b82f6', '#ec4899'];
 
   return (
     <div className="min-h-screen bg-cream">
-      {/* HEADER STYLE */}
       <div className="bg-[#135918] rounded-b-3xl shadow-xl p-8 mb-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6">
           <div className="flex justify-between items-start py-4">
@@ -392,14 +434,12 @@ const SalesAnalytics = () => {
                 Track your sales performance and insights across periods.
               </p>
             </div>
-            {/* Main Total Sales Stat */}
             <div className="text-right">
               <p className="text-6xl font-bold text-white leading-none">{formatPrice(stats.totalSales)}</p>
               <p className="text-green-300 mt-1">Total Sales ({filterPeriod})</p>
             </div>
           </div>
 
-          {/* Integrated Statistics Cards */}
           <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
             {cardStats.map((stat) => {
               const Icon = stat.icon;
@@ -425,81 +465,95 @@ const SalesAnalytics = () => {
           </div>
         </div>
       </div>
-      {/* END HEADER STYLE */}
-
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
-          {/* Controls - Filter and Actions (Updated with PeriodFilterButtons) */}
           <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 mb-8">
               <div className="flex flex-col md:flex-row md:items-center justify-between">
                   <h2 className="text-xl font-semibold text-secondary mb-4 md:mb-0">Filter Data Period</h2>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-                      {/* 🌟 REPLACED DROPDOWN WITH BUTTONS 🌟 */}
                       <PeriodFilterButtons 
                           currentPeriod={filterPeriod} 
                           onPeriodChange={handlePeriodChange} 
                       />
-                      {/* Removed Custom Date Inputs */}
                   </div>
               </div>
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Chart Card 1: Sales by Status */}
             <div className="card bg-white rounded-xl shadow-md p-6 border border-gray-100">
-              <h3 className="text-lg font-semibold text-secondary mb-4">Orders by Status</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart margin={{ right: 80 }}>
-                  <Pie
-                    data={statusChartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="40%"
-                    cy="50%"
-                    outerRadius={100}
-                    fill="#8884d8"
-                    label
-                  >
-                    {statusChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS_STATUS[index % PIE_COLORS_STATUS.length]} />
-                    ))}
-                  </Pie>
-                  <Legend layout="vertical" verticalAlign="middle" align="right" />
-                  <Tooltip formatter={(value) => `${value} order(s)`} />
-                </PieChart>
-              </ResponsiveContainer>
+              <h3 className="text-lg font-semibold text-secondary mb-4">Items by Order Status</h3>
+              {statusChartData.length > 0 ? (
+                <div className="flex flex-col xl:flex-row items-center justify-center">
+                    <ResponsiveContainer width="100%" height={300} className="xl:w-3/5">
+                    <PieChart>
+                      <Pie
+                        data={statusChartData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                        outerRadius={90}
+                        fill="#8884d8"
+                      >
+                        {statusChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS_STATUS[index % PIE_COLORS_STATUS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `${value} item(s)`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                    <div className="xl:w-2/5 xl:ml-6 mt-4 xl:mt-0">
+                        <CustomPieChartLegend data={statusChartData} colors={PIE_COLORS_STATUS} />
+                    </div>
+                </div>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-gray-500">
+                  No data available
+                </div>
+              )}
             </div>
 
-            {/* Chart Card 2: Sales by Category */}
             <div className="card bg-white rounded-xl shadow-md p-6 border border-gray-100">
               <h3 className="text-lg font-semibold text-secondary mb-4">Sales by Category</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart margin={{ right: 80 }}>
-                  <Pie
-                    data={categoryChartData}
-                    dataKey="sales"
-                    nameKey="name"
-                    cx="40%"
-                    cy="50%"
-                    outerRadius={100}
-                    fill="#8884d8"
-                    label
-                  >
-                    {categoryChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS_CATEGORY[index % PIE_COLORS_CATEGORY.length]} />
-                    ))}
-                  </Pie>
-                  <Legend layout="vertical" verticalAlign="middle" align="right" />
-                  <Tooltip formatter={(value) => formatPrice(value)} />
-                </PieChart>
-              </ResponsiveContainer>
+              {categoryChartData.length > 0 ? (
+                <div className="flex flex-col xl:flex-row items-center justify-center">
+                <ResponsiveContainer width="100%" height={300} className="xl:w-3/5">
+                  <PieChart>
+                    <Pie
+                      data={categoryChartData}
+                      dataKey="sales"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                      outerRadius={90}
+                      fill="#8884d8"
+                    >
+                      {categoryChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS_CATEGORY[index % PIE_COLORS_CATEGORY.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatPrice(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="xl:w-2/5 xl:ml-6 mt-4 xl:mt-0">
+                    <CustomPieChartLegend data={categoryChartData.map(d => ({ name: d.name }))} colors={PIE_COLORS_CATEGORY} />
+                </div>
+                </div>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-gray-500">
+                  No data available
+                </div>
+              )}
             </div>
           </div>
 
           <div className="card bg-white rounded-xl shadow-md p-6 border border-gray-100 mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-              <h3 className="text-lg font-semibold text-secondary mb-2 sm:mb-0">Recent Sales Transactions</h3>
-              {/* Export controls for the Recent Sales table */}
+              <h3 className="text-lg font-semibold text-secondary mb-2 sm:mb-0">Recent Sold Items</h3>
               <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
                 <div className="flex space-x-2">
                   <button 
@@ -520,7 +574,6 @@ const SalesAnalytics = () => {
               </div>
             </div>
             
-            {/* Table Container */}
             <div className="h-[400px] overflow-y-auto">
               <table className="w-full">
                 <thead>
@@ -537,7 +590,7 @@ const SalesAnalytics = () => {
                   {currentSales.length === 0 ? (
                     <tr>
                       <td colSpan="6" className="py-8 px-4 text-center text-gray-500">
-                        No sales data available for this period.
+                        No sold items available for this period.
                       </td>
                     </tr>
                   ) : (
@@ -549,8 +602,8 @@ const SalesAnalytics = () => {
                         <td className="py-3 px-4 text-gray-600">{sale.category || 'N/A'}</td>
                         <td className="py-3 px-4 font-bold text-[#135918]">{formatPrice(parseFloat(sale.price))}</td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(sale.status || 'unknown')}`}>
-                            {(sale.status || 'UNKNOWN').toUpperCase()}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(sale.status || 'pending')}`}>
+                            {(sale.status || 'PENDING').toUpperCase()}
                           </span>
                         </td>
                       </tr>
@@ -560,7 +613,6 @@ const SalesAnalytics = () => {
               </table>
             </div>
 
-            {/* Pagination Controls */}
             {totalItems > itemsPerPage && (
               <div className="flex items-center justify-center mt-4 space-x-4">
                 <button

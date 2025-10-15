@@ -21,7 +21,7 @@ import {
     ChevronUp,
     ChevronDown,
     MoreVertical,
-    DollarSign, // Added DollarSign for clarity in stats
+    PhilippinePeso,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, Button, Pagination, LoadingSpinner, EmptyState, StatusBadge } from './ui'
 import DeleteCustomerModal from "../modals/custumerPage/DeleteCustomerModal"
@@ -405,7 +405,7 @@ const CustomerManagement = () => {
         {
             title: "Total Revenue",
             value: formatPrice(totalSpentOverall),
-            icon: DollarSign, // Using DollarSign here
+            icon: PhilippinePeso,
             color: "amber",
         },
     ];
