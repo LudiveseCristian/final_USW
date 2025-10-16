@@ -100,6 +100,7 @@ const OrderManagement = () => {
               description: data.description || 'No description available',
               length: data.length || 'N/A',
               width: data.width || 'N/A',
+              deliveryAddress: data.deliveryAddress || 'N/A',
               raw: data
             })
           }
@@ -425,7 +426,7 @@ const OrderManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-800">{order.winnerName}</div>
                       <div className="text-xs text-green-700 font-bold flex items-center mt-1">
-                        <PhilippinePeso className="w-3 h-3 mr-1" />
+                        {/* <PhilippinePeso className="w-3 h-3 mr-1" /> */}
                         {formatCurrency(order.winningBid)}
                       </div>
                     </td>
@@ -632,6 +633,7 @@ const OrderManagement = () => {
                   <div><strong>Name:</strong> {selectedOrder.winnerName}</div>
                   <div><strong>Email:</strong> {selectedOrder.winnerEmail}</div>
                   <div><strong>User ID:</strong> {selectedOrder.winnerId}</div>
+                  <div><strong>Delivery Address:</strong> {selectedOrder.deliveryAddress || 'N/A'}</div> {/* MODIFIED LINE */}
                 </div>
               </div>
               

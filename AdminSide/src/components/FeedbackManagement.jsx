@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { collection, onSnapshot, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { useAlert } from '../contexts/alertContext';
 
 // NOTE: Assumed presence of custom UI components (LoadingSpinner, StatusBadge) where used.
 
@@ -35,6 +36,8 @@ const FeedbackManagement = () => {
   const [filterRating, setFilterRating] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(6);
+  const { showAlert } = useAlert();
+
   // New state for image modal
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageModalData, setImageModalData] = useState({
@@ -73,7 +76,7 @@ const FeedbackManagement = () => {
     }, (error) => {
       console.error('Error fetching feedback:', error);
       setLoading(false);
-      alert('Failed to load feedback. Please try again later.');
+      showAlert('error', 'Failed to load feedback. Please try again later.');
     });
 
     return () => unsubscribe();
@@ -125,10 +128,10 @@ const FeedbackManagement = () => {
       });
       setShowModal(false);
       setSelectedFeedback(null);
-      alert(`Feedback ${newStatus === 'approved' ? 'approved for display' : 'rejected'} successfully!`);
+      showAlert('success', `Feedback approved for display successfully!`);
     } catch (error) {
       console.error('Error updating feedback:', error);
-      alert('Failed to update feedback. Please try again.');
+      showAlert('error', 'Failed to update feedback status. Please try again.');
     }
   };
 
@@ -138,10 +141,10 @@ const FeedbackManagement = () => {
         await deleteDoc(doc(db, 'feedbacks', id));
         setShowModal(false);
         setSelectedFeedback(null);
-        alert('Feedback deleted successfully!');
+        showAlert('success', 'Feedback deleted successfully!');
       } catch (error) {
         console.error('Error deleting feedback:', error);
-        alert('Failed to delete feedback. Please try again.');
+        showAlert('error', 'Failed to delete feedback. Please try again.');
       }
     }
   };
