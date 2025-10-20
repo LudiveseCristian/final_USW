@@ -8,7 +8,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from "react-native"
 import { Feather } from "@expo/vector-icons"
@@ -16,6 +15,7 @@ import { useAuth } from "../AuthContext"
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth"
 import { auth } from "../firebase/firebase"
 import { SafeAreaView } from 'react-native-safe-area-context'
+import ProfileAlertModal from "../hooks/AlertModal/ProfileAlertModal"
 
 export default function ChangePasswordScreen({ navigation }) {
   const { currentUser } = useAuth()
@@ -28,6 +28,11 @@ export default function ChangePasswordScreen({ navigation }) {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
+  const [modalVisible, setModalVisible] = useState(false)
+  const [modalType, setModalType] = useState("info")
+  const [modalTitle, setModalTitle] = useState("")
+  const [modalMessage, setModalMessage] = useState("")
 
   // Validation states
   const [errors, setErrors] = useState({})
@@ -105,22 +110,11 @@ export default function ChangePasswordScreen({ navigation }) {
       // Update the password
       await updatePassword(auth.currentUser, newPassword)
 
-      Alert.alert(
-        "Success", 
-        "Password changed successfully!", 
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // Clear form and navigate back
-              setCurrentPassword("")
-              setNewPassword("")
-              setConfirmPassword("")
-              navigation.goBack()
-            }
-          }
-        ]
-      )
+      setModalType("success")
+      setModalTitle("Success")
+      setModalMessage("Password changed successfully!")
+      setModalVisible(true)
+
     } catch (error) {
       console.error("Password change error:", error)
       
@@ -144,12 +138,24 @@ export default function ChangePasswordScreen({ navigation }) {
           errorMessage = error.message || "An unexpected error occurred"
       }
       
-      Alert.alert("Error", errorMessage)
+      setModalType("error")
+      setModalTitle("Error")
+      setModalMessage(errorMessage)
+      setModalVisible(true)
     } finally {
       setUpdating(false)
     }
   }
-
+  const handleModalClose = () => {
+  setModalVisible(false)
+  if (modalType === "success") {
+    // Clear form and navigate back on success
+    setCurrentPassword("")
+    setNewPassword("")
+    setConfirmPassword("")
+    navigation.goBack()
+  }
+}
   const getPasswordStrength = (password) => {
     if (!password) return { strength: 0, text: "", color: "#E0E0E0" }
     
@@ -367,6 +373,14 @@ export default function ChangePasswordScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+            {/* Add this modal before the closing SafeAreaView */}
+      <ProfileAlertModal
+        visible={modalVisible}
+        onClose={handleModalClose}
+        type={modalType}
+        title={modalTitle}
+        message={modalMessage}
+      />
     </SafeAreaView>
   )
 }

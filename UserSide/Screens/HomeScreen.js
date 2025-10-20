@@ -455,35 +455,111 @@ if (isLoading || isLoadingData) {
           </View>
         </View>
 
+        {/* Featured Drops Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Drops</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("News")}>
-              <Text style={styles.seeAllText}>See All</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.sectionDescription}>Stay updated with the latest drops and announcements</Text>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.newsScroll}>
-            {featuredNews.map((article) => (
-              <TouchableOpacity key={article.id} style={styles.newsCard} onPress={() => navigation.navigate("News")}>
-                {article.mainImage && <Image source={{ uri: article.mainImage }} style={styles.newsImage} />}
-                <View style={styles.newsContent}>
-                  <Text style={styles.newsTitle} numberOfLines={2}>
-                    {article.title}
-                  </Text>
-                  <Text style={styles.newsDescription} numberOfLines={2}>
-                    {article.description}
-                  </Text>
-                  <View style={styles.newsFooter}>
-                    <Feather name="clock" size={12} color="#888" />
-                    <Text style={styles.newsTime}>{formatDateTime(article.createdAt)}</Text>
-                  </View>
-                </View>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Featured Drops</Text>
+                <Text style={styles.sectionSubtitleInline}>Latest announcements</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.seeAllButton}
+                onPress={() => navigation.navigate("News")}
+              >
+                <Text style={styles.seeAllText}>See All</Text>
+                <Feather name="arrow-right" size={14} color="#2E6A2E" />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+            </View>
+
+            {featuredNews.length === 0 ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <Feather name="inbox" size={48} color="#E0E0E0" />
+                </View>
+                <Text style={styles.emptyStateTitle}>No Updates Yet</Text>
+                <Text style={styles.emptyStateText}>
+                  Check back later for exciting new drops and announcements!
+                </Text>
+              </View>
+            ) : (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                style={styles.newsScroll}
+                contentContainerStyle={styles.newsScrollContent}
+              >
+                {featuredNews.map((article) => (
+                  <TouchableOpacity 
+                    key={article.id} 
+                    style={styles.newsCardImproved} 
+                    onPress={() => navigation.navigate("News")}
+                    activeOpacity={0.95}
+                  >
+                    {/* Image Container with Overlay */}
+                    <View style={styles.newsImageWrapper}>
+                      {article.mainImage ? (
+                        <Image source={{ uri: article.mainImage }} style={styles.newsImageImproved} />
+                      ) : (
+                        <View style={styles.newsPlaceholder}>
+                          <Feather name="image" size={32} color="#CCC" />
+                        </View>
+                      )}
+                      
+                      {/* Gradient Overlay */}
+                      <View style={styles.newsGradientOverlay} />
+                      
+                      {/* Type Badge */}
+                      <View style={[
+                        styles.newsTypeBadge,
+                        article.type === 'update' ? styles.newsUpdateBadge : styles.newsDropBadge
+                      ]}>
+                        <Feather 
+                          name={article.type === 'update' ? "bell" : "package"} 
+                          size={10} 
+                          color="white" 
+                        />
+                        <Text style={styles.newsTypeText}>
+                          {article.type === 'update' ? 'UPDATE' : 'DROP'}
+                        </Text>
+                      </View>
+                      
+                      {/* Time Badge */}
+                      <View style={styles.newsTimeBadge}>
+                        <Feather name="clock" size={10} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.newsTimeText}>{formatDateTime(article.createdAt)}</Text>
+                      </View>
+
+                      {/* Image Count Badge */}
+                      {article.secondaryImages && article.secondaryImages.length > 0 && (
+                        <View style={styles.newsImageCountBadge}>
+                          <Feather name="camera" size={10} color="white" />
+                          <Text style={styles.newsImageCountText}>+{article.secondaryImages.length}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Card Content */}
+                    <View style={styles.newsContentImproved}>
+                      <Text style={styles.newsTitleImproved} numberOfLines={2}>
+                        {article.title}
+                      </Text>
+                      <Text style={styles.newsDescriptionImproved} numberOfLines={3}>
+                        {article.description}
+                      </Text>
+                      
+                      {/* Footer with Read More */}
+                      <View style={styles.newsFooterImproved}>
+                        <View style={styles.newsReadMoreButton}>
+                          <Feather name="arrow-right" size={12} color="#2E6A2E" />
+                          <Text style={styles.newsReadMoreText}>Read More</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
 
         {/* Featured Bidding */}
         <SafeAreaView style={styles.section}>
@@ -1026,18 +1102,6 @@ const styles = StyleSheet.create({
   paddingHorizontal: 5,
   paddingVertical: 10,
   },
-  newsCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    marginRight: 15,
-    width: 280,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    paddingHorizontal:10,
-    elevation: 3,
-  },
   newsImage: {
     width: "100%",
     height: 140,
@@ -1532,5 +1596,183 @@ emptyStateText: {
   textAlign: "center",
   marginTop: 12,
   lineHeight: 24,
+},
+sectionSubtitleInline: {
+  fontSize: 13,
+  color: "#666",
+  marginTop: 2,
+  fontWeight: "500",
+},
+seeAllButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "rgba(46, 106, 46, 0.1)",
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 20,
+  gap: 4,
+},
+newsScrollContent: {
+  paddingHorizontal: 5,
+  paddingVertical: 10,
+},
+
+newsCardImproved: {
+  backgroundColor: "white",
+  borderRadius: 16,
+  width: 300,
+  marginRight: 15,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.12,
+  shadowRadius: 12,
+  elevation: 6,
+  overflow: "hidden",
+},
+newsImageWrapper: {
+  position: "relative",
+  height: 180,
+  backgroundColor: "#F0F0F0",
+},
+newsImageImproved: {
+  width: "100%",
+  height: "100%",
+},
+newsPlaceholder: {
+  width: "100%",
+  height: "100%",
+  backgroundColor: "#F5F5F5",
+  justifyContent: "center",
+  alignItems: "center",
+},
+newsGradientOverlay: {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: 80,
+  backgroundColor: "rgba(0,0,0,0.3)",
+},
+newsTypeBadge: {
+  position: "absolute",
+  top: 12,
+  left: 12,
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 20,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.2,
+  shadowRadius: 4,
+  elevation: 3,
+},
+newsUpdateBadge: {
+  backgroundColor: "rgba(46, 106, 46, 0.95)",
+},
+newsDropBadge: {
+  backgroundColor: "rgba(46, 106, 46, 0.95)",
+},
+newsTypeText: {
+  color: "white",
+  fontSize: 10,
+  fontWeight: "800",
+  letterSpacing: 0.5,
+},
+newsTimeBadge: {
+  position: "absolute",
+  bottom: 12,
+  left: 12,
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 20,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+},
+newsTimeText: {
+  color: "rgba(255,255,255,0.9)",
+  fontSize: 11,
+  fontWeight: "600",
+},
+newsImageCountBadge: {
+  position: "absolute",
+  top: 12,
+  right: 12,
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 20,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+},
+newsImageCountText: {
+  color: "white",
+  fontSize: 11,
+  fontWeight: "600",
+},
+newsContentImproved: {
+  padding: 16,
+},
+newsTitleImproved: {
+  fontSize: 17,
+  fontWeight: "700",
+  color: "#135918",
+  marginBottom: 8,
+  lineHeight: 22,
+},
+newsDescriptionImproved: {
+  fontSize: 14,
+  color: "#666",
+  lineHeight: 20,
+  marginBottom: 12,
+},
+newsFooterImproved: {
+  flexDirection: "row",
+  justifyContent: "flex-end",
+  alignItems: "center",
+  marginTop: 4,
+},
+newsReadMoreButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "rgba(46, 106, 46, 0.1)",
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 20,
+  gap: 4,
+},
+newsReadMoreText: {
+  fontSize: 12,
+  color: "#2E6A2E",
+  fontWeight: "700",
+  letterSpacing: 0.3,
+},
+emptyIconContainer: {
+  width: 100,
+  height: 100,
+  borderRadius: 50,
+  backgroundColor: "#F5F5F5",
+  justifyContent: "center",
+  alignItems: "center",
+  marginBottom: 20,
+},
+emptyStateTitle: {
+  fontSize: 20,
+  fontWeight: "700",
+  color: "#333",
+  marginBottom: 8,
+  textAlign: "center",
+},
+emptyStateText: {
+  fontSize: 15,
+  color: "#666",
+  textAlign: "center",
+  lineHeight: 22,
+  paddingHorizontal: 20,
 },
 })

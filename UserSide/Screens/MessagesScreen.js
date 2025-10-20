@@ -39,6 +39,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useMessageCount } from "../hooks/useMessageCounts";
 import Constants from 'expo-constants';
+import MessageImageModal from '../hooks/Modal/MessageImageModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -56,9 +57,9 @@ const MessagesScreen = ({ route }) => {
     const [loading, setLoading] = useState(false);
     const [isAdminTyping, setIsAdminTyping] = useState(false);
     const [conversationId, setConversationId] = useState(null);
-    const [uploadingImage, setUploadingImage] = useState(false);
     const flatListRef = useRef(null);
     const { resetMessageCount } = useMessageCount();
+    const [imageModalVisible, setImageModalVisible] = useState(false);
 
     // AI Assistant States
     const [aiMessages, setAiMessages] = useState([]);
@@ -482,89 +483,10 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
         }
     };
 
-    const showImageOptions = () => {
-        Alert.alert(
-            "Add Image",
-            "Choose an option",
-            [
-                { text: "Camera", onPress: pickImageFromCamera },
-                { text: "Gallery", onPress: pickImageFromLibrary },
-                { text: "Cancel", style: "cancel" },
-            ]
-        );
-    };
+const showImageOptions = () => {
+    setImageModalVisible(true);
+};
 
-    const pickImageFromCamera = async () => {
-        try {
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: "images",
-                allowsEditing: true,
-                quality: 0.7,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-                await uploadAndSendImage(result.assets[0].uri);
-            }
-        } catch (error) {
-            console.error("Camera error:", error);
-        }
-    };
-
-    const pickImageFromLibrary = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: "images",
-                allowsEditing: true,
-                quality: 0.7,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-                await uploadAndSendImage(result.assets[0].uri);
-            }
-        } catch (error) {
-            console.error("Library error:", error);
-        }
-    };
-
-    const uploadAndSendImage = async (imageUri) => {
-        if (!conversationId) return;
-
-        try {
-            setUploadingImage(true);
-
-            const filename = `chat-images/${conversationId}/${Date.now()}.jpg`;
-            const imageRef = ref(storage, filename);
-            
-            const response = await fetch(imageUri);
-            const blob = await response.blob();
-            
-            await uploadBytes(imageRef, blob);
-            const downloadURL = await getDownloadURL(imageRef);
-
-            const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-            await addDoc(messagesRef, {
-                senderId: currentUser.uid,
-                senderType: 'user',
-                imageUrl: downloadURL,
-                type: 'image',
-                timestamp: serverTimestamp(),
-                status: 'delivered'
-            });
-
-            const conversationRef = doc(db, 'conversations', conversationId);
-            await updateDoc(conversationRef, {
-                lastMessage: '📷 Photo',
-                lastMessageTime: serverTimestamp(),
-                'unreadCount.admin': (await getDoc(conversationRef)).data()?.unreadCount?.admin + 1 || 1,
-            });
-
-        } catch (error) {
-            console.error('Upload error:', error);
-            Alert.alert('Error', 'Failed to send image');
-        } finally {
-            setUploadingImage(false);
-        }
-    };
 
     const supportQuickActions = [
         { text: "Track my order", icon: "local-shipping" },
@@ -843,15 +765,10 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
 
                         <View style={styles.inputContainer}>
                             <TouchableOpacity 
-                                style={styles.attachButton}
-                                onPress={showImageOptions}
-                                disabled={uploadingImage}
-                            >
-                                {uploadingImage ? (
-                                    <ActivityIndicator size="small" color="#135918" />
-                                ) : (
+                                    style={styles.attachButton}
+                                    onPress={showImageOptions}
+                                >
                                     <Icon name="attach-file" size={22} color="#666" />
-                                )}
                             </TouchableOpacity>
                             <TextInput
                                 value={inputText}
@@ -972,6 +889,17 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
                     </>
                 )}
             </KeyboardAvoidingView>
+
+            {/* Message Image Modal - ADD IT HERE */}
+            <MessageImageModal
+                visible={imageModalVisible}
+                onClose={() => setImageModalVisible(false)}
+                currentUser={currentUser}
+                conversationId={conversationId}
+                onImageSent={(imageUrl) => {
+                    console.log('Image sent:', imageUrl);
+                }}
+            />
         </SafeAreaView>
     );
 };
@@ -979,7 +907,7 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFEF7',
+        backgroundColor: '#FFFCF3',
     },
     keyboardAvoid: {
         flex: 1,
@@ -1120,7 +1048,7 @@ const styles = StyleSheet.create({
     },
     messagesList: {
         flex: 1,
-        backgroundColor: '#f8f9fa',
+        backgroundColor: '#FFFCF3',
     },
     messagesContent: {
         paddingHorizontal: 15,

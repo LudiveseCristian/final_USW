@@ -25,6 +25,7 @@ import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LogoutModal from "../hooks/AlertModal/LogoutModal"
 import TermsModal from "../hooks/Modal/TermsModal"
+import PersonalInformationModal from "../hooks/Modal/PersonalInformationModal"
 
 const { width, height } = Dimensions.get("window")
 
@@ -35,7 +36,7 @@ export default function ProfileScreen({ navigation }) {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [imagePickerVisible, setImagePickerVisible] = useState(false)
+  const [showImageModal, setShowImageModal] = useState(false)
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [termsModalVisible, setTermsModalVisible] = useState(false);
 
@@ -359,6 +360,10 @@ useEffect(() => {
   setLogoutModalVisible(true);
 };
 
+  const handleImageUpdated = (newPhotoURL) => {
+  setUserProfile((prev) => ({ ...prev, photoURL: newPhotoURL }))
+}
+
  if (loading || isLoading) {
   return <LoadingScreen message="Loading profile..." />
 }
@@ -458,7 +463,7 @@ const stats = [
               />
               <TouchableOpacity
                 style={styles.cameraButton}
-                onPress={() => setImagePickerVisible(true)}
+                onPress={() => setShowImageModal(true)}
                 disabled={uploadingImage}
               >
                 {uploadingImage ? (
@@ -550,32 +555,13 @@ const stats = [
       </ScrollView>
 
       {/* Image Picker Modal */}
-      <Modal
-        visible={imagePickerVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setImagePickerVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.imagePickerModal}>
-            <Text style={styles.modalTitle}>Choose Profile Picture</Text>
-
-            <TouchableOpacity style={styles.pickerOption} onPress={selectImageFromCamera}>
-              <Feather name="camera" size={24} color="#2E6A2E" />
-              <Text style={styles.pickerText}>Take Photo</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.pickerOption} onPress={selectImageFromLibrary}>
-              <Feather name="image" size={24} color="#2E6A2E" />
-              <Text style={styles.pickerText}>Choose from Gallery</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.cancelOption} onPress={() => setImagePickerVisible(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+<PersonalInformationModal
+  visible={showImageModal}
+  onClose={() => setShowImageModal(false)}
+  currentUser={currentUser}
+  currentPhotoURL={userData?.photoURL}
+  onImageUpdated={handleImageUpdated}
+/>
 
       {/* Edit Profile Modal */}
       <Modal

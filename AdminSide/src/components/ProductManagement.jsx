@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import {
   Plus,
@@ -626,10 +627,11 @@ const ProductManagement = () => {
     { id: 'available', label: 'Available', icon: Tag, color: 'text-green-500' },
     { id: 'ending soon', label: 'Ending Soon', icon: Timer, color: 'text-amber-500' },
     { id: 'expired', label: 'Expired', icon: Clock, color: 'text-red-500' },
+    { id: 'upcoming', label: 'Upcoming', icon: TrendingUp, color: 'text-blue-500' },
   ];
   
   // Define the statuses that should be shown in the default 'all' view
-  const allowedStatusesForDefaultView = ['available', 'ending soon', 'expired'];
+  const allowedStatusesForDefaultView = ['available', 'ending soon', 'expired', 'upcoming'];
 
   const filteredProducts = products.filter((product) => {
     

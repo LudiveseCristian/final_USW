@@ -67,6 +67,7 @@ const messagesScreenAnimation = {
 // Import your screen components
 import SignInScreen from "./Screens/SignInScreen";
 import SignUpScreen from "./Screens/SignUpScreen";
+import ForgotPasswordScreen from "./Screens/ForgotPasswordScreen";
 import WelcomeScreen from "./Screens/WelcomeScreen";
 import HomeScreen from "./Screens/HomeScreen";
 import NewsScreen from "./Screens/NewsScreen";
@@ -125,6 +126,7 @@ function OnboardingStack() {
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </Stack.Navigator>
   );
 }
@@ -142,6 +144,7 @@ function AuthStack() {
     >
       <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </Stack.Navigator>
   );
 }

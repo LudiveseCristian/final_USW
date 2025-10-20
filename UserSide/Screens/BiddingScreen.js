@@ -20,6 +20,7 @@ import { useAuth } from "../AuthContext"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from "react-native-safe-area-context"
 import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons"
+import BidConditionModal from "../hooks/Modal/BidConditionModal"
 
 export default function BiddingScreen({ navigation }) {
   const { currentUser } = useAuth()
@@ -39,6 +40,7 @@ export default function BiddingScreen({ navigation }) {
   const [biddingCounts, setBiddingCounts] = useState({ activeBids: 0, outbidNotifications: 0 })
   const [biddingCountsLoading, setBiddingCountsLoading] = useState(false)
   const [expandedCards, setExpandedCards] = useState(new Set())
+  const [showConditionModal, setShowConditionModal] = useState(false)
 
   const toggleExpand = (itemId) => {
     setExpandedCards(prevExpandedCards => {
@@ -284,8 +286,13 @@ export default function BiddingScreen({ navigation }) {
     // Ensure nextBid is a number before calling .toString()
     const initialBidAmount = nextBid && !isNaN(nextBid) ? nextBid.toString() : "";
     setBidAmount(initialBidAmount); // Initialize bid amount with the calculated next bid
-    setShowBidModal(true);
+    setShowConditionModal(true);
     // END FIX
+  }
+
+  const handleConditionConfirm = () => {
+  setShowConditionModal(false)
+  setShowBidModal(true) // Then show the bid input modal
   }
 
   const handleConfirmBid = async () => {
@@ -784,6 +791,18 @@ export default function BiddingScreen({ navigation }) {
           </View>
         </Modal>
         {renderImageViewer()}
+
+          <BidConditionModal
+        visible={showConditionModal}
+        onClose={() => {
+          setShowConditionModal(false)
+          setSelectedItem(null)
+          setBidAmount("")
+        }}
+        onConfirm={handleConditionConfirm}
+        selectedItem={selectedItem}
+      />
+
       </View>
     </SafeAreaView>
   )

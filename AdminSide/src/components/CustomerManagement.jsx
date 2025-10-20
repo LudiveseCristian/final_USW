@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -20,8 +21,7 @@ import {
     Trash,
     ChevronUp,
     ChevronDown,
-    MoreVertical,
-    DollarSign, // Added DollarSign for clarity in stats
+    PhilippinePeso,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, Button, Pagination, LoadingSpinner, EmptyState, StatusBadge } from './ui'
 import DeleteCustomerModal from "../modals/custumerPage/DeleteCustomerModal"
@@ -54,8 +54,6 @@ const CustomerManagement = () => {
     const [deletingCustomer, setDeletingCustomer] = useState(null)
     const [currentPage, setCurrentPage] = useState(1)
     const [itemsPerPage] = useState(5)
-    const [dropdownOpen, setDropdownOpen] = useState(null)
-
 
     useEffect(() => {
         fetchCustomersWithOrderData()
@@ -72,11 +70,9 @@ const CustomerManagement = () => {
                 throw new Error("Firebase database not initialized")
             }
 
-            // Fetch all users
             const usersRef = collection(db, "users")
             const usersSnapshot = await getDocs(usersRef)
 
-            // Fetch all orders
             const ordersRef = collection(db, "orders")
             const ordersSnapshot = await getDocs(ordersRef)
 
@@ -87,7 +83,6 @@ const CustomerManagement = () => {
                 return
             }
 
-            // Process orders data
             const ordersData = ordersSnapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
@@ -95,19 +90,15 @@ const CustomerManagement = () => {
 
             console.log("Orders fetched from Firebase:", ordersData)
 
-            // Process users data and calculate order statistics
             const usersData = usersSnapshot.docs.map((doc) => {
                 const userData = doc.data()
                 const userId = doc.id
 
-                // Find orders for this user using customerId field
                 const userOrders = ordersData.filter(order => order.customerId === userId)
 
-                // Calculate statistics
                 const totalOrders = userOrders.length
                 const totalSpent = userOrders.reduce((sum, order) => sum + (order.price || 0), 0)
 
-                // Get last order date
                 const lastOrderDate = userOrders.length > 0
                     ? userOrders
                         .map(order => order.date?.toDate ? order.date.toDate() : new Date(order.date))
@@ -134,11 +125,11 @@ const CustomerManagement = () => {
                     email: userData.email || "No email",
                     phone: userData.phone || userData.contactNumber || "No phone",
                     address: userData.address || userData.location || "No address",
-                    status: "active", // You can implement logic to determine status based on your requirements
+                    status: "active",
                     totalOrders,
                     totalSpent,
                     lastOrder: formatLastOrder(lastOrderDate),
-                    preferences: ["Streetwear"], // You can modify this based on order categories or user data
+                    preferences: ["Streetwear"],
                     createdAt: userData.createdAt,
                     updatedAt: userData.updatedAt,
                     photoURL: userData.photoURL || "",
@@ -176,7 +167,6 @@ const CustomerManagement = () => {
                     return {
                         id: doc.id,
                         ...orderData,
-                        // Format the date for display
                         formattedDate: orderData.date?.toDate
                             ? orderData.date.toDate().toLocaleDateString()
                             : new Date(orderData.date).toLocaleDateString(),
@@ -257,21 +247,18 @@ const CustomerManagement = () => {
             }
         })
 
-    // Pagination
     const totalPages = Math.ceil(sortedAndFilteredCustomers.length / itemsPerPage)
     const startIndex = (currentPage - 1) * itemsPerPage
     const paginatedCustomers = sortedAndFilteredCustomers.slice(startIndex, startIndex + itemsPerPage)
 
-    // Calculate overall statistics
     const totalOrdersOverall = customers.reduce((sum, customer) => sum + customer.totalOrders, 0)
     const totalSpentOverall = customers.reduce((sum, customer) => sum + customer.totalSpent, 0)
-    const avgOrderValueOverall = totalOrdersOverall > 0 ? totalSpentOverall / totalOrdersOverall : 0;
-    const activeUsersOverall = customers.filter(c => c.status === 'active').length;
-
+    const avgOrderValueOverall = totalOrdersOverall > 0 ? totalSpentOverall / totalOrdersOverall : 0
+    const activeUsersOverall = customers.filter(c => c.status === 'active').length
 
     const formatPrice = (price) => {
-        if (typeof price !== 'number') return '₱0.00';
-        return `₱${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        if (typeof price !== 'number') return '₱0.00'
+        return `₱${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     }
 
     const getStatusColor = (status) => {
@@ -287,31 +274,14 @@ const CustomerManagement = () => {
         }
     }
 
-    const getOrderStatusColor = (status) => {
-        switch (status?.toLowerCase()) {
-            case "pending":
-                return "bg-yellow-100 text-yellow-800"
-            case "confirmed":
-                return "bg-blue-100 text-blue-800"
-            case "completed":
-                return "bg-green-100 text-green-800"
-            case "cancelled":
-                return "bg-red-100 text-red-800"
-            default:
-                return "bg-gray-100 text-gray-800"
-        }
-    }
-
     const handleViewCustomer = (customer) => {
         setSelectedCustomer(customer)
         setShowCustomerModal(true)
-        setDropdownOpen(null)
     }
 
     const handleViewOrders = async (customer) => {
         setSelectedCustomer(customer)
         setShowOrdersModal(true)
-        setDropdownOpen(null)
 
         const orders = await getCustomerOrders(customer.id)
         setCustomerOrders(orders)
@@ -321,13 +291,11 @@ const CustomerManagement = () => {
         setSelectedCustomer(customer)
         setEmailData({ subject: "", message: "" })
         setShowEmailModal(true)
-        setDropdownOpen(null)
     }
 
     const confirmDeleteCustomer = (customer) => {
         setDeletingCustomer(customer)
         setShowDeleteModal(true)
-        setDropdownOpen(null)
     }
 
     const handleSendEmailSubmit = () => {
@@ -382,7 +350,6 @@ const CustomerManagement = () => {
         )
     }
 
-    // Array of stats for easy rendering
     const stats = [
         {
             title: "Total Users",
@@ -405,15 +372,14 @@ const CustomerManagement = () => {
         {
             title: "Total Revenue",
             value: formatPrice(totalSpentOverall),
-            icon: DollarSign, // Using DollarSign here
+            icon: PhilippinePeso,
             color: "amber",
         },
-    ];
-
+    ]
 
     return (
         <div className="min-h-screen bg-cream">
-            {/* 🟢 HEADER SECTION: Darker Green Theme */}
+            {/* HEADER SECTION: Darker Green Theme */}
             <div className="bg-[#135918] rounded-b-3xl shadow-xl p-8 mb-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6">
                     <div className="flex justify-between items-start py-4">
@@ -426,21 +392,19 @@ const CustomerManagement = () => {
                                 Manage user profiles and analyze customer lifetime value.
                             </p>
                         </div>
-                        {/* Main Total User Stat */}
                         <div className="text-right">
                             <p className="text-6xl font-bold text-white leading-none">{customers.length}</p>
                             <p className="text-green-300 mt-1">Total Registered Users</p>
                         </div>
                     </div>
 
-                    {/* Integrated Statistics Cards */}
+                    {/* Statistics Cards */}
                     <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
                         {stats.map((stat) => {
-                            const Icon = stat.icon;
-                            // Map color to a simple Tailwind shade for light bg on dark header
+                            const Icon = stat.icon
                             const iconColorClass = stat.color === 'blue' ? 'text-blue-300' :
                                 stat.color === 'green' ? 'text-green-300' :
-                                    stat.color === 'purple' ? 'text-purple-300' : 'text-amber-300';
+                                    stat.color === 'purple' ? 'text-purple-300' : 'text-amber-300'
                             return (
                                 <div
                                     key={stat.title}
@@ -454,12 +418,11 @@ const CustomerManagement = () => {
                                         </div>
                                     </div>
                                 </div>
-                            );
+                            )
                         })}
                     </div>
                 </div>
             </div>
-            {/* END HEADER SECTION */}
 
             {/* Search and Filter */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6 mb-6 -mt-6">
@@ -495,7 +458,6 @@ const CustomerManagement = () => {
                 </div>
             </div>
 
-
             {/* Users Table */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6 pb-12">
                 {sortedAndFilteredCustomers.length === 0 ? (
@@ -510,7 +472,12 @@ const CustomerManagement = () => {
                     </div>
                 ) : (
                     <div className="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto h-[450px] overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                            <style>{`
+                                .scrollbar-hide::-webkit-scrollbar {
+                                    display: none;
+                                }
+                            `}</style>
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -568,119 +535,132 @@ const CustomerManagement = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {paginatedCustomers.map((customer) => {
-                                        return (
-                                            <tr key={customer.id} className="hover:bg-green-50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        <div className="flex-shrink-0 h-10 w-10">
-                                                            {customer.photoURL ? (
-                                                                <img
-                                                                    className="h-10 w-10 rounded-full object-cover"
-                                                                    src={customer.photoURL || "/placeholder.svg"}
-                                                                    alt={customer.name}
-                                                                />
-                                                            ) : (
-                                                                <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
-                                                                    <span className="text-sm font-medium text-primary">
-                                                                        {customer.name
-                                                                            .split(" ")
-                                                                            .map((n) => n[0])
-                                                                            .join("")
-                                                                            .substring(0, 2)}
-                                                                    </span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="ml-4">
-                                                            <div className="text-sm font-medium text-foreground">{customer.name}</div>
-                                                            <div className="text-xs text-muted-foreground">ID: {customer.id.substring(0, 8)}...</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm text-foreground">
-                                                        <div className="flex items-center mb-1">
-                                                            <Mail className="h-4 w-4 text-muted-foreground mr-2" />
-                                                            {customer.email}
-                                                        </div>
-                                                        <div className="flex items-center">
-                                                            <Phone className="h-4 w-4 text-muted-foreground mr-2" />
-                                                            {customer.phone}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span
-                                                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(customer.status)}`}
-                                                    >
-                                                        {customer.status.charAt(0).toUpperCase() + customer.status.slice(1)}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                                                    <div className="flex items-center">
-                                                        <Package className="h-4 w-4 text-muted-foreground mr-2" />
-                                                        {customer.totalOrders}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-700">
-                                                    {formatPrice(customer.totalSpent)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm text-foreground flex items-center">
-                                                        <MapPin className="h-4 w-4 text-muted-foreground mr-2" />
-                                                        <span className="truncate max-w-32" title={customer.address}>
-                                                            {customer.address}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={() => setDropdownOpen(dropdownOpen === customer.id ? null : customer.id)}
-                                                            className="text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-muted/50 transition-colors"
-                                                        >
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </button>
-                                                        {dropdownOpen === customer.id && (
-                                                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-border">
-                                                                <div className="py-1">
-                                                                    <button
-                                                                        onClick={() => handleViewCustomer(customer)}
-                                                                        className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
-                                                                    >
-                                                                        <Eye className="h-4 w-4 mr-3" />
-                                                                        View Details
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleViewOrders(customer)}
-                                                                        className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
-                                                                    >
-                                                                        <Package className="h-4 w-4 mr-3" />
-                                                                        View Orders
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleSendEmail(customer)}
-                                                                        className="flex items-center px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground w-full text-left transition-colors"
-                                                                    >
-                                                                        <Send className="h-4 w-4 mr-3" />
-                                                                        Send Email
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => confirmDeleteCustomer(customer)}
-                                                                        className="flex items-center px-4 py-2 text-sm text-destructive hover:bg-destructive/10 w-full text-left transition-colors"
-                                                                    >
-                                                                        <Trash className="h-4 w-4 mr-3" />
-                                                                        Delete User
-                                                                    </button>
-                                                                </div>
+                                    {paginatedCustomers.map((customer) => (
+                                        <tr key={customer.id} className="hover:bg-green-50 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="flex-shrink-0 h-10 w-10">
+                                                        {customer.photoURL ? (
+                                                            <img
+                                                                className="h-10 w-10 rounded-full object-cover"
+                                                                src={customer.photoURL || "/placeholder.svg"}
+                                                                alt={customer.name}
+                                                            />
+                                                        ) : (
+                                                            <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
+                                                                <span className="text-sm font-medium text-primary">
+                                                                    {customer.name
+                                                                        .split(" ")
+                                                                        .map((n) => n[0])
+                                                                        .join("")
+                                                                        .substring(0, 2)}
+                                                                </span>
                                                             </div>
                                                         )}
                                                     </div>
-                                                </td>
-                                            </tr>
-                                        )
-                                    })}
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-foreground">{customer.name}</div>
+                                                        <div className="text-xs text-muted-foreground">ID: {customer.id.substring(0, 8)}...</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-foreground">
+                                                    <div className="flex items-center mb-1">
+                                                        <Mail className="h-4 w-4 text-muted-foreground mr-2" />
+                                                        {customer.email}
+                                                    </div>
+                                                    <div className="flex items-center">
+                                                        <Phone className="h-4 w-4 text-muted-foreground mr-2" />
+                                                        {customer.phone}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span
+                                                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(customer.status)}`}
+                                                >
+                                                    {customer.status.charAt(0).toUpperCase() + customer.status.slice(1)}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                                                <div className="flex items-center">
+                                                    <Package className="h-4 w-4 text-muted-foreground mr-2" />
+                                                    {customer.totalOrders}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-700">
+                                                {formatPrice(customer.totalSpent)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-foreground flex items-center">
+                                                    <MapPin className="h-4 w-4 text-muted-foreground mr-2" />
+                                                    <span className="truncate max-w-32" title={customer.address}>
+                                                        {customer.address}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                <div className="flex items-center justify-end space-x-1">
+                                                    {/* View Details Button */}
+                                                    <div className="relative group">
+                                                        <button
+                                                            onClick={() => handleViewCustomer(customer)}
+                                                            title="View Details"
+                                                            className="text-muted-foreground hover:text-blue-600 p-2 rounded-full hover:bg-blue-100 transition-colors"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </button>
+                                                        <span className="absolute right-1/2 translate-x-1/2 top-full mt-1 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+                                                            View Details
+                                                        </span>
+                                                    </div>
+
+                                                    {/* View Orders Button */}
+                                                    <div className="relative group">
+                                                        <button
+                                                            onClick={() => handleViewOrders(customer)}
+                                                            title="View Orders"
+                                                            className="text-muted-foreground hover:text-purple-600 p-2 rounded-full hover:bg-purple-100 transition-colors"
+                                                        >
+                                                            <Package className="h-4 w-4" />
+                                                        </button>
+                                                        <span className="absolute right-1/2 translate-x-1/2 top-full mt-1 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+                                                            View Orders
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Send Email Button */}
+                                                    <div className="relative group">
+                                                        <button
+                                                            onClick={() => handleSendEmail(customer)}
+                                                            title="Send Email"
+                                                            className="text-muted-foreground hover:text-green-600 p-2 rounded-full hover:bg-green-100 transition-colors"
+                                                        >
+                                                            <Send className="h-4 w-4" />
+                                                        </button>
+                                                        <span className="absolute right-1/2 translate-x-1/2 top-full mt-1 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+                                                            Send Email
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Delete Button */}
+                                                    <div className="relative group">
+                                                        <button
+                                                            onClick={() => confirmDeleteCustomer(customer)}
+                                                            title="Delete User"
+                                                            className="text-muted-foreground hover:text-red-600 p-2 rounded-full hover:bg-red-100 transition-colors"
+                                                        >
+                                                            <Trash className="h-4 w-4" />
+                                                        </button>
+                                                        <span className="absolute right-1/2 translate-x-1/2 top-full mt-1 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+                                                            Delete User
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
@@ -732,9 +712,9 @@ const CustomerManagement = () => {
                                                         onClick={() => setCurrentPage(page)}
                                                         className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors ${
                                                             isCurrentPage
-                                                                ? "z-10 bg-[#135918] border-[#135918] text-white hover:bg-[#15440d] rounded-none" // Adjusted active button style
+                                                                ? "z-10 bg-[#135918] border-[#135918] text-white hover:bg-[#15440d] rounded-none"
                                                                 : "bg-card border-border text-foreground hover:bg-accent"
-                                                            }`}
+                                                        }`}
                                                     >
                                                         {page}
                                                     </button>
@@ -806,7 +786,7 @@ const CustomerManagement = () => {
                 customer={deletingCustomer || { name: '' }}
             />
         </div>
-    );
+    )
 }
 
 export default CustomerManagement

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Star,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import { collection, onSnapshot, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { useAlert } from '../contexts/alertContext';
 
 // NOTE: Assumed presence of custom UI components (LoadingSpinner, StatusBadge) where used.
 
@@ -35,6 +37,8 @@ const FeedbackManagement = () => {
   const [filterRating, setFilterRating] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(6);
+  const { showAlert } = useAlert();
+
   // New state for image modal
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageModalData, setImageModalData] = useState({
@@ -73,7 +77,7 @@ const FeedbackManagement = () => {
     }, (error) => {
       console.error('Error fetching feedback:', error);
       setLoading(false);
-      alert('Failed to load feedback. Please try again later.');
+      showAlert('error', 'Failed to load feedback. Please try again later.');
     });
 
     return () => unsubscribe();
@@ -125,10 +129,10 @@ const FeedbackManagement = () => {
       });
       setShowModal(false);
       setSelectedFeedback(null);
-      alert(`Feedback ${newStatus === 'approved' ? 'approved for display' : 'rejected'} successfully!`);
+      showAlert('success', `Feedback approved for display successfully!`);
     } catch (error) {
       console.error('Error updating feedback:', error);
-      alert('Failed to update feedback. Please try again.');
+      showAlert('error', 'Failed to update feedback status. Please try again.');
     }
   };
 
@@ -138,10 +142,10 @@ const FeedbackManagement = () => {
         await deleteDoc(doc(db, 'feedbacks', id));
         setShowModal(false);
         setSelectedFeedback(null);
-        alert('Feedback deleted successfully!');
+        showAlert('success', 'Feedback deleted successfully!');
       } catch (error) {
         console.error('Error deleting feedback:', error);
-        alert('Failed to delete feedback. Please try again.');
+        showAlert('error', 'Failed to delete feedback. Please try again.');
       }
     }
   };
@@ -264,7 +268,7 @@ const FeedbackManagement = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-8">
             
             {/* Card 1: Total Feedback */}
-            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-green-500 transform transition-transform duration-300 hover:scale-[1.02]">
+            <div className="bg-[#2e7334] rounded-xl shadow-xl p-6 border border-green-500 transform transition-transform duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">Total Feedback</p>
@@ -277,7 +281,7 @@ const FeedbackManagement = () => {
             </div>
 
             {/* Card 2: Pending Review */}
-            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-yellow-100 transform transition-transform duration-300 hover:scale-[1.02]">
+            <div className="bg-[#2e7334] rounded-xl shadow-xl p-6 border border-yellow-100 transform transition-transform duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">Pending Review</p>
@@ -290,7 +294,7 @@ const FeedbackManagement = () => {
             </div>
 
             {/* Card 3: Approved */}
-            <div className="bg-[#0d7214] rounded-xl shadow-xl p-6 border border-green-100 transform transition-transform duration-300 hover:scale-[1.02]">
+            <div className="bg-[#2e7334] rounded-xl shadow-xl p-6 border border-green-100 transform transition-transform duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">Approved</p>
@@ -303,7 +307,7 @@ const FeedbackManagement = () => {
             </div>
 
             {/* Card 4: Average Rating */}
-            <div className="bg-[#0c5b11] rounded-xl shadow-xl p-6 border border-blue-400 transform transition-transform duration-300 hover:scale-[1.02]">
+            <div className="bg-[#2e7334] rounded-xl shadow-xl p-6 border border-blue-400 transform transition-transform duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">Average Rating</p>

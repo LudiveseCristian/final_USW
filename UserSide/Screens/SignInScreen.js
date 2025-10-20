@@ -151,6 +151,14 @@ const handleSignIn = useCallback(async () => {
             </View>
           </View>
 
+          <TouchableOpacity 
+            onPress={() => navigation.navigate("ForgotPassword")}
+            style={styles.forgotPasswordContainer}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={[styles.signInButton, isLoading && styles.signInButtonLoading]}
@@ -338,4 +346,16 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textDecorationLine: "underline",
   },
+forgotPasswordContainer: {
+  width: "100%",
+  alignItems: "flex-end",
+  marginBottom: 10,
+  paddingHorizontal: 5,
+},
+forgotPasswordText: {
+  fontSize: 14,
+  color: "#2E6A2E",
+  fontWeight: "600",
+  textDecorationLine: "underline",
+},
 })

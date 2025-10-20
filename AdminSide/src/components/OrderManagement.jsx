@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react'
 import {
   Search,
@@ -6,14 +7,10 @@ import {
   Star,
   Clock,
   Eye,
-  Camera,
   X,
   ChevronLeft,
   ChevronRight,
   Calendar,
-  User,
-  MapPin,
-  Mail,
   PhilippinePeso,
   Package,
   Tag,
@@ -22,8 +19,9 @@ import {
 } from 'lucide-react'
 import { collection, onSnapshot, updateDoc, doc, addDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
+import { useAlert } from "../contexts/alertContext"
 // Assuming these are custom UI components
-import { Button, Pagination, LoadingSpinner, StatusBadge } from './ui'
+import { Button, Pagination, StatusBadge } from './ui'
 
 
 // Helper component for displaying the rating stars
@@ -56,8 +54,8 @@ const OrderManagement = () => {
   const [trackingNumber, setTrackingNumber] = useState('')
   const [editingStatus, setEditingStatus] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
-  // Set itemsPerPage to 8
   const [itemsPerPage] = useState(8) 
+  const { showAlert } = useAlert();
 
   // Statistics
   const [stats, setStats] = useState({
@@ -103,6 +101,7 @@ const OrderManagement = () => {
               description: data.description || 'No description available',
               length: data.length || 'N/A',
               width: data.width || 'N/A',
+              deliveryAddress: data.deliveryAddress || 'N/A',
               raw: data
             })
           }
@@ -197,10 +196,10 @@ const OrderManagement = () => {
 
       setEditingStatus(null)
       setTrackingNumber('')
-      alert(`Order status updated to ${newStatus} successfully!`)
+      showAlert('success', `Order status updated to ${newStatus} successfully!`)
     } catch (error) {
       console.error('Error updating order status:', error)
-      alert('Failed to update order status. Please try again.')
+      showAlert('error', 'Failed to update order status. Please try again.')
     }
   }
 
@@ -253,11 +252,11 @@ const OrderManagement = () => {
 
   const formatCurrency = (amount) => {
     if (typeof amount !== 'number') return '₱0.00';
-    return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `₱${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   const tabs = [
-    { id: 'all', label: 'All Orders', count: stats.all, icon: ListOrdered }, // Add icon for 'all' tab
+    { id: 'all', label: 'All Orders', count: stats.all, icon: ListOrdered },
     { id: 'pending', label: 'Pending', count: stats.pending, icon: Clock },
     { id: 'shipped', label: 'Shipped', count: stats.shipped, icon: Truck },
     { id: 'delivered', label: 'Delivered', count: stats.delivered, icon: CheckCircle },
@@ -277,23 +276,23 @@ const OrderManagement = () => {
 
   return (
     <div className="min-h-screen bg-cream">
-      {/* 🟢 HEADER STYLE: Darker Green */}
+      {/* HEADER STYLE: Darker Green */}
       <div className="bg-[#135918] rounded-b-3xl shadow-xl p-8 mb-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6">
           <div className="flex justify-between items-start py-4">
             <div>
               <h1 className="text-4xl font-extrabold text-white flex items-center">
-                <ListOrdered className="w-8 h-8 mr-3 text-green-300" /> {/* Adjusted icon color */}
+                <ListOrdered className="w-8 h-8 mr-3 text-green-300" />
                 Order Management Dashboard
               </h1>
-              <p className="mt-2 text-green-300 text-lg"> {/* Adjusted text color */}
+              <p className="mt-2 text-green-300 text-lg">
                 View, track, and manage all winning auction orders.
               </p>
             </div>
             {/* Main Total Order Stat */}
             <div className="text-right">
                 <p className="text-6xl font-bold text-white leading-none">{stats.all}</p>
-                <p className="text-green-300 mt-1">Total Orders</p> {/* Adjusted text color */}
+                <p className="text-green-300 mt-1">Total Orders</p>
             </div>
           </div>
 
@@ -304,7 +303,7 @@ const OrderManagement = () => {
               return (
                 <div 
                   key={tab.id} 
-                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-green-700/30 text-white shadow-md transition-all duration-300 hover:bg-white/20" // Adjusted border color
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-green-700/30 text-white shadow-md transition-all duration-300 hover:bg-white/20"
                 >
                   <div className="flex items-center space-x-3">
                     <Icon className="w-6 h-6 text-green-300" />
@@ -348,7 +347,7 @@ const OrderManagement = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-[#135918] text-white shadow-md' // Adjusted active tab background color
+                      ? 'bg-[#135918] text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -357,7 +356,7 @@ const OrderManagement = () => {
                   {tab.count > 0 && (
                     <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                       activeTab === tab.id
-                        ? 'bg-white text-[#135918] font-bold' // Adjusted active tab text color
+                        ? 'bg-white text-[#135918] font-bold'
                         : 'bg-gray-300 text-gray-700'
                     }`}>
                       {tab.count}
@@ -428,7 +427,7 @@ const OrderManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-800">{order.winnerName}</div>
                       <div className="text-xs text-green-700 font-bold flex items-center mt-1">
-                        <PhilippinePeso className="w-3 h-3 mr-1" />
+                        {/* <PhilippinePeso className="w-3 h-3 mr-1" /> */}
                         {formatCurrency(order.winningBid)}
                       </div>
                     </td>
@@ -456,7 +455,7 @@ const OrderManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       {/* Status Update/Action Buttons */}
-                      <div className="space-y-2">
+                      <div className="flex flex-col space-y-2">
                         {order.orderStatus === 'pending' && (
                           <div className='w-full'>
                             {editingStatus === order.id ? (
@@ -555,7 +554,7 @@ const OrderManagement = () => {
       </div>
 
 
-      {/* Order Details Modal (Unchanged) */}
+      {/* Order Details Modal */}
       {showModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -635,6 +634,7 @@ const OrderManagement = () => {
                   <div><strong>Name:</strong> {selectedOrder.winnerName}</div>
                   <div><strong>Email:</strong> {selectedOrder.winnerEmail}</div>
                   <div><strong>User ID:</strong> {selectedOrder.winnerId}</div>
+                  <div><strong>Delivery Address:</strong> {selectedOrder.deliveryAddress || 'N/A'}</div> {/* MODIFIED LINE */}
                 </div>
               </div>
               
@@ -656,7 +656,7 @@ const OrderManagement = () => {
         </div>
       )}
 
-      {/* Image Modal (Unchanged) */}
+      {/* Image Modal */}
       {showImageModal && (
         <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50">
           <div className="relative w-full h-full flex items-center justify-center">
