@@ -6,7 +6,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native";
 import { enableScreens } from "react-native-screens";
-import { WinNotificationProvider } from './hooks/useWinNotification';
 
 // Enable react-native-screens for better performance
 enableScreens();
@@ -280,9 +279,7 @@ function RootNavigator() {
 export default function App() {
   return (
     <AuthProvider>
-      <WinNotificationProvider>
       <RootNavigator />
-      </WinNotificationProvider>
     </AuthProvider>
   );
 }

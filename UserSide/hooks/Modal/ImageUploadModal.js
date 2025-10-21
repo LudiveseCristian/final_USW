@@ -7,19 +7,24 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  ScrollView,
 } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import * as ImagePicker from "expo-image-picker"
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
-import { doc, updateDoc } from "firebase/firestore"
-import { storage, db } from "../../firebase/firebase"
 import ProfileAlertModal from "../AlertModal/ProfileAlertModal"
 import ConfirmationModal from "../AlertModal/ConfirmationModal"
 
-const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoURL, onImageUpdated }) => {
+const ImageUploadModal = ({
+  visible,
+  onClose,
+  images,
+  onImagesSelected,
+  maxImages = 3,
+  title = "Upload Photos",
+}) => {
+  const [tempImages, setTempImages] = useState([])
   const [uploading, setUploading] = useState(false)
-  const [previewImage, setPreviewImage] = useState(null)
-  
+
   // Alert modal states
   const [alertVisible, setAlertVisible] = useState(false)
   const [alertConfig, setAlertConfig] = useState({
@@ -27,7 +32,7 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
     title: "",
     message: ""
   })
-  
+
   // Confirmation modal state
   const [confirmVisible, setConfirmVisible] = useState(false)
 
@@ -35,48 +40,6 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
   const showAlert = (type, title, message, onCloseCallback) => {
     setAlertConfig({ type, title, message, onCloseCallback })
     setAlertVisible(true)
-  }
-
-  // Upload image to Firebase Storage
-  const uploadImageToFirebase = async (imageUri) => {
-    try {
-      setUploading(true)
-
-      const filename = `profile_${Date.now()}.jpg`
-      const imageRef = ref(storage, `profile-images/${currentUser.uid}/${filename}`)
-
-      const response = await fetch(imageUri)
-      const blob = await response.blob()
-
-      const snapshot = await uploadBytes(imageRef, blob)
-      const downloadURL = await getDownloadURL(snapshot.ref)
-
-      const userRef = doc(db, "users", currentUser.uid)
-      await updateDoc(userRef, {
-        photoURL: downloadURL,
-        updatedAt: new Date().toISOString(),
-      })
-
-      if (onImageUpdated) {
-        onImageUpdated(downloadURL)
-      }
-
-      showAlert(
-        "success",
-        "Success!",
-        "Your profile picture has been updated successfully.",
-        handleClose
-      )
-    } catch (error) {
-      console.error("Upload error:", error)
-      showAlert(
-        "error",
-        "Upload Failed",
-        `Failed to update profile picture. ${error.message}`
-      )
-    } finally {
-      setUploading(false)
-    }
   }
 
   // Handle camera photo
@@ -93,15 +56,25 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
         return
       }
 
+      if (tempImages.length >= maxImages) {
+        showAlert(
+          "info",
+          "Maximum Reached",
+          `You can only upload up to ${maxImages} photos.`
+        )
+        return
+      }
+
+      setUploading(true)
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.7,
       })
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPreviewImage(result.assets[0].uri)
+        setTempImages(prev => [...prev, result.assets[0].uri])
       }
     } catch (error) {
       console.error("Camera error:", error)
@@ -110,6 +83,8 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
         "Camera Error",
         "Failed to open camera. Please try again."
       )
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -127,15 +102,38 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
         return
       }
 
+      const remainingSlots = maxImages - tempImages.length
+      if (remainingSlots <= 0) {
+        showAlert(
+          "info",
+          "Maximum Reached",
+          `You can only upload up to ${maxImages} photos.`
+        )
+        return
+      }
+
+      setUploading(true)
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        allowsMultipleSelection: true,
+        quality: 0.7,
+        allowsEditing: false,
       })
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPreviewImage(result.assets[0].uri)
+        const newImages = result.assets
+          .slice(0, remainingSlots)
+          .map(asset => asset.uri)
+        
+        setTempImages(prev => [...prev, ...newImages])
+
+        if (result.assets.length > remainingSlots) {
+          showAlert(
+            "info",
+            "Selection Limit",
+            `Only ${remainingSlots} image(s) were added due to the ${maxImages} photo limit.`
+          )
+        }
       }
     } catch (error) {
       console.error("Gallery error:", error)
@@ -144,41 +142,55 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
         "Gallery Error",
         "Failed to open gallery. Please try again."
       )
+    } finally {
+      setUploading(false)
     }
   }
 
-  // Handle upload confirmation
-  const handleUploadConfirm = () => {
-    if (!previewImage) {
+  // Remove image from temp selection
+  const handleRemoveImage = (index) => {
+    setTempImages(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Handle confirm upload
+  const handleConfirm = () => {
+    if (tempImages.length === 0) {
       showAlert(
         "info",
-        "No Image Selected",
-        "Please select an image before uploading."
+        "No Images Selected",
+        "Please select at least one image before uploading."
       )
       return
     }
-    uploadImageToFirebase(previewImage)
+
+    onImagesSelected(tempImages)
+    handleClose()
+    showAlert(
+      "success",
+      "Images Added!",
+      `${tempImages.length} photo(s) have been added successfully.`
+    )
   }
 
   // Handle close modal
   const handleClose = () => {
-    setPreviewImage(null)
+    setTempImages([])
     setUploading(false)
     onClose()
   }
 
-  // Handle cancel with confirmation if image selected
+  // Handle cancel with confirmation if images selected
   const handleCancel = () => {
     if (uploading) {
       showAlert(
         "info",
         "Upload in Progress",
-        "Please wait for the upload to complete."
+        "Please wait for the image selection to complete."
       )
       return
     }
     
-    if (previewImage) {
+    if (tempImages.length > 0) {
       setConfirmVisible(true)
     } else {
       handleClose()
@@ -198,7 +210,7 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
             {/* Header */}
             <View style={styles.modalHeader}>
               <Feather name="image" size={28} color="#2E6A2E" />
-              <Text style={styles.modalTitle}>Change Profile Picture</Text>
+              <Text style={styles.modalTitle}>{title}</Text>
               <TouchableOpacity 
                 style={styles.closeButton} 
                 onPress={handleCancel}
@@ -208,28 +220,50 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
               </TouchableOpacity>
             </View>
 
-            {/* Image Preview */}
-            <View style={styles.imagePreviewContainer}>
-              <Image
-                source={{
-                  uri: previewImage || currentPhotoURL || "https://via.placeholder.com/200x200/CCCCCC/FFFFFF?text=No+Image",
-                }}
-                style={styles.previewImage}
-              />
-              {previewImage && (
-                <View style={styles.previewBadge}>
-                  <Feather name="check-circle" size={16} color="white" />
-                  <Text style={styles.previewBadgeText}>New Image Selected</Text>
-                </View>
-              )}
-            </View>
+            {/* Image Preview Grid */}
+            <ScrollView 
+              style={styles.previewScrollView}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.imageGrid}>
+                {tempImages.map((uri, index) => (
+                  <View key={index} style={styles.imageContainer}>
+                    <Image source={{ uri }} style={styles.previewImage} />
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => handleRemoveImage(index)}
+                    >
+                      <Feather name="x" size={16} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {tempImages.length < maxImages && (
+                  <TouchableOpacity
+                    style={styles.addImagePlaceholder}
+                    disabled={true}
+                  >
+                    <Feather name="image" size={32} color="#CCC" />
+                    <Text style={styles.placeholderText}>Empty Slot</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Image Counter */}
+              <View style={styles.counterContainer}>
+                <Feather name="image" size={16} color="#666" />
+                <Text style={styles.counterText}>
+                  {tempImages.length} of {maxImages} photos selected
+                </Text>
+              </View>
+            </ScrollView>
 
             {/* Action Buttons */}
             <View style={styles.actionButtonsContainer}>
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={handleTakePhoto}
-                disabled={uploading}
+                disabled={uploading || tempImages.length >= maxImages}
               >
                 <Feather name="camera" size={24} color="#2E6A2E" />
                 <Text style={styles.actionButtonText}>Take Photo</Text>
@@ -240,7 +274,7 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={handlePickFromGallery}
-                disabled={uploading}
+                disabled={uploading || tempImages.length >= maxImages}
               >
                 <Feather name="image" size={24} color="#2E6A2E" />
                 <Text style={styles.actionButtonText}>Choose from Gallery</Text>
@@ -251,7 +285,7 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
             <View style={styles.infoContainer}>
               <Feather name="info" size={16} color="#666" />
               <Text style={styles.infoText}>
-                Select or take a photo, then tap "Upload" to update your profile picture.
+                Select up to {maxImages} photos from your camera or gallery. Tap "Done" when finished.
               </Text>
             </View>
 
@@ -267,21 +301,21 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
 
               <TouchableOpacity
                 style={[
-                  styles.uploadButton,
-                  (!previewImage || uploading) && styles.disabledButton,
+                  styles.confirmButton,
+                  (tempImages.length === 0 || uploading) && styles.disabledButton,
                 ]}
-                onPress={handleUploadConfirm}
-                disabled={!previewImage || uploading}
+                onPress={handleConfirm}
+                disabled={tempImages.length === 0 || uploading}
               >
                 {uploading ? (
                   <>
                     <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
-                    <Text style={styles.uploadButtonText}>Uploading...</Text>
+                    <Text style={styles.confirmButtonText}>Processing...</Text>
                   </>
                 ) : (
                   <>
-                    <Feather name="upload" size={18} color="white" style={{ marginRight: 8 }} />
-                    <Text style={styles.uploadButtonText}>Upload</Text>
+                    <Feather name="check" size={18} color="white" style={{ marginRight: 8 }} />
+                    <Text style={styles.confirmButtonText}>Done</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -307,8 +341,8 @@ const PersonalInformationModal = ({ visible, onClose, currentUser, currentPhotoU
       {/* Confirmation Modal */}
       <ConfirmationModal
         visible={confirmVisible}
-        title="Discard Changes?"
-        message="You have selected a new image. Are you sure you want to cancel without uploading?"
+        title="Discard Images?"
+        message="You have selected images. Are you sure you want to cancel without adding them?"
         confirmText="Discard"
         cancelText="Keep Editing"
         onConfirm={() => {
@@ -335,6 +369,7 @@ const styles = StyleSheet.create({
     margin: 20,
     width: "90%",
     maxWidth: 400,
+    maxHeight: "85%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -344,7 +379,7 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 20,
     position: "relative",
   },
   modalTitle: {
@@ -357,40 +392,80 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
-  imagePreviewContainer: {
-    alignItems: "center",
-    marginBottom: 24,
+  previewScrollView: {
+    maxHeight: 250,
+    marginBottom: 16,
+  },
+  imageGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  imageContainer: {
     position: "relative",
+    width: 100,
+    height: 100,
   },
   previewImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 4,
-    borderColor: "#2E6A2E",
+    width: "100%",
+    height: "100%",
+    borderRadius: 12,
+    backgroundColor: "#F0F0F0",
   },
-  previewBadge: {
+  removeButton: {
     position: "absolute",
-    bottom: 10,
-    backgroundColor: "#2E6A2E",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    top: -6,
+    right: -6,
+    backgroundColor: "#E74C3C",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  addImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#E0E0E0",
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FAFAFA",
+  },
+  placeholderText: {
+    fontSize: 11,
+    color: "#CCC",
+    fontWeight: "600",
+    marginTop: 6,
+  },
+  counterContainer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    padding: 8,
+    backgroundColor: "#F8F8F8",
+    borderRadius: 8,
   },
-  previewBadgeText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "600",
-    marginLeft: 6,
+  counterText: {
+    fontSize: 13,
+    color: "#666",
+    marginLeft: 8,
+    fontWeight: "500",
   },
   actionButtonsContainer: {
     flexDirection: "row",
     backgroundColor: "#F8F8F8",
     borderRadius: 16,
     padding: 8,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   actionButton: {
     flex: 1,
@@ -414,7 +489,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF9E6",
     padding: 12,
     borderRadius: 12,
-    marginBottom: 24,
+    marginBottom: 20,
     borderLeftWidth: 3,
     borderLeftColor: "#F5A623",
   },
@@ -442,7 +517,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#666",
   },
-  uploadButton: {
+  confirmButton: {
     flex: 1,
     backgroundColor: "#2E6A2E",
     borderRadius: 12,
@@ -451,7 +526,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
   },
-  uploadButtonText: {
+  confirmButtonText: {
     fontSize: 16,
     fontWeight: "bold",
     color: "white",
@@ -462,4 +537,4 @@ const styles = StyleSheet.create({
   },
 })
 
-export default PersonalInformationModal
+export default ImageUploadModal

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons';
+import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from "react-native-safe-area-context"
 
 export default function HelpSupportScreen({ navigation }) {
@@ -18,8 +19,8 @@ export default function HelpSupportScreen({ navigation }) {
 
   // UPDATE THESE WITH YOUR ACTUAL INFORMATION
   const contactInfo = {
-    email: 'support@upcycledstreet.com',
-    phone: '+63 123 456 7890',
+    email: 'streetwearupcycled@gmail.com',
+    phone: '+63 995 124 9025',
     address: 'Mactan Lapu-Lapu City, Cebu City, Philippines',
     location: {
       latitude: 10.310972, // Replace with your actual latitude
@@ -77,16 +78,6 @@ export default function HelpSupportScreen({ navigation }) {
 
   const toggleFAQ = (id) => {
     setExpandedFAQ(expandedFAQ === id ? null : id);
-  };
-
-  // Generate static map image URL (Google Static Maps API - FREE, no key needed for basic use)
-  const getStaticMapUrl = () => {
-    const { latitude, longitude } = contactInfo.location;
-    const zoom = 15;
-    const size = '600x300';
-    const markerColor = '0x1A5B1A'; // Green color
-    
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${latitude},${longitude}&zoom=${zoom}&size=${size}&markers=color:${markerColor}%7C${latitude},${longitude}&scale=2`;
   };
 
   const handleInstagram = () => {
@@ -195,34 +186,52 @@ export default function HelpSupportScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Our Location</Text>
           </View>
           
-          <TouchableOpacity 
-            style={styles.mapContainer} 
-            onPress={handleOpenMap}
-            activeOpacity={0.8}
+      <TouchableOpacity 
+          style={styles.mapContainer} 
+          onPress={handleOpenMap}
+          activeOpacity={0.95}
+        >
+          <MapView
+            style={styles.mapImage}
+            initialRegion={{
+              latitude: contactInfo.location.latitude,
+              longitude: contactInfo.location.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            }}
+            scrollEnabled={false}
+            zoomEnabled={false}
+            pitchEnabled={false}
+            rotateEnabled={false}
+            pointerEvents="none"
           >
-            <Image
-              source={{ uri: getStaticMapUrl() }}
-              style={styles.mapImage}
-              resizeMode="cover"
-            />
-            
-            {/* Overlay with tap instruction */}
-            <View style={styles.mapOverlay}>
-              <View style={styles.mapOverlayContent}>
-                <MaterialCommunityIcon name="google-maps" size={24} color="#1A5B1A" />
-                <View style={styles.mapOverlayText}>
-                  <Text style={styles.mapOverlayTitle}>View in Maps</Text>
-                  <Text style={styles.mapOverlaySubtitle}>Tap to get directions</Text>
-                </View>
+            <Marker
+              coordinate={{
+                latitude: contactInfo.location.latitude,
+                longitude: contactInfo.location.longitude,
+              }}
+              title={contactInfo.location.name}
+            >
+              <MaterialCommunityIcon name="map-marker" size={40} color="#1A5B1A" />
+            </Marker>
+          </MapView>
+
+          {/* Keep your existing overlay and badge */}
+          <View style={styles.mapOverlay}>
+            <View style={styles.mapOverlayContent}>
+              <MaterialCommunityIcon name="google-maps" size={24} color="#1A5B1A" />
+              <View style={styles.mapOverlayText}>
+                <Text style={styles.mapOverlayTitle}>View in Maps</Text>
+                <Text style={styles.mapOverlaySubtitle}>Tap to get directions</Text>
               </View>
             </View>
+          </View>
 
-            {/* Location name badge */}
-            <View style={styles.locationBadge}>
-              <Feather name="map-pin" size={16} color="#1A5B1A" />
-              <Text style={styles.locationBadgeText}>{contactInfo.location.name}</Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.locationBadge}>
+            <Feather name="map-pin" size={16} color="#1A5B1A" />
+            <Text style={styles.locationBadgeText}>{contactInfo.location.name}</Text>
+          </View>
+        </TouchableOpacity>
         </View>
 
         {/* FAQ Section */}

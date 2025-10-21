@@ -25,7 +25,7 @@ import {
     query, 
     orderBy, 
     doc, 
-    setDoc, 
+    setDoc,
     updateDoc, 
     serverTimestamp,
     getDoc,
@@ -40,6 +40,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useMessageCount } from "../hooks/useMessageCounts";
 import Constants from 'expo-constants';
 import MessageImageModal from '../hooks/Modal/MessageImageModal';
+import DeliveryModal from '../hooks/Modal/DeliveryModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -67,6 +68,8 @@ const MessagesScreen = ({ route }) => {
     const [aiLoading, setAiLoading] = useState(false);
     const [isBotTyping, setIsBotTyping] = useState(false);
     const aiFlatListRef = useRef(null);
+    const [deliveryModalVisible, setDeliveryModalVisible] = useState(false);
+    const [selectedWinProduct, setSelectedWinProduct] = useState(null);
     const [userStats, setUserStats] = useState({
         activeBids: 0,
         wonItems: 0,
@@ -203,6 +206,35 @@ const MessagesScreen = ({ route }) => {
             console.error('Error loading user stats:', error);
         }
     };
+
+const handleWinNotificationPress = async (item) => {
+    try {
+        // Fetch the actual product data from Firestore
+        const productRef = doc(db, 'products', item.productId);
+        const productSnap = await getDoc(productRef);
+        
+        if (productSnap.exists()) {
+            const productData = productSnap.data();
+            
+            const productInfo = {
+                productId: item.productId,
+                productName: productData.name || item.productName || 'Product',
+                productImage: productData.images?.[0] || productData.imageUrl || item.imageUrl,
+                currentBid: productData.currentBid || productData.price || 0,
+                highestBid: productData.currentBid || productData.price || 0,
+                price: productData.price || 0,
+            };
+            
+            setSelectedWinProduct(productInfo);
+            setDeliveryModalVisible(true);
+        } else {
+            Alert.alert('Error', 'Product not found');
+        }
+    } catch (error) {
+        console.error('Error fetching product:', error);
+        Alert.alert('Error', 'Failed to load product details');
+    }
+};
 
     const getContextualData = async (userQuery) => {
         const lowerQuery = userQuery.toLowerCase();
@@ -508,74 +540,89 @@ const showImageOptions = () => {
     };
 
     const renderSupportMessage = ({ item }) => {
-        const isWinNotification = item.type === 'win_notification';
-        const isUserImage = item.type === 'image' && item.senderType === 'user';
-        const isAdminImage = item.type === 'image' && item.senderType === 'admin';
-        
-        return (
-            <View style={[
-                styles.messageContainer,
-                item.senderType === 'user' ? styles.userMessage : styles.adminMessage,
-                isWinNotification && styles.winNotificationContainer
-            ]}>
-                {item.senderType === 'admin' && (
-                    <View style={styles.adminAvatar}>
-                        <Icon name={isWinNotification ? "emoji-events" : "support-agent"} size={16} color="white" />
-                    </View>
-                )}
-                <View style={[
-                    styles.messageBubble,
-                    item.senderType === 'user' ? styles.userBubble : styles.adminBubble,
-                    isWinNotification && styles.winNotificationBubble
-                ]}>
-                    {item.imageUrl && isWinNotification && (
-                        <Image 
-                            source={{ uri: item.imageUrl }} 
-                            style={styles.winNotificationImage}
-                            resizeMode="cover"
-                        />
-                    )}
-                    
-                    {item.imageUrl && (isUserImage || isAdminImage) && (
-                        <Image 
-                            source={{ uri: item.imageUrl }} 
-                            style={styles.messageImage}
-                            resizeMode="cover"
-                        />
-                    )}
-                    
-                    {item.text && (
-                        <Text style={[
-                            styles.messageText,
-                            item.senderType === 'user' ? styles.userMessageText : styles.adminMessageText,
-                            isWinNotification && styles.winNotificationText
-                        ]}>
-                            {item.text}
-                        </Text>
-                    )}
-                    
-                    <View style={styles.messageFooter}>
-                        <Text style={[
-                            styles.timestamp,
-                            item.senderType === 'user' ? styles.userTimestamp : styles.adminTimestamp
-                        ]}>
-                            {new Date(item.timestamp).toLocaleTimeString('en-US', { 
-                                hour: 'numeric', 
-                                minute: '2-digit' 
-                            })}
-                        </Text>
-                        {item.senderType === 'user' && (
-                            <View style={styles.statusIcon}>
-                                {item.status === 'sending' && <Icon name="schedule" size={12} color="#999" />}
-                                {item.status === 'delivered' && <Icon name="done-all" size={12} color="#4CAF50" />}
-                                {item.status === 'read' && <Icon name="done-all" size={12} color="#2196F3" />}
+            const isWinNotification = item.type === 'win_notification';
+            const isUserImage = item.type === 'image' && item.senderType === 'user';
+            const isAdminImage = item.type === 'image' && item.senderType === 'admin';
+            
+            return (
+                <TouchableOpacity 
+                    onPress={() => isWinNotification && handleWinNotificationPress(item)}
+                    disabled={!isWinNotification}
+                    activeOpacity={isWinNotification ? 0.7 : 1}
+                >
+                    <View style={[
+                        styles.messageContainer,
+                        item.senderType === 'user' ? styles.userMessage : styles.adminMessage,
+                        isWinNotification && styles.winNotificationContainer
+                    ]}>
+                        {item.senderType === 'admin' && (
+                            <View style={styles.adminAvatar}>
+                                <Icon name={isWinNotification ? "emoji-events" : "support-agent"} size={16} color="white" />
                             </View>
                         )}
+                        <View style={[
+                            styles.messageBubble,
+                            item.senderType === 'user' ? styles.userBubble : styles.adminBubble,
+                            isWinNotification && styles.winNotificationBubble
+                        ]}>
+                            {item.imageUrl && isWinNotification && (
+                                <Image 
+                                    source={{ uri: item.imageUrl }} 
+                                    style={styles.winNotificationImage}
+                                    resizeMode="cover"
+                                />
+                            )}
+                            
+                            {item.imageUrl && (isUserImage || isAdminImage) && (
+                                <Image 
+                                    source={{ uri: item.imageUrl }} 
+                                    style={styles.messageImage}
+                                    resizeMode="cover"
+                                />
+                            )}
+                            
+                            {item.text && (
+                                <Text style={[
+                                    styles.messageText,
+                                    item.senderType === 'user' ? styles.userMessageText : styles.adminMessageText,
+                                    isWinNotification && styles.winNotificationText
+                                ]}>
+                                    {item.text}
+                                </Text>
+                            )}
+                            
+                            {isWinNotification && (
+                                <View style={styles.deliveryPrompt}>
+                                    <Icon name="local-shipping" size={16} color="#135918" />
+                                    <Text style={styles.deliveryPromptText}>
+                                        Tap to confirm delivery address
+                                    </Text>
+                                </View>
+                            )}
+                            
+                            <View style={styles.messageFooter}>
+                                <Text style={[
+                                    styles.timestamp,
+                                    item.senderType === 'user' ? styles.userTimestamp : styles.adminTimestamp
+                                ]}>
+                                    {new Date(item.timestamp).toLocaleTimeString('en-US', { 
+                                        hour: 'numeric', 
+                                        minute: '2-digit' 
+                                    })}
+                                </Text>
+                                {item.senderType === 'user' && (
+                                    <View style={styles.statusIcon}>
+                                        {item.status === 'sending' && <Icon name="schedule" size={12} color="#999" />}
+                                        {item.status === 'delivered' && <Icon name="done-all" size={12} color="#4CAF50" />}
+                                        {item.status === 'read' && <Icon name="done-all" size={12} color="#2196F3" />}
+                                    </View>
+                                )}
+                            </View>
+                        </View>
                     </View>
-                </View>
-            </View>
-        );
-    };
+                </TouchableOpacity>
+            );
+        };
 
     const renderAiMessage = ({ item }) => (
         <View style={[
@@ -768,7 +815,7 @@ const showImageOptions = () => {
                                     style={styles.attachButton}
                                     onPress={showImageOptions}
                                 >
-                                    <Icon name="attach-file" size={22} color="#666" />
+                                    <Icon name="photo" size={22} color="#135918" />
                             </TouchableOpacity>
                             <TextInput
                                 value={inputText}
@@ -900,6 +947,18 @@ const showImageOptions = () => {
                     console.log('Image sent:', imageUrl);
                 }}
             />
+
+            {/* Delivery Address Modal */}
+                <DeliveryModal
+                    visible={deliveryModalVisible}
+                    onClose={() => {
+                        setDeliveryModalVisible(false);
+                        setSelectedWinProduct(null);
+                    }}
+                    productData={selectedWinProduct}
+                    currentUser={currentUser}
+                    conversationId={conversationId}
+                />
         </SafeAreaView>
     );
 };
@@ -1312,6 +1371,24 @@ const styles = StyleSheet.create({
     winNotificationText: {
         fontWeight: '600',
     },
+
+    deliveryPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f9f0',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#d0e8d0',
+    borderStyle: 'dashed',
+},
+    deliveryPromptText: {
+    fontSize: 12,
+    color: '#135918',
+    fontWeight: '600',
+    marginLeft: 8,
+},
 });
 
 export default MessagesScreen;

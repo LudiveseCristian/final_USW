@@ -38,6 +38,9 @@ export default function HomeScreen({ navigation }) {
     endingSoon: 0,
     wonItems: 0,
   })
+  const [dropModalVisible, setDropModalVisible] = useState(false)
+  const [selectedDrop, setSelectedDrop] = useState(null)
+
   const [approvedFeedback, setApprovedFeedback] = useState([])
   const [showBidModal, setShowBidModal] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
@@ -47,19 +50,26 @@ export default function HomeScreen({ navigation }) {
   const [selectedReviewImages, setSelectedReviewImages] = useState([])
   const [reviewImageIndex, setReviewImageIndex] = useState(0)
 
-  const openReviewImageViewer = (review, startIndex = 0) => {
+const openReviewImageViewer = (item, startIndex = 0) => {
   const allImages = []
   
-  // Add product image first if available
-  if (review.productImage) {
-    allImages.push({ uri: review.productImage, type: 'product' })
-  }
-  
-  // Add all review images
-  if (review.reviewImages && review.reviewImages.length > 0) {
-    review.reviewImages.forEach(imgUri => {
-      allImages.push({ uri: imgUri, type: 'customer' })
-    })
+  // Handle both review and drop items
+  if (item.productImage) {
+    // For reviews
+    allImages.push({ uri: item.productImage, type: 'product' })
+    if (item.reviewImages && item.reviewImages.length > 0) {
+      item.reviewImages.forEach(imgUri => {
+        allImages.push({ uri: imgUri, type: 'customer' })
+      })
+    }
+  } else if (item.mainImage) {
+    // For drops
+    allImages.push({ uri: item.mainImage, type: 'drop' })
+    if (item.secondaryImages && item.secondaryImages.length > 0) {
+      item.secondaryImages.forEach(imgUri => {
+        allImages.push({ uri: imgUri, type: 'drop' })
+      })
+    }
   }
   
   if (allImages.length > 0) {
@@ -104,6 +114,114 @@ useEffect(() => {
       console.error("Error fetching news:", error)
     }
   }
+
+  const openDropDetails = (drop) => {
+  setSelectedDrop(drop)
+  setDropModalVisible(true)
+}
+
+const renderDropDetailModal = () => {
+  const isUpdate = selectedDrop?.type === 'update'
+
+  return (
+    <Modal 
+      visible={dropModalVisible} 
+      animationType="slide" 
+      onRequestClose={() => setDropModalVisible(false)}
+    >
+      <SafeAreaView style={styles.articleModalContainer}>
+        {/* Header */}
+        <View style={[styles.articleModalHeader, isUpdate && styles.updateModalHeader]}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => setDropModalVisible(false)}
+          >
+            <Feather name="arrow-left" size={24} color={isUpdate ? "#135918" : "#2E6A2E"} />
+          </TouchableOpacity>
+          <Text style={[styles.articleModalTitle, isUpdate && styles.updateModalTitle]}>
+            {isUpdate ? "Update Details" : "Drop Details"}
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        {selectedDrop && (
+          <ScrollView style={styles.articleContent} showsVerticalScrollIndicator={false}>
+            {/* Main Image */}
+            {selectedDrop.mainImage && (
+              <TouchableOpacity 
+                style={styles.mainImageContainer} 
+                onPress={() => openReviewImageViewer(selectedDrop)}
+              >
+                <Image 
+                  source={{ uri: selectedDrop.mainImage }} 
+                  style={styles.articleMainImage} 
+                  resizeMode="cover" 
+                />
+                {selectedDrop.secondaryImages && selectedDrop.secondaryImages.length > 0 && (
+                  <View style={[styles.galleryIndicator, isUpdate && styles.updateGalleryIndicator]}>
+                    <Feather name="camera" size={16} color="white" />
+                    <Text style={styles.galleryText}>
+                      View Gallery ({selectedDrop.secondaryImages.length + 1})
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Drop Info */}
+            <View style={styles.articleInfo}>
+              <View style={styles.articleMeta}>
+                <View style={styles.timeContainer}>
+                  <Feather name="clock" size={14} color="#666" />
+                  <Text style={styles.articleTime}>{formatDateTime(selectedDrop.createdAt)}</Text>
+                </View>
+                <View style={[styles.typeContainer, isUpdate ? styles.updateTypeContainer : styles.dropTypeContainer]}>
+                  <Feather name={isUpdate ? "bell" : "package"} size={14} color="white" />
+                  <Text style={styles.typeContainerText}>{isUpdate ? 'UPDATE' : 'DROP'}</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.articleTitle, isUpdate && styles.updateArticleTitle]}>
+                {selectedDrop.title}
+              </Text>
+
+              <Text style={styles.articleDescription}>{selectedDrop.description}</Text>
+
+              {/* Secondary Images Grid */}
+              {selectedDrop.secondaryImages && selectedDrop.secondaryImages.length > 0 && (
+                <View style={styles.secondaryImagesSection}>
+                  <Text style={[styles.sectionTitle, isUpdate && styles.updateSectionTitle]}>
+                    {isUpdate ? "Additional Information" : "More Images"}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.secondaryImagesContainer}>
+                      {selectedDrop.secondaryImages.map((imageUri, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.secondaryImageWrapper}
+                          onPress={() => {
+                            setReviewImageIndex(index + 1) // +1 because main image is first
+                            openReviewImageViewer(selectedDrop)
+                          }}
+                        >
+                          <Image 
+                            source={{ uri: imageUri }} 
+                            style={styles.secondaryImage} 
+                            resizeMode="cover" 
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </Modal>
+  )
+}
 
   const fetchFeaturedBidding = async () => {
     try {
@@ -457,19 +575,17 @@ if (isLoading || isLoadingData) {
 
         {/* Featured Drops Section */}
         <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>Featured Drops</Text>
-                <Text style={styles.sectionSubtitleInline}>Latest announcements</Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.seeAllButton}
-                onPress={() => navigation.navigate("News")}
-              >
-                <Text style={styles.seeAllText}>See All</Text>
-                <Feather name="arrow-right" size={14} color="#2E6A2E" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Featured Drops</Text>
+            <TouchableOpacity 
+              style={styles.seeAllButton}
+              onPress={() => navigation.navigate("News")}
+            >
+              <Text style={styles.seeAllText}>See All</Text>
+              <Feather name="arrow-right" size={14} color="#2E6A2E" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.sectionDescription}>Catch the newest drops and updates highlights!</Text>
 
             {featuredNews.length === 0 ? (
               <View style={styles.emptyState}>
@@ -492,7 +608,7 @@ if (isLoading || isLoadingData) {
                   <TouchableOpacity 
                     key={article.id} 
                     style={styles.newsCardImproved} 
-                    onPress={() => navigation.navigate("News")}
+                    onPress={() => openDropDetails(article)}
                     activeOpacity={0.95}
                   >
                     {/* Image Container with Overlay */}
@@ -565,11 +681,15 @@ if (isLoading || isLoadingData) {
         <SafeAreaView style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Bidding</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Bidding")}>
+            <TouchableOpacity 
+              style={styles.seeAllButton}
+              onPress={() => navigation.navigate("Bidding")}
+            >
               <Text style={styles.seeAllText}>See All</Text>
+              <Feather name="arrow-right" size={14} color="#2E6A2E" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.sectionDescription}>Live auctions with active bidding - place your bids now!</Text>
+          <Text style={styles.sectionDescription}>Live Bidding with active bids - place your bids now!</Text>
           {featuredBidding.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialCommunityIcons name="tshirt-crew" size={64} color="#ccc" />
@@ -616,7 +736,7 @@ if (isLoading || isLoadingData) {
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Customer Reviews</Text>
               </View>
-              <Text style={styles.sectionDescription}>Real feedback from our community</Text>
+              <Text style={styles.sectionDescription}>Real feedback from our community of upcycled streetwear lovers</Text>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewScroll}>
                 {approvedFeedback.map((review) => (
@@ -798,12 +918,18 @@ if (isLoading || isLoadingData) {
                     selectedReviewImages[reviewImageIndex]?.type === 'customer' && styles.customerImageBadge
                   ]}>
                     <MaterialCommunityIcons 
-                      name={selectedReviewImages[reviewImageIndex]?.type === 'customer' ? "camera" : "package"} 
+                      name={
+                              selectedReviewImages[reviewImageIndex]?.type === 'customer' ? "camera" :
+                              selectedReviewImages[reviewImageIndex]?.type === 'drop' ? "package" : "package"
+                            }
                       size={14} 
                       color="white" 
                     />
                     <Text style={styles.imageTypeText}>
-                      {selectedReviewImages[reviewImageIndex]?.type === 'customer' ? 'Customer Photo' : 'Product Image'}
+                      {
+                        selectedReviewImages[reviewImageIndex]?.type === 'customer' ? 'Customer Photo' :
+                        selectedReviewImages[reviewImageIndex]?.type === 'drop' ? 'Drop Image' : 'Product Image'
+                      }
                     </Text>
                   </View>
                 </View>
@@ -856,6 +982,7 @@ if (isLoading || isLoadingData) {
               )}
             </View>
           </Modal>
+          {renderDropDetailModal()}
     </SafeAreaView>
   )
 }
@@ -1774,5 +1901,184 @@ emptyStateText: {
   textAlign: "center",
   lineHeight: 22,
   paddingHorizontal: 20,
+},
+
+articleModalContainer: {
+  flex: 1,
+  backgroundColor: "#F8F9FA",
+},
+articleModalHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  backgroundColor: "white",
+  borderBottomWidth: 1,
+  borderBottomColor: "#E5E5E5",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+},
+updateModalHeader: {
+  backgroundColor: "rgba(52, 152, 219, 0.05)",
+  borderBottomColor: "rgba(52, 152, 219, 0.2)",
+},
+backButton: {
+  padding: 8,
+  borderRadius: 20,
+  backgroundColor: "rgba(46, 106, 46, 0.1)",
+},
+articleModalTitle: {
+  fontSize: 18,
+  fontWeight: "700",
+  color: "#135918",
+  textAlign: "center",
+},
+updateModalTitle: {
+  color: "#135918",
+},
+headerSpacer: {
+  width: 40,
+},
+articleContent: {
+  flex: 1,
+},
+mainImageContainer: {
+  position: "relative",
+  height: 240,
+  backgroundColor: "#F0F0F0",
+},
+articleMainImage: {
+  width: "100%",
+  height: "100%",
+},
+galleryIndicator: {
+  position: "absolute",
+  bottom: 12,
+  right: 12,
+  backgroundColor: "rgba(0, 0, 0, 0.8)",
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 16,
+  flexDirection: "row",
+  alignItems: "center",
+},
+updateGalleryIndicator: {
+  backgroundColor: "rgba(46, 106, 46, 0.9)",
+},
+galleryText: {
+  color: "white",
+  fontSize: 12,
+  fontWeight: "600",
+  marginLeft: 6,
+},
+articleInfo: {
+  padding: 16,
+  backgroundColor: "white",
+},
+articleMeta: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 12,
+},
+timeContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+},
+articleTime: {
+  fontSize: 14,
+  color: "#666",
+  marginLeft: 6,
+  fontWeight: "500",
+},
+typeContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 12,
+},
+updateTypeContainer: {
+  backgroundColor: "#2E6A2E",
+},
+dropTypeContainer: {
+  backgroundColor: "#2E6A2E",
+},
+typeContainerText: {
+  color: "white",
+  fontSize: 11,
+  fontWeight: "700",
+  marginLeft: 4,
+  letterSpacing: 0.5,
+},
+articleTitle: {
+  fontSize: 24,
+  fontWeight: "800",
+  color: "#135918",
+  marginBottom: 12,
+  lineHeight: 32,
+  textAlign: "left",
+},
+updateArticleTitle: {
+  color: "#135918",
+},
+articleDescription: {
+  fontSize: 16,
+  color: "#333",
+  lineHeight: 24,
+  marginBottom: 20,
+},
+secondaryImagesSection: {
+  marginTop: 8,
+},
+sectionTitle: {
+  fontSize: 18,
+  fontWeight: "700",
+  color: "#135918",
+  marginBottom: 12,
+},
+updateSectionTitle: {
+  color: "#135918",
+},
+secondaryImagesContainer: {
+  flexDirection: "row",
+  paddingRight: 16,
+},
+secondaryImageWrapper: {
+  marginRight: 8,
+  borderRadius: 10,
+  overflow: "hidden",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+},
+secondaryImage: {
+  width: 110,
+  height: 110,
+},
+
+customerImageBadge: {
+  backgroundColor: "rgba(46, 106, 46, 0.9)",
+},
+imageTypeBadge: {
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 20,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+},
+imageTypeText: {
+  color: "white",
+  fontSize: 10,
+  fontWeight: "800",
+  letterSpacing: 0.5,
 },
 })

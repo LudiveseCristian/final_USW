@@ -1,6 +1,6 @@
-
 import React from "react"
-import { SafeAreaView, ActivityIndicator, Text, StyleSheet } from "react-native"
+import { ActivityIndicator, Text, StyleSheet } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 
 export default function LoadingScreen({ message = "Loading..." }) {
   return (

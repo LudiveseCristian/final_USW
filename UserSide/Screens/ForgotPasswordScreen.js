@@ -158,7 +158,7 @@ export default function ForgotPasswordScreen({ navigation }) {
                 </View>
               ) : (
                 <>
-                  <MaterialCommunityIcons name="email-send" size={18} color="#fff" />
+                  <MaterialCommunityIcons name="email-outline" size={18} color="#fff" />
                   <Text style={styles.resetButtonText}>Send Reset Link</Text>
                 </>
               )}
