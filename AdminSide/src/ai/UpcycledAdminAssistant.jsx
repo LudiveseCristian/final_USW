@@ -125,17 +125,13 @@ const UpcycledAdminAssistant = () => {
         }
         
         // Today's metrics
-        if (orderDate >= startOfDay) {
-          // --- FIX: Use 'price' field, not 'total' ---
-          todayRevenue += orderData.price || 0;
-          todayOrders++;
+        // Add a check to ensure the order status is NOT 'pending'
+        if (orderDate >= startOfDay && orderData.status !== 'pending') {
+            // --- FIX: Use 'price' field, not 'total' ---
+            todayRevenue += orderData.price || 0;
+            todayOrders++;
         }
-        
-        // Pending orders (assuming 'pending' is a valid status)
-        if (orderData.status === 'pending') {
-          pendingOrders++;
-        }
-
+      
         // --- FIX: Product popularity for single product per order ---
         if (orderData.product) {
           productSales[orderData.product] = (productSales[orderData.product] || 0) + 1;
@@ -469,8 +465,7 @@ Respond as the admin assistant with specific data-driven insights:`;
           {/* Header */}
           <div className="p-4 rounded-t-2xl flex items-center justify-between"
                style={{ backgroundColor: '#135918' }}>
-            <div 
-className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                 <BarChart3 size={16} className="text-white" />
               </div>
@@ -489,17 +484,10 @@ className="flex items-center gap-3">
 
           {/* Enhanced Stats Bar */}
           <div className="px-4 py-3 bg-green-50 border-b border-green-100">
-            <div className="grid grid-cols-5 gap-2 text-xs">
+            <div className="grid grid-cols-4 gap-2 text-xs">
               <div className="text-center">
                 <div className="font-bold text-green-800">{adminStats.todayOrders}</div>
                 <div className="text-green-600">Today</div>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-green-800 flex items-center justify-center gap-1">
-                  {adminStats.pendingOrders}
-                  {adminStats.pendingOrders > 0 && <Clock size={10} className="text-orange-500" />}
-                </div>
-                <div className="text-green-600">Pending</div>
               </div>
               <div className="text-center">
                 <div className="font-bold text-green-800">{adminStats.availableItems}</div>
