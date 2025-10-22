@@ -8,7 +8,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
   TextInput,
   ActivityIndicator,
   Dimensions,
@@ -21,6 +20,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { db, storage } from "../firebase/firebase"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from 'react-native-safe-area-context'
+import PersonalInformationModal from "../hooks/Modal/PersonalInformationModal"
+import ProfileAlertModal from "../hooks/AlertModal/ProfileAlertModal"
 
 const { width } = Dimensions.get("window")
 
@@ -36,6 +37,12 @@ export default function PersonalInformationScreen({ navigation }) {
   const [lastName, setLastName] = useState("")
   const [contactNumber, setContactNumber] = useState("")
   const [address, setAddress] = useState("")
+  const [showImageModal, setShowImageModal] = useState(false)
+
+  const [modalVisible, setModalVisible] = useState(false)
+  const [modalType, setModalType] = useState("info")
+  const [modalTitle, setModalTitle] = useState("")
+  const [modalMessage, setModalMessage] = useState("")
 
   // Fetch user profile data
   useEffect(() => {
@@ -114,10 +121,16 @@ export default function PersonalInformationScreen({ navigation }) {
 
       // Update local state
       setUserProfile((prev) => ({ ...prev, photoURL: downloadURL }))
-      Alert.alert("Success", "Profile picture updated!")
+      setModalType("success")
+      setModalTitle("Success")
+      setModalMessage("Profile picture updated!")
+      setModalVisible(true)
     } catch (error) {
       console.error("Upload error:", error)
-      Alert.alert("Error", `Failed to update profile picture: ${error.message}`)
+      setModalType("error")
+      setModalTitle("Error")
+      setModalMessage(`Failed to update profile picture: ${error.message}`)
+      setModalVisible(true)
     } finally {
       setUploadingImage(false)
     }
@@ -137,7 +150,10 @@ export default function PersonalInformationScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Camera error:", error)
-      Alert.alert("Error", "Failed to take photo")
+      setModalType("error")
+      setModalTitle("Error")
+      setModalMessage("Failed to take photo")
+      setModalVisible(true)
     }
   }
 
@@ -155,21 +171,20 @@ export default function PersonalInformationScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Library error:", error)
-      Alert.alert("Error", "Failed to select image")
+      setModalType("error")
+      setModalTitle("Error")
+      setModalMessage("Failed to select image")
+      setModalVisible(true)
     }
   }
 
-  const showImagePicker = () => {
-    Alert.alert(
-      "Change Profile Picture",
-      "Choose an option",
-      [
-        { text: "Camera", onPress: selectImageFromCamera },
-        { text: "Gallery", onPress: selectImageFromLibrary },
-        { text: "Cancel", style: "cancel" },
-      ]
-    )
-  }
+const showImagePicker = () => {
+  setShowImageModal(true)
+}
+
+const handleImageUpdated = (newPhotoURL) => {
+  setUserProfile((prev) => ({ ...prev, photoURL: newPhotoURL }))
+}
 
   const handleFirstNameChange = (text) => {
     setFirstName(capitalizeWords(text))
@@ -185,7 +200,10 @@ export default function PersonalInformationScreen({ navigation }) {
 
   const handleSave = async () => {
     if (!firstName.trim() || !lastName.trim()) {
-      Alert.alert("Error", "Please enter first and last name")
+      setModalType("error")
+      setModalTitle("Error")
+      setModalMessage("Please enter first and last name")
+      setModalVisible(true)
       return
     }
 
@@ -210,16 +228,28 @@ export default function PersonalInformationScreen({ navigation }) {
 
       await updateDoc(userRef, updateData)
       setUserProfile((prev) => ({ ...prev, ...updateData }))
-      Alert.alert("Success", "Profile updated successfully!", [
-        { text: "OK", onPress: () => navigation.goBack() }
-      ])
+        setModalType("success")
+        setModalTitle("Success")
+        setModalMessage("Profile updated successfully!")
+        setModalVisible(true)
     } catch (error) {
       console.error("Update error:", error)
-      Alert.alert("Error", "Failed to update profile")
+      setModalType("error")
+      setModalTitle("Error")
+      setModalMessage("Failed to update profile")
+      setModalVisible(true)
     } finally {
       setUpdating(false)
     }
   }
+
+  const handleModalClose = () => {
+  setModalVisible(false)
+  if (modalType === "success" && modalTitle === "Success" && modalMessage === "Profile updated successfully!") {
+    // Navigate back only after successful profile update
+    navigation.goBack()
+  }
+}
 
   if (loading) {
     return <LoadingScreen message="Loading profile..." />
@@ -388,6 +418,23 @@ export default function PersonalInformationScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      
+      <PersonalInformationModal
+        visible={showImageModal}
+        onClose={() => setShowImageModal(false)}
+        currentUser={currentUser}
+        currentPhotoURL={userData?.photoURL}
+        onImageUpdated={handleImageUpdated}
+      />
+
+      <ProfileAlertModal
+        visible={modalVisible}
+        onClose={handleModalClose}
+        type={modalType}
+        title={modalTitle}
+        message={modalMessage}
+      />
+      
     </SafeAreaView>
   )
 }

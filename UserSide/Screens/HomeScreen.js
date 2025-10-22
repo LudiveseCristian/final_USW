@@ -38,6 +38,9 @@ export default function HomeScreen({ navigation }) {
     endingSoon: 0,
     wonItems: 0,
   })
+  const [dropModalVisible, setDropModalVisible] = useState(false)
+  const [selectedDrop, setSelectedDrop] = useState(null)
+
   const [approvedFeedback, setApprovedFeedback] = useState([])
   const [showBidModal, setShowBidModal] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
@@ -47,19 +50,26 @@ export default function HomeScreen({ navigation }) {
   const [selectedReviewImages, setSelectedReviewImages] = useState([])
   const [reviewImageIndex, setReviewImageIndex] = useState(0)
 
-  const openReviewImageViewer = (review, startIndex = 0) => {
+const openReviewImageViewer = (item, startIndex = 0) => {
   const allImages = []
   
-  // Add product image first if available
-  if (review.productImage) {
-    allImages.push({ uri: review.productImage, type: 'product' })
-  }
-  
-  // Add all review images
-  if (review.reviewImages && review.reviewImages.length > 0) {
-    review.reviewImages.forEach(imgUri => {
-      allImages.push({ uri: imgUri, type: 'customer' })
-    })
+  // Handle both review and drop items
+  if (item.productImage) {
+    // For reviews
+    allImages.push({ uri: item.productImage, type: 'product' })
+    if (item.reviewImages && item.reviewImages.length > 0) {
+      item.reviewImages.forEach(imgUri => {
+        allImages.push({ uri: imgUri, type: 'customer' })
+      })
+    }
+  } else if (item.mainImage) {
+    // For drops
+    allImages.push({ uri: item.mainImage, type: 'drop' })
+    if (item.secondaryImages && item.secondaryImages.length > 0) {
+      item.secondaryImages.forEach(imgUri => {
+        allImages.push({ uri: imgUri, type: 'drop' })
+      })
+    }
   }
   
   if (allImages.length > 0) {
@@ -104,6 +114,114 @@ useEffect(() => {
       console.error("Error fetching news:", error)
     }
   }
+
+  const openDropDetails = (drop) => {
+  setSelectedDrop(drop)
+  setDropModalVisible(true)
+}
+
+const renderDropDetailModal = () => {
+  const isUpdate = selectedDrop?.type === 'update'
+
+  return (
+    <Modal 
+      visible={dropModalVisible} 
+      animationType="slide" 
+      onRequestClose={() => setDropModalVisible(false)}
+    >
+      <SafeAreaView style={styles.articleModalContainer}>
+        {/* Header */}
+        <View style={[styles.articleModalHeader, isUpdate && styles.updateModalHeader]}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => setDropModalVisible(false)}
+          >
+            <Feather name="arrow-left" size={24} color={isUpdate ? "#135918" : "#2E6A2E"} />
+          </TouchableOpacity>
+          <Text style={[styles.articleModalTitle, isUpdate && styles.updateModalTitle]}>
+            {isUpdate ? "Update Details" : "Drop Details"}
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        {selectedDrop && (
+          <ScrollView style={styles.articleContent} showsVerticalScrollIndicator={false}>
+            {/* Main Image */}
+            {selectedDrop.mainImage && (
+              <TouchableOpacity 
+                style={styles.mainImageContainer} 
+                onPress={() => openReviewImageViewer(selectedDrop)}
+              >
+                <Image 
+                  source={{ uri: selectedDrop.mainImage }} 
+                  style={styles.articleMainImage} 
+                  resizeMode="cover" 
+                />
+                {selectedDrop.secondaryImages && selectedDrop.secondaryImages.length > 0 && (
+                  <View style={[styles.galleryIndicator, isUpdate && styles.updateGalleryIndicator]}>
+                    <Feather name="camera" size={16} color="white" />
+                    <Text style={styles.galleryText}>
+                      View Gallery ({selectedDrop.secondaryImages.length + 1})
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Drop Info */}
+            <View style={styles.articleInfo}>
+              <View style={styles.articleMeta}>
+                <View style={styles.timeContainer}>
+                  <Feather name="clock" size={14} color="#666" />
+                  <Text style={styles.articleTime}>{formatDateTime(selectedDrop.createdAt)}</Text>
+                </View>
+                <View style={[styles.typeContainer, isUpdate ? styles.updateTypeContainer : styles.dropTypeContainer]}>
+                  <Feather name={isUpdate ? "bell" : "package"} size={14} color="white" />
+                  <Text style={styles.typeContainerText}>{isUpdate ? 'UPDATE' : 'DROP'}</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.articleTitle, isUpdate && styles.updateArticleTitle]}>
+                {selectedDrop.title}
+              </Text>
+
+              <Text style={styles.articleDescription}>{selectedDrop.description}</Text>
+
+              {/* Secondary Images Grid */}
+              {selectedDrop.secondaryImages && selectedDrop.secondaryImages.length > 0 && (
+                <View style={styles.secondaryImagesSection}>
+                  <Text style={[styles.sectionTitle, isUpdate && styles.updateSectionTitle]}>
+                    {isUpdate ? "Additional Information" : "More Images"}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.secondaryImagesContainer}>
+                      {selectedDrop.secondaryImages.map((imageUri, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.secondaryImageWrapper}
+                          onPress={() => {
+                            setReviewImageIndex(index + 1) // +1 because main image is first
+                            openReviewImageViewer(selectedDrop)
+                          }}
+                        >
+                          <Image 
+                            source={{ uri: imageUri }} 
+                            style={styles.secondaryImage} 
+                            resizeMode="cover" 
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </Modal>
+  )
+}
 
   const fetchFeaturedBidding = async () => {
     try {
@@ -455,45 +573,123 @@ if (isLoading || isLoadingData) {
           </View>
         </View>
 
+        {/* Featured Drops Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Drops</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("News")}>
+            <TouchableOpacity 
+              style={styles.seeAllButton}
+              onPress={() => navigation.navigate("News")}
+            >
               <Text style={styles.seeAllText}>See All</Text>
+              <Feather name="arrow-right" size={14} color="#2E6A2E" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.sectionDescription}>Stay updated with the latest drops and announcements</Text>
+          <Text style={styles.sectionDescription}>Catch the newest drops and updates highlights!</Text>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.newsScroll}>
-            {featuredNews.map((article) => (
-              <TouchableOpacity key={article.id} style={styles.newsCard} onPress={() => navigation.navigate("News")}>
-                {article.mainImage && <Image source={{ uri: article.mainImage }} style={styles.newsImage} />}
-                <View style={styles.newsContent}>
-                  <Text style={styles.newsTitle} numberOfLines={2}>
-                    {article.title}
-                  </Text>
-                  <Text style={styles.newsDescription} numberOfLines={2}>
-                    {article.description}
-                  </Text>
-                  <View style={styles.newsFooter}>
-                    <Feather name="clock" size={12} color="#888" />
-                    <Text style={styles.newsTime}>{formatDateTime(article.createdAt)}</Text>
-                  </View>
+            {featuredNews.length === 0 ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <Feather name="inbox" size={48} color="#E0E0E0" />
                 </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+                <Text style={styles.emptyStateTitle}>No Updates Yet</Text>
+                <Text style={styles.emptyStateText}>
+                  Check back later for exciting new drops and announcements!
+                </Text>
+              </View>
+            ) : (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                style={styles.newsScroll}
+                contentContainerStyle={styles.newsScrollContent}
+              >
+                {featuredNews.map((article) => (
+                  <TouchableOpacity 
+                    key={article.id} 
+                    style={styles.newsCardImproved} 
+                    onPress={() => openDropDetails(article)}
+                    activeOpacity={0.95}
+                  >
+                    {/* Image Container with Overlay */}
+                    <View style={styles.newsImageWrapper}>
+                      {article.mainImage ? (
+                        <Image source={{ uri: article.mainImage }} style={styles.newsImageImproved} />
+                      ) : (
+                        <View style={styles.newsPlaceholder}>
+                          <Feather name="image" size={32} color="#CCC" />
+                        </View>
+                      )}
+                      
+                      {/* Gradient Overlay */}
+                      <View style={styles.newsGradientOverlay} />
+                      
+                      {/* Type Badge */}
+                      <View style={[
+                        styles.newsTypeBadge,
+                        article.type === 'update' ? styles.newsUpdateBadge : styles.newsDropBadge
+                      ]}>
+                        <Feather 
+                          name={article.type === 'update' ? "bell" : "package"} 
+                          size={10} 
+                          color="white" 
+                        />
+                        <Text style={styles.newsTypeText}>
+                          {article.type === 'update' ? 'UPDATE' : 'DROP'}
+                        </Text>
+                      </View>
+                      
+                      {/* Time Badge */}
+                      <View style={styles.newsTimeBadge}>
+                        <Feather name="clock" size={10} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.newsTimeText}>{formatDateTime(article.createdAt)}</Text>
+                      </View>
+
+                      {/* Image Count Badge */}
+                      {article.secondaryImages && article.secondaryImages.length > 0 && (
+                        <View style={styles.newsImageCountBadge}>
+                          <Feather name="camera" size={10} color="white" />
+                          <Text style={styles.newsImageCountText}>+{article.secondaryImages.length}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Card Content */}
+                    <View style={styles.newsContentImproved}>
+                      <Text style={styles.newsTitleImproved} numberOfLines={2}>
+                        {article.title}
+                      </Text>
+                      <Text style={styles.newsDescriptionImproved} numberOfLines={3}>
+                        {article.description}
+                      </Text>
+                      
+                      {/* Footer with Read More */}
+                      <View style={styles.newsFooterImproved}>
+                        <View style={styles.newsReadMoreButton}>
+                          <Feather name="arrow-right" size={12} color="#2E6A2E" />
+                          <Text style={styles.newsReadMoreText}>Read More</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
 
         {/* Featured Bidding */}
         <SafeAreaView style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Bidding</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Bidding")}>
+            <TouchableOpacity 
+              style={styles.seeAllButton}
+              onPress={() => navigation.navigate("Bidding")}
+            >
               <Text style={styles.seeAllText}>See All</Text>
+              <Feather name="arrow-right" size={14} color="#2E6A2E" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.sectionDescription}>Live auctions with active bidding - place your bids now!</Text>
+          <Text style={styles.sectionDescription}>Live Bidding with active bids - place your bids now!</Text>
           {featuredBidding.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialCommunityIcons name="tshirt-crew" size={64} color="#ccc" />
@@ -540,7 +736,7 @@ if (isLoading || isLoadingData) {
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Customer Reviews</Text>
               </View>
-              <Text style={styles.sectionDescription}>Real feedback from our community</Text>
+              <Text style={styles.sectionDescription}>Real feedback from our community of upcycled streetwear lovers</Text>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewScroll}>
                 {approvedFeedback.map((review) => (
@@ -722,12 +918,18 @@ if (isLoading || isLoadingData) {
                     selectedReviewImages[reviewImageIndex]?.type === 'customer' && styles.customerImageBadge
                   ]}>
                     <MaterialCommunityIcons 
-                      name={selectedReviewImages[reviewImageIndex]?.type === 'customer' ? "camera" : "package"} 
+                      name={
+                              selectedReviewImages[reviewImageIndex]?.type === 'customer' ? "camera" :
+                              selectedReviewImages[reviewImageIndex]?.type === 'drop' ? "package" : "package"
+                            }
                       size={14} 
                       color="white" 
                     />
                     <Text style={styles.imageTypeText}>
-                      {selectedReviewImages[reviewImageIndex]?.type === 'customer' ? 'Customer Photo' : 'Product Image'}
+                      {
+                        selectedReviewImages[reviewImageIndex]?.type === 'customer' ? 'Customer Photo' :
+                        selectedReviewImages[reviewImageIndex]?.type === 'drop' ? 'Drop Image' : 'Product Image'
+                      }
                     </Text>
                   </View>
                 </View>
@@ -780,6 +982,7 @@ if (isLoading || isLoadingData) {
               )}
             </View>
           </Modal>
+          {renderDropDetailModal()}
     </SafeAreaView>
   )
 }
@@ -1025,18 +1228,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   paddingHorizontal: 5,
   paddingVertical: 10,
-  },
-  newsCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    marginRight: 15,
-    width: 280,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    paddingHorizontal:10,
-    elevation: 3,
   },
   newsImage: {
     width: "100%",
@@ -1532,5 +1723,362 @@ emptyStateText: {
   textAlign: "center",
   marginTop: 12,
   lineHeight: 24,
+},
+sectionSubtitleInline: {
+  fontSize: 13,
+  color: "#666",
+  marginTop: 2,
+  fontWeight: "500",
+},
+seeAllButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "rgba(46, 106, 46, 0.1)",
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 20,
+  gap: 4,
+},
+newsScrollContent: {
+  paddingHorizontal: 5,
+  paddingVertical: 10,
+},
+
+newsCardImproved: {
+  backgroundColor: "white",
+  borderRadius: 16,
+  width: 300,
+  marginRight: 15,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.12,
+  shadowRadius: 12,
+  elevation: 6,
+  overflow: "hidden",
+},
+newsImageWrapper: {
+  position: "relative",
+  height: 180,
+  backgroundColor: "#F0F0F0",
+},
+newsImageImproved: {
+  width: "100%",
+  height: "100%",
+},
+newsPlaceholder: {
+  width: "100%",
+  height: "100%",
+  backgroundColor: "#F5F5F5",
+  justifyContent: "center",
+  alignItems: "center",
+},
+newsGradientOverlay: {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: 80,
+  backgroundColor: "rgba(0,0,0,0.3)",
+},
+newsTypeBadge: {
+  position: "absolute",
+  top: 12,
+  left: 12,
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 20,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.2,
+  shadowRadius: 4,
+  elevation: 3,
+},
+newsUpdateBadge: {
+  backgroundColor: "rgba(46, 106, 46, 0.95)",
+},
+newsDropBadge: {
+  backgroundColor: "rgba(46, 106, 46, 0.95)",
+},
+newsTypeText: {
+  color: "white",
+  fontSize: 10,
+  fontWeight: "800",
+  letterSpacing: 0.5,
+},
+newsTimeBadge: {
+  position: "absolute",
+  bottom: 12,
+  left: 12,
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 20,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+},
+newsTimeText: {
+  color: "rgba(255,255,255,0.9)",
+  fontSize: 11,
+  fontWeight: "600",
+},
+newsImageCountBadge: {
+  position: "absolute",
+  top: 12,
+  right: 12,
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 20,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+},
+newsImageCountText: {
+  color: "white",
+  fontSize: 11,
+  fontWeight: "600",
+},
+newsContentImproved: {
+  padding: 16,
+},
+newsTitleImproved: {
+  fontSize: 17,
+  fontWeight: "700",
+  color: "#135918",
+  marginBottom: 8,
+  lineHeight: 22,
+},
+newsDescriptionImproved: {
+  fontSize: 14,
+  color: "#666",
+  lineHeight: 20,
+  marginBottom: 12,
+},
+newsFooterImproved: {
+  flexDirection: "row",
+  justifyContent: "flex-end",
+  alignItems: "center",
+  marginTop: 4,
+},
+newsReadMoreButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "rgba(46, 106, 46, 0.1)",
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 20,
+  gap: 4,
+},
+newsReadMoreText: {
+  fontSize: 12,
+  color: "#2E6A2E",
+  fontWeight: "700",
+  letterSpacing: 0.3,
+},
+emptyIconContainer: {
+  width: 100,
+  height: 100,
+  borderRadius: 50,
+  backgroundColor: "#F5F5F5",
+  justifyContent: "center",
+  alignItems: "center",
+  marginBottom: 20,
+},
+emptyStateTitle: {
+  fontSize: 20,
+  fontWeight: "700",
+  color: "#333",
+  marginBottom: 8,
+  textAlign: "center",
+},
+emptyStateText: {
+  fontSize: 15,
+  color: "#666",
+  textAlign: "center",
+  lineHeight: 22,
+  paddingHorizontal: 20,
+},
+
+articleModalContainer: {
+  flex: 1,
+  backgroundColor: "#F8F9FA",
+},
+articleModalHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  backgroundColor: "white",
+  borderBottomWidth: 1,
+  borderBottomColor: "#E5E5E5",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+},
+updateModalHeader: {
+  backgroundColor: "rgba(52, 152, 219, 0.05)",
+  borderBottomColor: "rgba(52, 152, 219, 0.2)",
+},
+backButton: {
+  padding: 8,
+  borderRadius: 20,
+  backgroundColor: "rgba(46, 106, 46, 0.1)",
+},
+articleModalTitle: {
+  fontSize: 18,
+  fontWeight: "700",
+  color: "#135918",
+  textAlign: "center",
+},
+updateModalTitle: {
+  color: "#135918",
+},
+headerSpacer: {
+  width: 40,
+},
+articleContent: {
+  flex: 1,
+},
+mainImageContainer: {
+  position: "relative",
+  height: 240,
+  backgroundColor: "#F0F0F0",
+},
+articleMainImage: {
+  width: "100%",
+  height: "100%",
+},
+galleryIndicator: {
+  position: "absolute",
+  bottom: 12,
+  right: 12,
+  backgroundColor: "rgba(0, 0, 0, 0.8)",
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 16,
+  flexDirection: "row",
+  alignItems: "center",
+},
+updateGalleryIndicator: {
+  backgroundColor: "rgba(46, 106, 46, 0.9)",
+},
+galleryText: {
+  color: "white",
+  fontSize: 12,
+  fontWeight: "600",
+  marginLeft: 6,
+},
+articleInfo: {
+  padding: 16,
+  backgroundColor: "white",
+},
+articleMeta: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 12,
+},
+timeContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+},
+articleTime: {
+  fontSize: 14,
+  color: "#666",
+  marginLeft: 6,
+  fontWeight: "500",
+},
+typeContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 12,
+},
+updateTypeContainer: {
+  backgroundColor: "#2E6A2E",
+},
+dropTypeContainer: {
+  backgroundColor: "#2E6A2E",
+},
+typeContainerText: {
+  color: "white",
+  fontSize: 11,
+  fontWeight: "700",
+  marginLeft: 4,
+  letterSpacing: 0.5,
+},
+articleTitle: {
+  fontSize: 24,
+  fontWeight: "800",
+  color: "#135918",
+  marginBottom: 12,
+  lineHeight: 32,
+  textAlign: "left",
+},
+updateArticleTitle: {
+  color: "#135918",
+},
+articleDescription: {
+  fontSize: 16,
+  color: "#333",
+  lineHeight: 24,
+  marginBottom: 20,
+},
+secondaryImagesSection: {
+  marginTop: 8,
+},
+sectionTitle: {
+  fontSize: 18,
+  fontWeight: "700",
+  color: "#135918",
+  marginBottom: 12,
+},
+updateSectionTitle: {
+  color: "#135918",
+},
+secondaryImagesContainer: {
+  flexDirection: "row",
+  paddingRight: 16,
+},
+secondaryImageWrapper: {
+  marginRight: 8,
+  borderRadius: 10,
+  overflow: "hidden",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+},
+secondaryImage: {
+  width: 110,
+  height: 110,
+},
+
+customerImageBadge: {
+  backgroundColor: "rgba(46, 106, 46, 0.9)",
+},
+imageTypeBadge: {
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 20,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+},
+imageTypeText: {
+  color: "white",
+  fontSize: 10,
+  fontWeight: "800",
+  letterSpacing: 0.5,
 },
 })

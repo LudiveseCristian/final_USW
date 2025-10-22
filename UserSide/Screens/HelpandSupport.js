@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons';
+import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from "react-native-safe-area-context"
 
 export default function HelpSupportScreen({ navigation }) {
@@ -18,8 +19,8 @@ export default function HelpSupportScreen({ navigation }) {
 
   // UPDATE THESE WITH YOUR ACTUAL INFORMATION
   const contactInfo = {
-    email: 'support@upcycledstreet.com',
-    phone: '+63 123 456 7890',
+    email: 'streetwearupcycled@gmail.com',
+    phone: '+63 995 124 9025',
     address: 'Mactan Lapu-Lapu City, Cebu City, Philippines',
     location: {
       latitude: 10.310972, // Replace with your actual latitude
@@ -28,28 +29,28 @@ export default function HelpSupportScreen({ navigation }) {
     }
   };
 
-  const faqs = [
-    {
-      id: 1,
-      question: 'What is Upcycled Streetwear?',
-      answer: 'Upcycled Streetwear transforms pre-loved clothing into unique, sustainable fashion pieces. We give old garments new life through creative redesign, reducing waste while creating one-of-a-kind streetwear.'
-    },
-    {
-      id: 2,
-      question: 'How does shipping work?',
-      answer: 'We offer free shipping on orders over ₱500. Standard shipping takes 5-7 business days. Express shipping (2-3 days) is available for an additional fee.'
-    },
-    {
-      id: 3,
-      question: 'What is your return policy?',
-      answer: 'We accept returns within 30 days of purchase. Items must be unworn with original tags attached. Contact our support team to initiate a return.'
-    },
-    {
-      id: 4,
-      question: 'Are your products sustainable?',
-      answer: 'Absolutely! Every piece is upcycled from existing materials, significantly reducing environmental impact compared to new clothing production. We\'re committed to sustainable fashion.'
-    }
-  ];
+const faqs = [
+  {
+    id: 1,
+    question: 'What is the Upcycled Streetwear System?',
+    answer: 'It’s a mobile and web-based e-commerce platform designed for thrift and upcycled fashion sellers. The system automates processes such as inventory tracking, item claiming, and bidding to make online thrift selling more efficient and organized.'
+  },
+  {
+    id: 2,
+    question: 'How does the bidding feature work?',
+    answer: 'Users can join real-time item auctions with a set time limit. The system automatically tracks bids, notifies the highest bidder, and processes the winning claim once the auction ends, ensuring fairness and transparency.'
+  },
+  {
+    id: 3,
+    question: 'What makes this system different from selling on social media?',
+    answer: 'Unlike social media selling, our platform provides built-in tools for inventory, automated order management, and secure transactions—all in one place. It eliminates manual tracking and minimizes errors while keeping the interactive feel of thrift selling.'
+  },
+  {
+    id: 4,
+    question: 'Who can use the Upcycled Streetwear System?',
+    answer: 'The system is designed for both sellers and customers. Sellers can manage listings, track orders, and monitor analytics, while customers can browse, bid, and shop conveniently through mobile or web.'
+  }
+];
 
   const handleEmail = () => {
     Linking.openURL(`mailto:${contactInfo.email}`);
@@ -77,16 +78,6 @@ export default function HelpSupportScreen({ navigation }) {
 
   const toggleFAQ = (id) => {
     setExpandedFAQ(expandedFAQ === id ? null : id);
-  };
-
-  // Generate static map image URL (Google Static Maps API - FREE, no key needed for basic use)
-  const getStaticMapUrl = () => {
-    const { latitude, longitude } = contactInfo.location;
-    const zoom = 15;
-    const size = '600x300';
-    const markerColor = '0x1A5B1A'; // Green color
-    
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${latitude},${longitude}&zoom=${zoom}&size=${size}&markers=color:${markerColor}%7C${latitude},${longitude}&scale=2`;
   };
 
   const handleInstagram = () => {
@@ -123,14 +114,13 @@ export default function HelpSupportScreen({ navigation }) {
           </View>
           <View style={styles.card}>
             <Text style={styles.aboutText}>
-              Upcycled Streetwear is your destination for sustainable, one-of-a-kind fashion. 
-              We believe in giving clothes a second life through creative upcycling, transforming 
-              ordinary pieces into extraordinary streetwear.
+            Upcycled Streetwear System is a mobile and web-based e-commerce platform designed to support sustainable thrift businesses through automation and interactivity. Our system transforms the traditional manual process of online thrift selling into an organized, efficient, and data-driven experience.
+
             </Text>
             <Text style={styles.aboutText}>
-              Our mission is to reduce fashion waste while providing you with unique, 
-              high-quality clothing that stands out. Every purchase supports sustainable 
-              fashion and helps reduce environmental impact.
+            Our mission is to revolutionize the local thrift industry by bridging social media thrift culture with advanced e-commerce technology. 
+            We aim to enhance operational efficiency, promote sustainable fashion, 
+            and create an engaging marketplace that supports both creativity and environmental responsibility.
             </Text>
           </View>
         </View>
@@ -195,34 +185,52 @@ export default function HelpSupportScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Our Location</Text>
           </View>
           
-          <TouchableOpacity 
-            style={styles.mapContainer} 
-            onPress={handleOpenMap}
-            activeOpacity={0.8}
+      <TouchableOpacity 
+          style={styles.mapContainer} 
+          onPress={handleOpenMap}
+          activeOpacity={0.95}
+        >
+          <MapView
+            style={styles.mapImage}
+            initialRegion={{
+              latitude: contactInfo.location.latitude,
+              longitude: contactInfo.location.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            }}
+            scrollEnabled={false}
+            zoomEnabled={false}
+            pitchEnabled={false}
+            rotateEnabled={false}
+            pointerEvents="none"
           >
-            <Image
-              source={{ uri: getStaticMapUrl() }}
-              style={styles.mapImage}
-              resizeMode="cover"
-            />
-            
-            {/* Overlay with tap instruction */}
-            <View style={styles.mapOverlay}>
-              <View style={styles.mapOverlayContent}>
-                <MaterialCommunityIcon name="google-maps" size={24} color="#1A5B1A" />
-                <View style={styles.mapOverlayText}>
-                  <Text style={styles.mapOverlayTitle}>View in Maps</Text>
-                  <Text style={styles.mapOverlaySubtitle}>Tap to get directions</Text>
-                </View>
+            <Marker
+              coordinate={{
+                latitude: contactInfo.location.latitude,
+                longitude: contactInfo.location.longitude,
+              }}
+              title={contactInfo.location.name}
+            >
+              <MaterialCommunityIcon name="map-marker" size={40} color="#1A5B1A" />
+            </Marker>
+          </MapView>
+
+          {/* Keep your existing overlay and badge */}
+          <View style={styles.mapOverlay}>
+            <View style={styles.mapOverlayContent}>
+              <MaterialCommunityIcon name="google-maps" size={24} color="#1A5B1A" />
+              <View style={styles.mapOverlayText}>
+                <Text style={styles.mapOverlayTitle}>View in Maps</Text>
+                <Text style={styles.mapOverlaySubtitle}>Tap to get directions</Text>
               </View>
             </View>
+          </View>
 
-            {/* Location name badge */}
-            <View style={styles.locationBadge}>
-              <Feather name="map-pin" size={16} color="#1A5B1A" />
-              <Text style={styles.locationBadgeText}>{contactInfo.location.name}</Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.locationBadge}>
+            <Feather name="map-pin" size={16} color="#1A5B1A" />
+            <Text style={styles.locationBadgeText}>{contactInfo.location.name}</Text>
+          </View>
+        </TouchableOpacity>
         </View>
 
         {/* FAQ Section */}

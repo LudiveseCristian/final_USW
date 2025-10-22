@@ -6,7 +6,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { View, ActivityIndicator, StyleSheet, Text, Animated, StatusBar } from "react-native";
 import { enableScreens } from "react-native-screens";
-import { WinNotificationProvider } from './hooks/useWinNotification';
 
 // Enable react-native-screens for better performance
 enableScreens();
@@ -67,6 +66,7 @@ const messagesScreenAnimation = {
 // Import your screen components
 import SignInScreen from "./Screens/SignInScreen";
 import SignUpScreen from "./Screens/SignUpScreen";
+import ForgotPasswordScreen from "./Screens/ForgotPasswordScreen";
 import WelcomeScreen from "./Screens/WelcomeScreen";
 import HomeScreen from "./Screens/HomeScreen";
 import NewsScreen from "./Screens/NewsScreen";
@@ -125,6 +125,7 @@ function OnboardingStack() {
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </Stack.Navigator>
   );
 }
@@ -142,6 +143,7 @@ function AuthStack() {
     >
       <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </Stack.Navigator>
   );
 }
@@ -277,9 +279,7 @@ function RootNavigator() {
 export default function App() {
   return (
     <AuthProvider>
-      <WinNotificationProvider>
       <RootNavigator />
-      </WinNotificationProvider>
     </AuthProvider>
   );
 }

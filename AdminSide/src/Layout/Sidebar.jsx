@@ -70,7 +70,7 @@ const Sidebar = () => {
                <div className="flex items-center space-x-3">
                   <div className="flex-1 min-w-0">
                      <p className="text-sm font-medium text-white truncate">Administrator</p>
-                     <p className="text-xs text-slate-400 truncate">admin@upcycled.com</p>
+                     <p className="text-xs text-slate-400 truncate">streetwearupcycled@gmail.com</p>
                   </div>
                </div>
             </div>

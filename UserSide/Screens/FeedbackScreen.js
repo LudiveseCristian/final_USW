@@ -23,6 +23,8 @@ import LoadingScreen from "../hooks/LoadingScreen";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
+import ImageUploadModal from "../hooks/Modal/ImageUploadModal";
+import ProfileAlertModal from "../hooks/AlertModal/ProfileAlertModal";
 
 export default function FeedbackScreen({ navigation }) {
   const { currentUser } = useAuth();
@@ -35,6 +37,31 @@ export default function FeedbackScreen({ navigation }) {
   const [reviewText, setReviewText] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+
+  const [alertModal, setAlertModal] = useState({
+  visible: false,
+  type: "info",
+  title: "",
+  message: ""
+  });
+  const [imageUploadModalVisible, setImageUploadModalVisible] = useState(false);
+
+  const showAlert = (type, title, message) => {
+  setAlertModal({
+    visible: true,
+    type,
+    title,
+    message
+  });
+};
+
+const closeAlert = () => {
+  setAlertModal({ ...alertModal, visible: false });
+};
+
+const handleImagesSelected = (newImages) => {
+  setUploadedImages(prev => [...prev, ...newImages].slice(0, 3));
+};
 
   const fetchOrders = () => {
     if (!currentUser?.uid) return;
@@ -86,7 +113,7 @@ export default function FeedbackScreen({ navigation }) {
       console.error("Firestore error:", error);
       setLoading(false);
       setRefreshing(false);
-      Alert.alert("Error", "Failed to fetch orders. Please try again.");
+      showAlert("error", "Error", "Failed to fetch orders. Please try again.");
     });
 
     return unsubscribe;
@@ -106,7 +133,7 @@ export default function FeedbackScreen({ navigation }) {
     } catch (error) {
       console.error("Refresh error:", error);
       setRefreshing(false);
-      Alert.alert("Error", "Failed to refresh orders. Please try again.");
+      showAlert("error", "Error", "Failed to refresh orders. Please try again.");
     }
   };
 
@@ -141,39 +168,22 @@ export default function FeedbackScreen({ navigation }) {
     setFeedbackModalVisible(true);
   };
 
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+const pickImage = async () => {
+  const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (permissionResult.granted === false) {
-      Alert.alert("Permission Denied", "Please allow access to your photo library to upload images.");
-      return;
-    }
+  if (permissionResult.granted === false) {
+    showAlert("warning", "Permission Denied", "Please allow access to your photo library to upload images.");
+    return;
+  }
 
-    Alert.alert(
-      "Select Image",
-      "Choose how you want to add photos",
-      [
-        {
-          text: "Camera",
-          onPress: () => openCamera(),
-        },
-        {
-          text: "Photo Library",
-          onPress: () => openGallery(),
-        },
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-      ]
-    );
-  };
+  setImageUploadModalVisible(true);
+};
 
   const openCamera = async () => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
     
     if (!cameraPermission.granted) {
-      Alert.alert("Permission Denied", "Please allow camera access to take photos.");
+      showAlert("warning", "Permission Denied", "Please allow camera access to take photos.");
       return;
     }
 
@@ -191,7 +201,7 @@ export default function FeedbackScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Camera error:", error);
-      Alert.alert("Error", "Failed to take photo. Please try again.");
+      showAlert("error", "Failed to take photo. Please try again.");
     } finally {
       setUploadingImages(false);
     }
@@ -213,7 +223,7 @@ export default function FeedbackScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Gallery error:", error);
-      Alert.alert("Error", "Failed to select images. Please try again.");
+      showAlert("error", "Error", "Failed to select images. Please try again.");
     } finally {
       setUploadingImages(false);
     }
@@ -237,7 +247,7 @@ export default function FeedbackScreen({ navigation }) {
 
   const submitFeedback = async () => {
     if (!rating) {
-      Alert.alert("Error", "Please select a rating");
+      showAlert("error", "Error", "Please select a rating");
       return;
     }
 
@@ -268,10 +278,10 @@ export default function FeedbackScreen({ navigation }) {
       });
         
       setFeedbackModalVisible(false);
-      Alert.alert("Success", "Thank you for your feedback!");
+      showAlert("success", "Success", "Thank you for your feedback!");
     } catch (error) {
       console.error("Error submitting feedback:", error);
-      Alert.alert("Error", "Failed to submit feedback. Please try again.");
+      showAlert("error", "Error", "Failed to submit feedback. Please try again.");
     }
   };
 
@@ -329,41 +339,34 @@ export default function FeedbackScreen({ navigation }) {
                   />
                 </View>
 
-                <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Upload Photos</Text>
-                  <View style={styles.imageRow}>
-                    {uploadedImages.map((uri, index) => (
-                      <View key={index} style={styles.uploadedImageContainer}>
-                        <Image source={{ uri }} style={styles.uploadedImage} />
+                  <View style={styles.modalSection}>
+                    <Text style={styles.sectionTitle}>Upload Photos</Text>
+                    <View style={styles.imageRow}>
+                      {uploadedImages.map((uri, index) => (
+                        <View key={index} style={styles.uploadedImageContainer}>
+                          <Image source={{ uri }} style={styles.uploadedImage} />
+                          <TouchableOpacity
+                            style={styles.removeImageButton}
+                            onPress={() =>
+                              setUploadedImages((prev) => prev.filter((_, i) => i !== index))
+                            }
+                          >
+                            <Feather name="x" size={16} color="white" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      {uploadedImages.length < 3 && (
                         <TouchableOpacity
-                          style={styles.removeImageButton}
-                          onPress={() =>
-                            setUploadedImages((prev) => prev.filter((_, i) => i !== index))
-                          }
+                          style={styles.addImageButton}
+                          onPress={() => setImageUploadModalVisible(true)}
                         >
-                          <Icon name="close" size={16} color="white" />
+                          <Feather name="plus" size={24} color="#2E6A2E" />
+                          <Text style={styles.addImageText}>Add Photo</Text>
                         </TouchableOpacity>
-                      </View>
-                    ))}
-                    {uploadedImages.length < 3 && (
-                      <TouchableOpacity
-                        style={styles.addImageButton}
-                        onPress={pickImage}
-                        disabled={uploadingImages}
-                      >
-                        {uploadingImages ? (
-                          <ActivityIndicator size="small" color="#666" />
-                        ) : (
-                          <>
-                            <Icon name="add-a-photo" size={24} color="#666" />
-                            <Text style={styles.addImageText}>Add Photo</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    )}
+                      )}
+                    </View>
+                    <Text style={styles.imageLimitText}>Maximum 3 photos</Text>
                   </View>
-                  <Text style={styles.imageLimitText}>Maximum 3 photos</Text>
-                </View>
 
                 <TouchableOpacity style={styles.submitButton} onPress={submitFeedback}>
                   <Text style={styles.submitButtonText}>Submit Feedback</Text>
@@ -457,6 +460,23 @@ export default function FeedbackScreen({ navigation }) {
 
         {renderFeedbackModal()}
       </View>
+
+      <ImageUploadModal
+        visible={imageUploadModalVisible}
+        onClose={() => setImageUploadModalVisible(false)}
+        images={uploadedImages}
+        onImagesSelected={handleImagesSelected}
+        maxImages={3}
+        title="Add Review Photos"
+      />
+
+      <ProfileAlertModal
+        visible={alertModal.visible}
+        onClose={closeAlert}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+      />
     </SafeAreaView>
   );
 }

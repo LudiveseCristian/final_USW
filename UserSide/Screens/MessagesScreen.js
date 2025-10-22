@@ -25,7 +25,7 @@ import {
     query, 
     orderBy, 
     doc, 
-    setDoc, 
+    setDoc,
     updateDoc, 
     serverTimestamp,
     getDoc,
@@ -39,6 +39,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useMessageCount } from "../hooks/useMessageCounts";
 import Constants from 'expo-constants';
+import MessageImageModal from '../hooks/Modal/MessageImageModal';
+import DeliveryModal from '../hooks/Modal/DeliveryModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -56,9 +58,9 @@ const MessagesScreen = ({ route }) => {
     const [loading, setLoading] = useState(false);
     const [isAdminTyping, setIsAdminTyping] = useState(false);
     const [conversationId, setConversationId] = useState(null);
-    const [uploadingImage, setUploadingImage] = useState(false);
     const flatListRef = useRef(null);
     const { resetMessageCount } = useMessageCount();
+    const [imageModalVisible, setImageModalVisible] = useState(false);
 
     // AI Assistant States
     const [aiMessages, setAiMessages] = useState([]);
@@ -66,6 +68,8 @@ const MessagesScreen = ({ route }) => {
     const [aiLoading, setAiLoading] = useState(false);
     const [isBotTyping, setIsBotTyping] = useState(false);
     const aiFlatListRef = useRef(null);
+    const [deliveryModalVisible, setDeliveryModalVisible] = useState(false);
+    const [selectedWinProduct, setSelectedWinProduct] = useState(null);
     const [userStats, setUserStats] = useState({
         activeBids: 0,
         wonItems: 0,
@@ -202,6 +206,35 @@ const MessagesScreen = ({ route }) => {
             console.error('Error loading user stats:', error);
         }
     };
+
+const handleWinNotificationPress = async (item) => {
+    try {
+        // Fetch the actual product data from Firestore
+        const productRef = doc(db, 'products', item.productId);
+        const productSnap = await getDoc(productRef);
+        
+        if (productSnap.exists()) {
+            const productData = productSnap.data();
+            
+            const productInfo = {
+                productId: item.productId,
+                productName: productData.name || item.productName || 'Product',
+                productImage: productData.images?.[0] || productData.imageUrl || item.imageUrl,
+                currentBid: productData.currentBid || productData.price || 0,
+                highestBid: productData.currentBid || productData.price || 0,
+                price: productData.price || 0,
+            };
+            
+            setSelectedWinProduct(productInfo);
+            setDeliveryModalVisible(true);
+        } else {
+            Alert.alert('Error', 'Product not found');
+        }
+    } catch (error) {
+        console.error('Error fetching product:', error);
+        Alert.alert('Error', 'Failed to load product details');
+    }
+};
 
     const getContextualData = async (userQuery) => {
         const lowerQuery = userQuery.toLowerCase();
@@ -482,89 +515,10 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
         }
     };
 
-    const showImageOptions = () => {
-        Alert.alert(
-            "Add Image",
-            "Choose an option",
-            [
-                { text: "Camera", onPress: pickImageFromCamera },
-                { text: "Gallery", onPress: pickImageFromLibrary },
-                { text: "Cancel", style: "cancel" },
-            ]
-        );
-    };
+const showImageOptions = () => {
+    setImageModalVisible(true);
+};
 
-    const pickImageFromCamera = async () => {
-        try {
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: "images",
-                allowsEditing: true,
-                quality: 0.7,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-                await uploadAndSendImage(result.assets[0].uri);
-            }
-        } catch (error) {
-            console.error("Camera error:", error);
-        }
-    };
-
-    const pickImageFromLibrary = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: "images",
-                allowsEditing: true,
-                quality: 0.7,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-                await uploadAndSendImage(result.assets[0].uri);
-            }
-        } catch (error) {
-            console.error("Library error:", error);
-        }
-    };
-
-    const uploadAndSendImage = async (imageUri) => {
-        if (!conversationId) return;
-
-        try {
-            setUploadingImage(true);
-
-            const filename = `chat-images/${conversationId}/${Date.now()}.jpg`;
-            const imageRef = ref(storage, filename);
-            
-            const response = await fetch(imageUri);
-            const blob = await response.blob();
-            
-            await uploadBytes(imageRef, blob);
-            const downloadURL = await getDownloadURL(imageRef);
-
-            const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-            await addDoc(messagesRef, {
-                senderId: currentUser.uid,
-                senderType: 'user',
-                imageUrl: downloadURL,
-                type: 'image',
-                timestamp: serverTimestamp(),
-                status: 'delivered'
-            });
-
-            const conversationRef = doc(db, 'conversations', conversationId);
-            await updateDoc(conversationRef, {
-                lastMessage: '📷 Photo',
-                lastMessageTime: serverTimestamp(),
-                'unreadCount.admin': (await getDoc(conversationRef)).data()?.unreadCount?.admin + 1 || 1,
-            });
-
-        } catch (error) {
-            console.error('Upload error:', error);
-            Alert.alert('Error', 'Failed to send image');
-        } finally {
-            setUploadingImage(false);
-        }
-    };
 
     const supportQuickActions = [
         { text: "Track my order", icon: "local-shipping" },
@@ -586,74 +540,89 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
     };
 
     const renderSupportMessage = ({ item }) => {
-        const isWinNotification = item.type === 'win_notification';
-        const isUserImage = item.type === 'image' && item.senderType === 'user';
-        const isAdminImage = item.type === 'image' && item.senderType === 'admin';
-        
-        return (
-            <View style={[
-                styles.messageContainer,
-                item.senderType === 'user' ? styles.userMessage : styles.adminMessage,
-                isWinNotification && styles.winNotificationContainer
-            ]}>
-                {item.senderType === 'admin' && (
-                    <View style={styles.adminAvatar}>
-                        <Icon name={isWinNotification ? "emoji-events" : "support-agent"} size={16} color="white" />
-                    </View>
-                )}
-                <View style={[
-                    styles.messageBubble,
-                    item.senderType === 'user' ? styles.userBubble : styles.adminBubble,
-                    isWinNotification && styles.winNotificationBubble
-                ]}>
-                    {item.imageUrl && isWinNotification && (
-                        <Image 
-                            source={{ uri: item.imageUrl }} 
-                            style={styles.winNotificationImage}
-                            resizeMode="cover"
-                        />
-                    )}
-                    
-                    {item.imageUrl && (isUserImage || isAdminImage) && (
-                        <Image 
-                            source={{ uri: item.imageUrl }} 
-                            style={styles.messageImage}
-                            resizeMode="cover"
-                        />
-                    )}
-                    
-                    {item.text && (
-                        <Text style={[
-                            styles.messageText,
-                            item.senderType === 'user' ? styles.userMessageText : styles.adminMessageText,
-                            isWinNotification && styles.winNotificationText
-                        ]}>
-                            {item.text}
-                        </Text>
-                    )}
-                    
-                    <View style={styles.messageFooter}>
-                        <Text style={[
-                            styles.timestamp,
-                            item.senderType === 'user' ? styles.userTimestamp : styles.adminTimestamp
-                        ]}>
-                            {new Date(item.timestamp).toLocaleTimeString('en-US', { 
-                                hour: 'numeric', 
-                                minute: '2-digit' 
-                            })}
-                        </Text>
-                        {item.senderType === 'user' && (
-                            <View style={styles.statusIcon}>
-                                {item.status === 'sending' && <Icon name="schedule" size={12} color="#999" />}
-                                {item.status === 'delivered' && <Icon name="done-all" size={12} color="#4CAF50" />}
-                                {item.status === 'read' && <Icon name="done-all" size={12} color="#2196F3" />}
+            const isWinNotification = item.type === 'win_notification';
+            const isUserImage = item.type === 'image' && item.senderType === 'user';
+            const isAdminImage = item.type === 'image' && item.senderType === 'admin';
+            
+            return (
+                <TouchableOpacity 
+                    onPress={() => isWinNotification && handleWinNotificationPress(item)}
+                    disabled={!isWinNotification}
+                    activeOpacity={isWinNotification ? 0.7 : 1}
+                >
+                    <View style={[
+                        styles.messageContainer,
+                        item.senderType === 'user' ? styles.userMessage : styles.adminMessage,
+                        isWinNotification && styles.winNotificationContainer
+                    ]}>
+                        {item.senderType === 'admin' && (
+                            <View style={styles.adminAvatar}>
+                                <Icon name={isWinNotification ? "emoji-events" : "support-agent"} size={16} color="white" />
                             </View>
                         )}
+                        <View style={[
+                            styles.messageBubble,
+                            item.senderType === 'user' ? styles.userBubble : styles.adminBubble,
+                            isWinNotification && styles.winNotificationBubble
+                        ]}>
+                            {item.imageUrl && isWinNotification && (
+                                <Image 
+                                    source={{ uri: item.imageUrl }} 
+                                    style={styles.winNotificationImage}
+                                    resizeMode="cover"
+                                />
+                            )}
+                            
+                            {item.imageUrl && (isUserImage || isAdminImage) && (
+                                <Image 
+                                    source={{ uri: item.imageUrl }} 
+                                    style={styles.messageImage}
+                                    resizeMode="cover"
+                                />
+                            )}
+                            
+                            {item.text && (
+                                <Text style={[
+                                    styles.messageText,
+                                    item.senderType === 'user' ? styles.userMessageText : styles.adminMessageText,
+                                    isWinNotification && styles.winNotificationText
+                                ]}>
+                                    {item.text}
+                                </Text>
+                            )}
+                            
+                            {isWinNotification && (
+                                <View style={styles.deliveryPrompt}>
+                                    <Icon name="local-shipping" size={16} color="#135918" />
+                                    <Text style={styles.deliveryPromptText}>
+                                        Tap to confirm delivery address
+                                    </Text>
+                                </View>
+                            )}
+                            
+                            <View style={styles.messageFooter}>
+                                <Text style={[
+                                    styles.timestamp,
+                                    item.senderType === 'user' ? styles.userTimestamp : styles.adminTimestamp
+                                ]}>
+                                    {new Date(item.timestamp).toLocaleTimeString('en-US', { 
+                                        hour: 'numeric', 
+                                        minute: '2-digit' 
+                                    })}
+                                </Text>
+                                {item.senderType === 'user' && (
+                                    <View style={styles.statusIcon}>
+                                        {item.status === 'sending' && <Icon name="schedule" size={12} color="#999" />}
+                                        {item.status === 'delivered' && <Icon name="done-all" size={12} color="#4CAF50" />}
+                                        {item.status === 'read' && <Icon name="done-all" size={12} color="#2196F3" />}
+                                    </View>
+                                )}
+                            </View>
+                        </View>
                     </View>
-                </View>
-            </View>
-        );
-    };
+                </TouchableOpacity>
+            );
+        };
 
     const renderAiMessage = ({ item }) => (
         <View style={[
@@ -843,15 +812,10 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
 
                         <View style={styles.inputContainer}>
                             <TouchableOpacity 
-                                style={styles.attachButton}
-                                onPress={showImageOptions}
-                                disabled={uploadingImage}
-                            >
-                                {uploadingImage ? (
-                                    <ActivityIndicator size="small" color="#135918" />
-                                ) : (
-                                    <Icon name="attach-file" size={22} color="#666" />
-                                )}
+                                    style={styles.attachButton}
+                                    onPress={showImageOptions}
+                                >
+                                    <Icon name="photo" size={22} color="#135918" />
                             </TouchableOpacity>
                             <TextInput
                                 value={inputText}
@@ -972,6 +936,29 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
                     </>
                 )}
             </KeyboardAvoidingView>
+
+            {/* Message Image Modal - ADD IT HERE */}
+            <MessageImageModal
+                visible={imageModalVisible}
+                onClose={() => setImageModalVisible(false)}
+                currentUser={currentUser}
+                conversationId={conversationId}
+                onImageSent={(imageUrl) => {
+                    console.log('Image sent:', imageUrl);
+                }}
+            />
+
+            {/* Delivery Address Modal */}
+                <DeliveryModal
+                    visible={deliveryModalVisible}
+                    onClose={() => {
+                        setDeliveryModalVisible(false);
+                        setSelectedWinProduct(null);
+                    }}
+                    productData={selectedWinProduct}
+                    currentUser={currentUser}
+                    conversationId={conversationId}
+                />
         </SafeAreaView>
     );
 };
@@ -979,7 +966,7 @@ Respond as their personal shopping buddy with enthusiasm and helpful insights:`;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFEF7',
+        backgroundColor: '#FFFCF3',
     },
     keyboardAvoid: {
         flex: 1,
@@ -1120,7 +1107,7 @@ const styles = StyleSheet.create({
     },
     messagesList: {
         flex: 1,
-        backgroundColor: '#f8f9fa',
+        backgroundColor: '#FFFCF3',
     },
     messagesContent: {
         paddingHorizontal: 15,
@@ -1384,6 +1371,24 @@ const styles = StyleSheet.create({
     winNotificationText: {
         fontWeight: '600',
     },
+
+    deliveryPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f9f0',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#d0e8d0',
+    borderStyle: 'dashed',
+},
+    deliveryPromptText: {
+    fontSize: 12,
+    color: '#135918',
+    fontWeight: '600',
+    marginLeft: 8,
+},
 });
 
 export default MessagesScreen;

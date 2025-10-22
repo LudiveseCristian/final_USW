@@ -10,7 +10,6 @@ import {
   Image,
   Modal,
   TextInput,
-  Alert,
   Dimensions,
 } from "react-native"
 import Icon from "react-native-vector-icons/MaterialIcons"
@@ -20,6 +19,8 @@ import { useAuth } from "../AuthContext"
 import LoadingScreen from "../hooks/LoadingScreen"
 import { SafeAreaView } from "react-native-safe-area-context"
 import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons"
+import BidConditionModal from "../hooks/Modal/BidConditionModal"
+import ProfileAlertModal from "../hooks/AlertModal/ProfileAlertModal"
 
 export default function BiddingScreen({ navigation }) {
   const { currentUser } = useAuth()
@@ -39,6 +40,14 @@ export default function BiddingScreen({ navigation }) {
   const [biddingCounts, setBiddingCounts] = useState({ activeBids: 0, outbidNotifications: 0 })
   const [biddingCountsLoading, setBiddingCountsLoading] = useState(false)
   const [expandedCards, setExpandedCards] = useState(new Set())
+  const [showConditionModal, setShowConditionModal] = useState(false)
+
+  const [alertModal, setAlertModal] = useState({
+  visible: false,
+  type: "info",
+  title: "",
+  message: ""
+})
 
   const toggleExpand = (itemId) => {
     setExpandedCards(prevExpandedCards => {
@@ -58,6 +67,19 @@ export default function BiddingScreen({ navigation }) {
     Fair: "#FFC107",
     Poor: "#F44336",
   }
+
+  const showAlert = (type, title, message) => {
+  setAlertModal({
+    visible: true,
+    type,
+    title,
+    message
+  })
+}
+
+const closeAlert = () => {
+  setAlertModal({ ...alertModal, visible: false })
+}
 
   const determineBidStatus = (data, userBid, currentUser) => {
     const now = new Date()
@@ -209,7 +231,7 @@ export default function BiddingScreen({ navigation }) {
       unsubscribeLive()
       unsubscribeBids()
     }
-  }, [currentUser?.uid])
+  }, [currentUser?.uid]) 
 
   const allMyBids = [...myBids, ...acceptedBids]
 
@@ -267,7 +289,7 @@ export default function BiddingScreen({ navigation }) {
         }
     } catch (e) {
         console.error("Error fetching product for bid placement:", e);
-        Alert.alert("Error", "Could not load current auction details. Please try again.");
+        showAlert("error", "Could not load current auction details. Please try again.");
         return;
     }
 
@@ -284,8 +306,13 @@ export default function BiddingScreen({ navigation }) {
     // Ensure nextBid is a number before calling .toString()
     const initialBidAmount = nextBid && !isNaN(nextBid) ? nextBid.toString() : "";
     setBidAmount(initialBidAmount); // Initialize bid amount with the calculated next bid
-    setShowBidModal(true);
+    setShowConditionModal(true);
     // END FIX
+  }
+
+  const handleConditionConfirm = () => {
+  setShowConditionModal(false)
+  setShowBidModal(true) // Then show the bid input modal
   }
 
   const handleConfirmBid = async () => {
@@ -293,18 +320,18 @@ export default function BiddingScreen({ navigation }) {
     const requiredMin = selectedItem.nextBid; // nextBid is already calculated in handlePlaceBid and stored in selectedItem
 
     if (!bidValue || isNaN(bidValue)) {
-      Alert.alert("Invalid Bid", "Please enter a valid numeric bid amount.")
+      showAlert("error", "Invalid Bid", "Please enter a valid numeric bid amount.")
       return
     }
 
     if (bidValue > 999999) {
-      Alert.alert("Invalid Bid", "Bid amount cannot exceed 6 digits (999,999).")
+      showAlert("error", "Invalid Bid", "Bid amount cannot exceed 6 digits (999,999).")
       return
     }
 
     // Use the requiredMin which is calculated from the base bid + 5% or minBid
     if (bidValue < requiredMin) {
-      Alert.alert("Bid Too Low", `Your bid must be at least ₱${requiredMin.toLocaleString()}.`)
+      showAlert("warning", "Bid Too Low", `Your bid must be at least ₱${requiredMin.toLocaleString()}.`)
       return
     }
 
@@ -312,7 +339,7 @@ export default function BiddingScreen({ navigation }) {
       const productRef = doc(db, "products", selectedItem.id)
       const productSnap = await getDoc(productRef)
       if (!productSnap.exists()) {
-        Alert.alert("Error", "This auction no longer exists.")
+        showAlert("error", "This auction no longer exists.")
         return
       }
       const data = productSnap.data()
@@ -325,7 +352,7 @@ export default function BiddingScreen({ navigation }) {
       const latestRequiredMin = base > 0 ? Math.ceil(base * 1.05) : minBid
 
       if (bidValue < latestRequiredMin) {
-        Alert.alert("Bid Too Low", `A new bid was placed. Latest required bid is ₱${latestRequiredMin.toLocaleString()}.`)
+        showAlert("warning", "Bid Too Low", `A new bid was placed. Latest required bid is ₱${latestRequiredMin.toLocaleString()}.`)
         return
       }
 
@@ -345,13 +372,13 @@ export default function BiddingScreen({ navigation }) {
         updatedAt: new Date(),
       })
 
-      Alert.alert("Bid Placed!", `Your bid of ₱${bidValue.toLocaleString()} has been placed on ${selectedItem.title}.`)
+      showAlert("success", "Bid Placed!", `Your bid of ₱${bidValue.toLocaleString()} has been placed on ${selectedItem.title}.`)
       setShowBidModal(false)
       setBidAmount("")
       setSelectedItem(null)
     } catch (e) {
       console.error("Error placing bid:", e)
-      Alert.alert("Error", "Failed to place bid. Please try again.")
+      showAlert("error", "Failed to place bid. Please try again.")
     }
   }
 
@@ -367,7 +394,7 @@ export default function BiddingScreen({ navigation }) {
     if (numericText.length <= 6) {
       setBidAmount(numericText)
     } else {
-      Alert.alert("Input Limit", "Bid amount cannot exceed 6 digits.")
+      showAlert("Input Limit", "Bid amount cannot exceed 6 digits.")
     }
   }
 
@@ -784,7 +811,26 @@ export default function BiddingScreen({ navigation }) {
           </View>
         </Modal>
         {renderImageViewer()}
+
+          <BidConditionModal
+        visible={showConditionModal}
+        onClose={() => {
+          setShowConditionModal(false)
+          setSelectedItem(null)
+          setBidAmount("")
+        }}
+        onConfirm={handleConditionConfirm}
+        selectedItem={selectedItem}
+      />
+
       </View>
+      <ProfileAlertModal
+        visible={alertModal.visible}
+        onClose={closeAlert}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+      />
     </SafeAreaView>
   )
 }
@@ -1032,7 +1078,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   increaseBidButton: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: "#26A69A",
   },
   bidButtonText: {
     color: "white",

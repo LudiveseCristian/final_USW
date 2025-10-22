@@ -1,3 +1,4 @@
+
 const functions = require("firebase-functions");
 const nodemailer = require("nodemailer");
 const admin = require("firebase-admin");
@@ -51,7 +52,7 @@ exports.sendWelcomeEmailOnSignUp = functions.firestore
                         <td style="padding: 20px 40px; border-top: 1px solid #eee; text-align: left; font-size: 14px; color: #888;">
                             <p>---</p>
                             <p>This email was sent from the administration panel of UpcycledStreetwear.</p>
-                            <p>If you have questions, please feel free to reply to this email, or DM us on our Instagram: <a href="https://www.instagram.com/upcycled_streetwear/" style="color: #22c55e; text-decoration: none;">upcycled_streetwear</a></p>
+                            <p>If you have questions, please feel free to reply to this email, message us on the UpcycledStreetwear App or send us a DM on our Instagram: <a href="https://www.instagram.com/upcycled_streetwear/" style="color: #22c55e; text-decoration: none;">upcycled_streetwear</a></p>
                             <p style="margin-top: 20px; font-size: 12px; color: #999;">&copy; ${new Date().getFullYear()} UpcycledStreetwear. All rights reserved.</p>
                         </td>
                     </tr>
