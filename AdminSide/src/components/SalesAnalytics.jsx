@@ -134,8 +134,8 @@ const MonthFilterButtons = ({ selectedMonth, onMonthChange }) => {
 
     return (
         <div className="w-full mt-4 pt-4 border-t border-gray-100">
-            <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Select Month (Current Year)</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider text-right">Select Month (Current Year)</p>
+            <div className="flex flex-wrap justify-end gap-2">
                 {months.map((month, index) => (
                     <button
                         key={month}
@@ -388,7 +388,10 @@ const SalesAnalytics = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 space-y-6 pb-8">
         
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 flex flex-col">
+        {/* Updated ClassName: added 'sticky top-4 z-20'
+           This makes the filter card stick to the top of the window as you scroll.
+        */}
+        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 flex flex-col sticky top-4 z-20">
             <div className="flex flex-col md:flex-row justify-between items-center">
                 <h2 className="text-xl font-semibold text-secondary mb-4 md:mb-0">Dashboard Period</h2>
                 <PeriodFilterButtons currentPeriod={filterPeriod} onPeriodChange={setFilterPeriod} />
