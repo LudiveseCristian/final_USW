@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, Search, Users, Bell, MoreVertical, Image, Paperclip, Smile, Check, CheckCheck, Clock, Filter, Package, ShoppingBag } from 'lucide-react';
+import { MessageCircle, Send, Search, Users, Bell, MoreVertical, Image, Paperclip, Smile, Check, CheckCheck, Clock, Filter, Package, ShoppingBag, X, Sparkles } from 'lucide-react';
 import { 
   collection, 
   query, 
@@ -35,9 +35,21 @@ const AdminMessages = () => {
     resolvedToday: 0,
     avgResponse: '2m'
   });
+  // New state for enlarged image
+  const [enlargedImage, setEnlargedImage] = useState(null);
+
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Quick Replies Configuration
+  const quickReplies = [
+    { label: 'Payment Received 💸', text: "Hi! Thanks for sending the proof of payment 📸. I've confirmed it and we'll process your order right away! 💖" },
+    { label: 'Shipping Update 🚚', text: "Good news! Your order has been packed and is ready for shipping. We'll send the tracking number soon! 📦" },
+    { label: 'Details Needed 📍', text: "Could you please provide your full delivery details? (Name, Address, Phone Number) 📝" },
+    { label: 'Welcome 👋', text: "Hello! Thanks for reaching out. How can I help you today? 😊" },
+    { label: 'Thank You ✨', text: "Thank you for your purchase! Let us know if you need anything else. Have a great day! 💚" }
+  ];
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
@@ -254,6 +266,14 @@ const AdminMessages = () => {
     }, 2000);
   };
 
+  // --- Quick Reply Handler ---
+  const handleQuickReply = (text) => {
+    setMessage(text);
+    // Optional: Focus the textarea if not already focused
+    const textarea = document.querySelector('textarea');
+    if (textarea) textarea.focus();
+  };
+
   const updateTypingStatus = async (typing) => {
     if (!selectedChat?.id) return;
     
@@ -307,8 +327,8 @@ const AdminMessages = () => {
   const filteredConversations = conversations
     .filter(conv => {
       const matchesSearch = conv.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           conv.user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
+                            conv.user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesFilter = filterType === 'all' ? true :
                             filterType === 'active' ? conv.status === 'active' :
@@ -543,8 +563,9 @@ const AdminMessages = () => {
                           <img 
                             src={msg.imageUrl} 
                             alt="Product image"
-                            className="max-w-full h-auto rounded-lg mb-2"
+                            className="max-w-full h-auto rounded-lg mb-2 cursor-pointer hover:opacity-95 transition-opacity"
                             style={{ maxWidth: '300px', maxHeight: '300px' }}
+                            onClick={() => setEnlargedImage(msg.imageUrl)}
                           />
                         )}
                         
@@ -583,51 +604,71 @@ const AdminMessages = () => {
             </div>
 
               {/* Input Area */}
-              <div className="bg-white border-t border-gray-200 p-4">
-                <div className="flex items-end gap-3">
-                  <div className="flex gap-2">
-                            <label className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
-                              {uploadingImage ? (
-                                // Updated spinner border color
-                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#135918]"></div>
-                              ) : (
-                                <Image size={20} />
-                              )}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageUpload}
-                                className="hidden"
-                                disabled={uploadingImage}
-                              />
-                            </label>
-                  </div>
-                  <div className="flex-1 relative">
-                    <textarea
-                      value={message}
-                      onChange={(e) => handleTyping(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage();
-                        }
-                      }}
-                      placeholder="Type your message..."
-                      rows="1"
-                      // Updated focus ring color
-                      className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 ${RING_COLOR} resize-none`}
-                      style={{ minHeight: '48px', maxHeight: '120px' }}
-                    />
-                  </div>
-                  {/* Updated Send Button color */}
-                  <button 
-                    onClick={handleSendMessage}
-                    disabled={!message.trim()}
-                    className="px-6 py-3 bg-[#135918] text-white rounded-xl hover:bg-[#1f7c22] transition-colors flex items-center gap-2 font-medium shadow-lg shadow-[#135918]/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Send size={18} />
-                    Send
-                  </button>
+              <div className="bg-white border-t border-gray-200">
+                
+                {/* Quick Replies Section */}
+                <div className="px-4 py-3 flex gap-2 overflow-x-auto no-scrollbar bg-gray-50 border-b border-gray-100">
+                    <div className="flex items-center text-xs text-gray-400 font-medium mr-1 flex-shrink-0">
+                        <Sparkles size={14} className="mr-1 text-green-600" />
+                        Quick Replies:
+                    </div>
+                    {quickReplies.map((qr, idx) => (
+                        <button 
+                            key={idx}
+                            onClick={() => handleQuickReply(qr.text)}
+                            className="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 hover:bg-green-50 hover:text-[#135918] hover:border-green-200 transition-all shadow-sm"
+                        >
+                            {qr.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="p-4">
+                    <div className="flex items-end gap-3">
+                    <div className="flex gap-2">
+                                <label className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                                {uploadingImage ? (
+                                    // Updated spinner border color
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#135918]"></div>
+                                ) : (
+                                    <Image size={20} />
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    className="hidden"
+                                    disabled={uploadingImage}
+                                />
+                                </label>
+                    </div>
+                    <div className="flex-1 relative">
+                        <textarea
+                        value={message}
+                        onChange={(e) => handleTyping(e.target.value)}
+                        onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                            }
+                        }}
+                        placeholder="Type your message..."
+                        rows="1"
+                        // Updated focus ring color
+                        className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 ${RING_COLOR} resize-none`}
+                        style={{ minHeight: '48px', maxHeight: '120px' }}
+                        />
+                    </div>
+                    {/* Updated Send Button color */}
+                    <button 
+                        onClick={handleSendMessage}
+                        disabled={!message.trim()}
+                        className="px-6 py-3 bg-[#135918] text-white rounded-xl hover:bg-[#1f7c22] transition-colors flex items-center gap-2 font-medium shadow-lg shadow-[#135918]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Send size={18} />
+                        Send
+                    </button>
+                    </div>
                 </div>
               </div>
             </>
@@ -644,6 +685,29 @@ const AdminMessages = () => {
           )}
         </div>
       </div>
+      
+      {/* Image Modal */}
+      {enlargedImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setEnlargedImage(null)}
+        >
+          <div className="relative max-w-7xl max-h-full w-full flex items-center justify-center">
+            <img 
+              src={enlargedImage} 
+              alt="Enlarged view" 
+              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button 
+              className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all"
+              onClick={() => setEnlargedImage(null)}
+            >
+              <X size={32} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
