@@ -219,18 +219,25 @@ const Dashboard = () => {
         collection(db, "orders"),
         where('deliveryAddress', '!=', null), 
         orderBy("date", "desc"),            
-        limit(10) // Increased limit slightly since the table scrolls
+        limit(10) 
       );
       const recentOrdersSnap = await getDocs(recentOrdersQuery);
 
       const recentOrdersData = recentOrdersSnap.docs.map(doc => {
         const data = doc.data();
+        
+        // --- NORMALIZE STATUS: Convert 'pending_confirmation' to 'pending' ---
+        let displayStatus = data.status || 'pending';
+        if (displayStatus === 'pending_confirmation') {
+            displayStatus = 'pending';
+        }
+
         return {
           id: doc.id,
           customerName: data.deliveryAddress?.fullName || 'N/A',
           product: data.productName || 'N/A',
           price: data.finalBidAmount || data.price || 0,
-          orderStatus: data.status || 'pending', 
+          orderStatus: displayStatus, // Use the normalized status
           date: formatDate(data.date), 
         };
       });
@@ -264,6 +271,7 @@ const Dashboard = () => {
       case 'delivered': return 'bg-teal-100 text-teal-800';
       case 'completed':
       case 'rated': return 'bg-green-100 text-green-800';
+      // Default includes 'pending' and the now normalized 'pending_confirmation'
       default: return 'bg-yellow-100 text-yellow-800'; 
     }
   };
