@@ -14,7 +14,9 @@ import {
   Package,
   Tag,
   ThumbsUp,
-  ListOrdered
+  ListOrdered,
+  CreditCard,
+  Banknote
 } from 'lucide-react'
 import { collection, onSnapshot, updateDoc, doc, addDoc, getDoc} from 'firebase/firestore'
 import { db } from '../firebase/config'
@@ -42,7 +44,10 @@ const OrderManagement = () => {
   const [filteredOrders, setFilteredOrders] = useState([])
   const [activeTab, setActiveTab] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [loading, setLoading] = useState(true)
+  
+  // CHANGED: Only use this for the INITIAL load to prevent flickering
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [showImageModal, setShowImageModal] = useState(false)
@@ -93,7 +98,8 @@ const OrderManagement = () => {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'products'), async (snapshot) => {
-      setLoading(true);
+      // REMOVED: setLoading(true) here. This stops the flicker.
+      
       const soldProductPromises = [];
 
       snapshot.docs.forEach((d) => {
@@ -144,6 +150,8 @@ const OrderManagement = () => {
                 length: data.length || 'N/A',
                 width: data.width || 'N/A',
                 deliveryAddress: deliveryAddress, 
+                isPaid: data.isPaid || false,
+                isCOD: data.isCOD || false,
                 raw: data
               };
             }
@@ -155,7 +163,6 @@ const OrderManagement = () => {
       });
 
       const resolvedOrders = await Promise.all(soldProductPromises);
-      
       const wonOrders = resolvedOrders.filter(Boolean);
 
       wonOrders.sort((a, b) => new Date(formatDate(b.orderDate)) - new Date(formatDate(a.orderDate)));
@@ -171,7 +178,8 @@ const OrderManagement = () => {
       };
       setStats(newStats);
 
-      setLoading(false);
+      // Only set this to false once, after the very first data load
+      setIsInitialLoad(false);
     });
 
     return () => unsubscribe();
@@ -195,13 +203,65 @@ const OrderManagement = () => {
     }
 
     setFilteredOrders(filtered)
-    setCurrentPage(1)
+    // removed setCurrentPage(1) here to prevent jumping to page 1 on every status update
   }, [orders, activeTab, searchTerm])
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
   const currentOrders = filteredOrders.slice(startIndex, endIndex)
+
+  // --- UPDATED: Mutually Exclusive Logic & Optimistic UI ---
+  const togglePaymentStatus = async (orderId, type) => {
+    // type is either 'paid' or 'cod'
+    const orderIndex = orders.findIndex(o => o.id === orderId);
+    if (orderIndex === -1) return;
+    
+    const currentOrder = orders[orderIndex];
+    
+    // Determine new values based on what was clicked
+    let newIsPaid = currentOrder.isPaid;
+    let newIsCOD = currentOrder.isCOD;
+
+    if (type === 'paid') {
+        // If currently paid, turn it off. If not paid, turn Paid ON and COD OFF.
+        newIsPaid = !currentOrder.isPaid;
+        if (newIsPaid) newIsCOD = false;
+    } else if (type === 'cod') {
+        // If currently COD, turn it off. If not COD, turn COD ON and Paid OFF.
+        newIsCOD = !currentOrder.isCOD;
+        if (newIsCOD) newIsPaid = false;
+    }
+
+    // 1. Optimistic Update: Update local state immediately so UI updates instantly
+    const updatedOrders = [...orders];
+    updatedOrders[orderIndex] = { 
+        ...currentOrder, 
+        isPaid: newIsPaid, 
+        isCOD: newIsCOD 
+    };
+    setOrders(updatedOrders);
+
+    try {
+      // 2. Send to Firestore
+      const updateData = {
+        isPaid: newIsPaid,
+        isCOD: newIsCOD,
+        updatedAt: new Date().toISOString()
+      };
+      await updateDoc(doc(db, 'products', orderId), updateData);
+      
+      // No alert needed for toggles usually, helps reduce "flicker" feeling, 
+      // but uncomment if you want it:
+      // showAlert('success', `Payment status updated!`);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      showAlert('error', 'Failed to update status.');
+      // Revert local state if error (optional but recommended)
+      setOrders(orders); 
+    }
+  };
+  // --------------------------------------------------------
 
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {
@@ -299,7 +359,8 @@ const OrderManagement = () => {
     { id: 'rated', label: 'Completed', count: stats.rated, icon: Star }
   ]
 
-  if (loading) {
+  // Only show full page loading on initial mount
+  if (isInitialLoad) {
     return (
       <div className="min-h-screen bg-amber-50 flex items-center justify-center">
         <div className="text-center">
@@ -495,7 +556,37 @@ const OrderManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex flex-col space-y-2">
                         {order.orderStatus === 'pending' && (
-                          <div className='w-full'>
+                          <div className='w-full space-y-2'>
+                            {/* --- PAYMENT / COD TOGGLES --- */}
+                            <div className="flex gap-2 justify-between bg-gray-50 p-2 rounded-md border border-gray-200">
+                              <button
+                                onClick={() => togglePaymentStatus(order.id, 'paid')}
+                                className={`flex-1 flex flex-col items-center justify-center py-1 px-2 rounded text-xs transition-colors ${
+                                  order.isPaid 
+                                    ? 'bg-green-100 text-green-700 border border-green-300 font-bold' 
+                                    : 'bg-white text-gray-400 border border-gray-200 hover:bg-gray-100'
+                                }`}
+                                title="Mark as Paid"
+                              >
+                                <CreditCard className="w-3 h-3 mb-1" />
+                                {order.isPaid ? 'PAID' : 'Unpaid'}
+                              </button>
+
+                              <button
+                                onClick={() => togglePaymentStatus(order.id, 'cod')}
+                                className={`flex-1 flex flex-col items-center justify-center py-1 px-2 rounded text-xs transition-colors ${
+                                  order.isCOD 
+                                    ? 'bg-orange-100 text-orange-700 border border-orange-300 font-bold' 
+                                    : 'bg-white text-gray-400 border border-gray-200 hover:bg-gray-100'
+                                }`}
+                                title="Enable Cash on Delivery"
+                              >
+                                <Banknote className="w-3 h-3 mb-1" />
+                                {order.isCOD ? 'COD' : 'No COD'}
+                              </button>
+                            </div>
+                            {/* ---------------------------- */}
+
                             {editingStatus === order.id ? (
                               <div className='space-y-1'>
                                 <input
@@ -508,8 +599,14 @@ const OrderManagement = () => {
                                 <div className='flex gap-1'>
                                   <Button
                                     onClick={() => handleStatusUpdate(order.id, 'shipped')}
-                                    className="flex-1 bg-blue-600 text-white px-2 py-1 text-xs hover:bg-blue-700"
+                                    // DISABLE LOGIC HERE
+                                    className={`flex-1 px-2 py-1 text-xs ${
+                                       (!order.isPaid && !order.isCOD) 
+                                       ? 'bg-gray-400 cursor-not-allowed' 
+                                       : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    }`}
                                     size="sm"
+                                    disabled={!order.isPaid && !order.isCOD}
                                   >
                                     <Truck className="w-3 h-3 mr-1" /> Ship
                                   </Button>
@@ -523,16 +620,31 @@ const OrderManagement = () => {
                                 </div>
                               </div>
                             ) : (
-                              <Button
-                                onClick={() => {
-                                  setEditingStatus(order.id);
-                                  setTrackingNumber(order.trackingNumber || '');
-                                }}
-                                className="w-full bg-blue-600 text-white px-3 py-2 text-sm hover:bg-blue-700"
-                                size="sm"
-                              >
-                                <Truck className="w-4 h-4 mr-2" /> Ship
-                              </Button>
+                              <div className="relative group">
+                                <Button
+                                  onClick={() => {
+                                    setEditingStatus(order.id);
+                                    setTrackingNumber(order.trackingNumber || '');
+                                  }}
+                                  // DISABLE LOGIC HERE
+                                  className={`w-full px-3 py-2 text-sm ${
+                                    (!order.isPaid && !order.isCOD)
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                                  }`}
+                                  size="sm"
+                                  disabled={!order.isPaid && !order.isCOD}
+                                >
+                                  <Truck className="w-4 h-4 mr-2" /> Ship
+                                </Button>
+                                
+                                {/* Tooltip for disabled state */}
+                                {(!order.isPaid && !order.isCOD) && (
+                                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-gray-800 text-white text-xs rounded py-1 px-2 text-center z-10">
+                                     Mark as PAID or COD to enable shipping
+                                   </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
