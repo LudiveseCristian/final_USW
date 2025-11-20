@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
@@ -14,11 +14,21 @@ import {
   Clock,
   AlertCircle,
   List,
+  ArrowRight
 } from 'lucide-react';
-// Added 'where' import
 import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
-import { db } from '../firebase/config.js'; // Ensure path is correct
-import { Card, CardHeader, CardContent, CardTitle, Button, LoadingSpinner, EmptyState, Modal, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui'; // Ensure path is correct
+import { db } from '../firebase/config.js'; 
+import { Card, CardHeader, CardContent, CardTitle, Button, LoadingSpinner, EmptyState, Modal, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui';
+// --- Added Recharts Imports ---
+import { 
+  ResponsiveContainer, 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip 
+} from 'recharts';
 
 // --- Theme Colors ---
 const PRIMARY_DARK_GREEN = '#135918';
@@ -66,7 +76,6 @@ const DashboardStatCard = ({ title, value, icon: Icon, trendText }) => {
     );
 };
 
-
 const Dashboard = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
@@ -79,35 +88,32 @@ const Dashboard = () => {
     lowStockCount: 0,
     outOfStockCount: 0
   });
+  const [salesTrendData, setSalesTrendData] = useState([]); // Data for Line Graph
   const [recentOrders, setRecentOrders] = useState([]);
   const [latestNews, setLatestNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
 
-  // Helper to format Firestore timestamps safely
   const formatDate = (value) => {
     let date;
     if (!value) return "";
-    if (value.toDate) { // Firestore Timestamp object
+    if (value.toDate) { 
       date = value.toDate();
     } else if (typeof value === 'string' || typeof value === 'number') {
       date = new Date(value);
     } else {
-        return ""; // Cannot format
+        return ""; 
     }
-    // Check if date is valid before formatting
-    return !isNaN(date.getTime()) ? date.toLocaleString('en-US', { // Use a consistent locale
+    return !isNaN(date.getTime()) ? date.toLocaleString('en-US', { 
         year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
       }) : "";
   };
-
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
-  // --- UPDATED fetchDashboardData Function ---
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
@@ -119,28 +125,26 @@ const Dashboard = () => {
         stock: doc.data().stock !== undefined ? doc.data().stock : (doc.data().status === 'available' ? 1 : 0)
       }));
 
-      // Inventory Status Calculation
       const outOfStockCount = products.filter(product => product.stock <= 0 && product.status !== 'available').length;
       const lowStockCount = products.filter(
         product => product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD
       ).length;
 
-      // --- Fetch All Orders for Stats Calculation ---
+      // --- Fetch All Orders for Stats ---
       const allOrdersSnap = await getDocs(collection(db, "orders"));
       const allOrders = allOrdersSnap.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        rawDate: doc.data().date // Keep raw date for calculations
+        rawDate: doc.data().date 
       }));
 
-      // Helper to get month/year
        const getMonthYear = (dateValue) => {
          let d;
-         if (!dateValue) return { month: -1, year: -1 };
+         if (!dateValue) return { month: -1, year: -1, day: -1, dateObj: null };
          if (dateValue.toDate) d = dateValue.toDate();
          else d = new Date(dateValue);
-         if (isNaN(d.getTime())) return { month: -1, year: -1 };
-         return { month: d.getMonth(), year: d.getFullYear() };
+         if (isNaN(d.getTime())) return { month: -1, year: -1, day: -1, dateObj: null };
+         return { month: d.getMonth(), year: d.getFullYear(), day: d.getDate(), dateObj: d };
       };
 
       const now = new Date();
@@ -149,11 +153,30 @@ const Dashboard = () => {
       const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
       const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
-      // Filter orders by month
       const currentMonthOrders = allOrders.filter(order => {
         const { month, year } = getMonthYear(order.rawDate);
         return month === currentMonth && year === currentYear;
       });
+      
+      // --- Prepare Sales Trend Data (Current Month) ---
+      const trendMap = {};
+      currentMonthOrders.forEach(order => {
+          const { dateObj } = getMonthYear(order.rawDate);
+          // Format: "Nov 01"
+          const key = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          const amount = order.finalBidAmount || order.price || 0;
+          if (!trendMap[key]) trendMap[key] = 0;
+          trendMap[key] += amount;
+      });
+      
+      // Convert to array and sort by date
+      const trendArray = Object.entries(trendMap).map(([date, sales]) => ({
+          date,
+          sales
+      })).sort((a, b) => new Date(a.date) - new Date(b.date)); // Approximation sort, strictly relies on current month context
+      
+      setSalesTrendData(trendArray);
+
       const prevMonthOrders = allOrders.filter(order => {
         const { month, year } = getMonthYear(order.rawDate);
         return month === prevMonth && year === prevYear;
@@ -162,7 +185,7 @@ const Dashboard = () => {
       // --- Calculate Totals ---
       const totalSales = allOrders.reduce((sum, order) => sum + (order.finalBidAmount || order.price || 0), 0);
       const totalProducts = products.length;
-      const usersSnap = await getDocs(collection(db, "users")); // Fetch users for count
+      const usersSnap = await getDocs(collection(db, "users")); 
       const totalCustomers = usersSnap.size;
       const monthlySales = currentMonthOrders.reduce((sum, order) => sum + (order.finalBidAmount || order.price || 0), 0);
       const prevMonthlySales = prevMonthOrders.reduce((sum, order) => sum + (order.finalBidAmount || order.price || 0), 0);
@@ -171,7 +194,6 @@ const Dashboard = () => {
       const currentMonthUniqueCustomers = currentMonthCustomerIds.size;
       const prevMonthUniqueCustomers = prevMonthCustomerIds.size;
 
-      // Growth calculation helper
       const calcGrowth = (current, prev) => {
         if (prev === 0 && current > 0) return 100;
         if (prev === 0) return 0;
@@ -181,7 +203,6 @@ const Dashboard = () => {
       const salesGrowth = calcGrowth(monthlySales, prevMonthlySales);
       const customerGrowth = calcGrowth(currentMonthUniqueCustomers, prevMonthUniqueCustomers);
 
-      // Set stats
       setStats({
         totalSales: totalSales || 0,
         totalProducts: totalProducts || 0,
@@ -193,12 +214,12 @@ const Dashboard = () => {
         outOfStockCount: outOfStockCount || 0
       });
 
-      // --- Fetch Recent Orders with deliveryAddress ---
+      // --- Fetch Recent Orders ---
       const recentOrdersQuery = query(
         collection(db, "orders"),
-        where('deliveryAddress', '!=', null), // <<< FILTER ADDED
-        orderBy("date", "desc"),             // Use the 'date' field from orders
-        limit(6)                             // Limit to 6 for dashboard
+        where('deliveryAddress', '!=', null), 
+        orderBy("date", "desc"),            
+        limit(10) // Increased limit slightly since the table scrolls
       );
       const recentOrdersSnap = await getDocs(recentOrdersQuery);
 
@@ -209,14 +230,13 @@ const Dashboard = () => {
           customerName: data.deliveryAddress?.fullName || 'N/A',
           product: data.productName || 'N/A',
           price: data.finalBidAmount || data.price || 0,
-          orderStatus: data.status || 'pending', // Use 'status' field from order doc
-          date: formatDate(data.date), // Format the date for display
+          orderStatus: data.status || 'pending', 
+          date: formatDate(data.date), 
         };
       });
       setRecentOrders(recentOrdersData);
-      // --- END UPDATED RECENT ORDERS ---
 
-      // Fetch latest 3 news
+      // Fetch news
       const newsQuery = query(
         collection(db, "news"),
         orderBy("createdAt", "desc"),
@@ -236,26 +256,17 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
-  // --- END UPDATED fetchDashboardData Function ---
 
 
   const getStatusColor = (orderStatus) => {
-    // Consistent status colors
     switch (orderStatus?.toLowerCase()) {
-      case 'shipped':
-        return 'bg-blue-100 text-blue-800';
-      case 'delivered':
-        return 'bg-teal-100 text-teal-800'; // Changed color
+      case 'shipped': return 'bg-blue-100 text-blue-800';
+      case 'delivered': return 'bg-teal-100 text-teal-800';
       case 'completed':
-      case 'rated':
-        return 'bg-green-100 text-green-800'; // Grouped final states
-      case 'pending_confirmation':
-      case 'pending':
-      default:
-        return 'bg-yellow-100 text-yellow-800'; // Pending color
+      case 'rated': return 'bg-green-100 text-green-800';
+      default: return 'bg-yellow-100 text-yellow-800'; 
     }
   };
-
 
   const formatPrice = (price) => {
     if (price === null || price === undefined || isNaN(price)) return "₱0.00";
@@ -264,6 +275,7 @@ const Dashboard = () => {
 
   const handleAddNewProduct = () => setShowAddProductModal(true);
   const handleViewSalesReport = () => navigate('/sales');
+  const handleViewAnalytics = () => navigate('/sales-analytics'); // Redirect to SalesAnalytics.js
   const handleManageInventory = () => setShowInventoryModal(true);
 
   if (loading) {
@@ -330,12 +342,63 @@ const Dashboard = () => {
 
       {/* Main Content Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 md:mt-8 pb-8">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
+        
+        {/* NEW: Line Graph Section (Sales Trend) */}
+        <div className="mb-8">
+          <Card className="shadow-lg border border-gray-100">
+            <CardHeader className="border-b bg-gray-50/50 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-700 flex items-center">
+                <TrendingUp className="h-5 w-5 mr-2 text-green-600" />
+                Sales Trend (This Month)
+              </CardTitle>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={handleViewAnalytics}
+                className="text-xs md:text-sm flex items-center border-green-200 text-green-700 hover:bg-green-50"
+              >
+                View Full Analytics
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-6">
+                {salesTrendData.length > 0 ? (
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={salesTrendData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                <XAxis dataKey="date" tick={{fontSize: 12}} stroke="#6b7280" />
+                                <YAxis tick={{fontSize: 12}} stroke="#6b7280" tickFormatter={(value) => `₱${value}`} />
+                                <Tooltip 
+                                    formatter={(value) => [formatPrice(value), 'Sales']}
+                                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="sales" 
+                                    stroke="#135918" 
+                                    strokeWidth={3} 
+                                    dot={{ r: 4, fill: '#135918' }} 
+                                    activeDot={{ r: 6 }} 
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                ) : (
+                    <div className="h-[300px] flex items-center justify-center text-gray-500">
+                        No sales data recorded for this month yet.
+                    </div>
+                )}
+            </CardContent>
+          </Card>
+        </div>
 
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
+          
           {/* === UPDATED RECENT ORDERS TABLE SECTION === */}
           <div className="xl:col-span-2">
-            <Card className="shadow-lg overflow-hidden">
-              <CardHeader className="border-b bg-gray-50/50"> {/* Slightly transparent header */}
+            <Card className="shadow-lg overflow-hidden border border-gray-100">
+              <CardHeader className="border-b bg-gray-50/50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Clock className="h-5 w-5 text-gray-500" />
@@ -344,69 +407,73 @@ const Dashboard = () => {
                   <Button
                     variant="link"
                     size="sm"
-                    onClick={() => navigate('/sales')} // Navigate to full sales/orders page
-                    className="text-sm text-blue-600 hover:text-blue-800 px-1" // Minimal padding for link
+                    onClick={handleViewSalesReport}
+                    className="text-sm text-blue-600 hover:text-blue-800 px-1"
                   >
                     View All
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-6">
                 {recentOrders.length === 0 ? (
-                  <div className="p-10 text-center"> {/* Centered empty state */}
+                  <div className="p-10 text-center">
                     <EmptyState
                       icon={Package}
-                      title="No recent orders with addresses"
-                      description="New orders with delivery details will appear here."
+                      title="No recent orders"
+                      description="New orders will appear here."
                     />
                   </div>
                 ) : (
-                  // Use overflow-x-auto for responsiveness like in SalesAnalytics
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        {/* Use sticky header style like SalesAnalytics */}
-                        <TableRow className="border-b border-gray-200 bg-gray-50">
-                          <TableHead className="py-3 px-4 font-medium text-gray-600 w-[150px]">Customer</TableHead>
-                          <TableHead className="py-3 px-4 font-medium text-gray-600">Product</TableHead>
-                          <TableHead className="py-3 px-4 font-medium text-gray-600 text-right">Price</TableHead>
-                          <TableHead className="py-3 px-4 font-medium text-gray-600 w-[180px]">Date</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                  // Fixed Height Container with Scroll
+                  <div className="h-[400px] overflow-y-auto border border-gray-200 rounded-lg">
+                    <table className="w-full relative">
+                      <thead className="sticky top-0 z-10 bg-gray-50">
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 font-medium text-gray-600 bg-gray-50 w-[180px]">Customer</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-600 bg-gray-50">Product</th>
+                          <th className="text-right py-3 px-4 font-medium text-gray-600 bg-gray-50 w-[120px]">Price</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-600 bg-gray-50 w-[100px]">Status</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-600 bg-gray-50 w-[150px]">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
                         {recentOrders.map((order) => (
-                           // Use hover effect like SalesAnalytics
-                          <TableRow key={order.id} className="border-b border-gray-100 hover:bg-green-50/50">
-                            <TableCell className="py-3 px-4">
-                              <div className="font-medium text-gray-800 truncate" title={order.customerName}>
+                          <tr key={order.id} className="border-b border-gray-100 hover:bg-green-50/50 transition-colors">
+                            <td className="py-3 px-4">
+                              <div className="font-medium text-gray-800 truncate max-w-[160px]" title={order.customerName}>
                                 {order.customerName}
                               </div>
-                            </TableCell>
-                            <TableCell className="py-3 px-4 text-gray-700 truncate" title={order.product}>
-                                {order.product}
-                            </TableCell>
-                            <TableCell className="py-3 px-4 text-right">
-                              <span className="font-semibold text-[#135918]"> {/* Use primary green for price */}
+                            </td>
+                            <td className="py-3 px-4">
+                                <div className="text-gray-700 truncate max-w-[200px]" title={order.product}>
+                                    {order.product}
+                                </div>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="font-semibold text-[#135918]">
                                 {formatPrice(order.price)}
                               </span>
-                            </TableCell>
-                             {/* Use smaller text for date */}
-                            <TableCell className="py-3 px-4 text-gray-500 text-xs">{order.date}</TableCell>
-                          </TableRow>
+                            </td>
+                            <td className="py-3 px-4">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${getStatusColor(order.orderStatus)}`}>
+                                    {order.orderStatus.toUpperCase()}
+                                </span>
+                            </td>
+                            <td className="py-3 px-4 text-gray-500 text-xs">{order.date}</td>
+                          </tr>
                         ))}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
-          {/* === END UPDATED RECENT ORDERS TABLE SECTION === */}
 
           {/* Sidebar (Quick Actions & System Status) */}
           <div className="space-y-6 md:space-y-8">
             {/* Quick Actions */}
-             <Card className="shadow-lg">
+             <Card className="shadow-lg border border-gray-100">
                <CardHeader className="border-b">
                  <CardTitle className="text-lg flex items-center">
                     <Plus className="h-5 w-5 mr-2 text-gray-500" />
@@ -446,7 +513,7 @@ const Dashboard = () => {
             </Card>
 
             {/* System Status */}
-            <Card className="shadow-lg">
+            <Card className="shadow-lg border border-gray-100">
                <CardHeader className="border-b">
                  <CardTitle className="text-lg flex items-center">
                     <Activity className="h-5 w-5 mr-2 text-gray-500" />
@@ -469,7 +536,6 @@ const Dashboard = () => {
                       <span className="text-green-600 font-medium text-sm">Nominal</span>
                     </div>
                   </div>
-                   {/* Can add more status indicators if needed */}
                 </div>
               </CardContent>
             </Card>
@@ -477,7 +543,7 @@ const Dashboard = () => {
         </div>
 
         {/* Latest News */}
-        <Card className="shadow-lg mt-6 md:mt-8">
+        <Card className="shadow-lg mt-6 md:mt-8 border border-gray-100">
            <CardHeader className="border-b bg-gray-50/50">
               <CardTitle className="text-lg flex items-center font-semibold text-gray-700">
                  <AlertCircle className="h-5 w-5 mr-2 text-gray-500" />
@@ -496,8 +562,6 @@ const Dashboard = () => {
                 {latestNews.map((news) => (
                   <Card key={news.id} className="hover:shadow-md transition-shadow border">
                     <CardContent className="p-4">
-                      {/* Optional: Add image if available in news data */}
-                      {/* {news.imageUrl && ( <img src={news.imageUrl} ... /> )} */}
                       <h3 className="text-base font-semibold text-gray-800 mb-1 line-clamp-2">
                         {news.name || news.title}
                       </h3>
@@ -511,9 +575,8 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Modals (No changes needed) */}
+        {/* Modals */}
         <Modal isOpen={showAddProductModal} onClose={() => setShowAddProductModal(false)} title="Add New Product" size="sm">
-          {/* Modal Content */}
            <div className="p-6">
             <p className="text-gray-600 mb-6">
               Go to the 'Products' section to add new items.
@@ -528,7 +591,6 @@ const Dashboard = () => {
           </div>
         </Modal>
         <Modal isOpen={showInventoryModal} onClose={() => setShowInventoryModal(false)} title="Inventory Overview" size="sm">
-           {/* Modal Content */}
            <div className="p-6">
             <div className="space-y-3 mb-6">
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
