@@ -98,6 +98,14 @@ const BidConditionModal = ({ visible, onClose, onConfirm, selectedItem }) => {
             </Text>
           </View>
 
+          {/* Payment Notice */}
+          <View style={styles.paymentNoticeContainer}>
+            <Icon name="payment" size={20} color="#2E6A2E" />
+            <Text style={styles.paymentNoticeText}>
+              Payment must be confirmed before delivery of the item.
+            </Text>
+          </View>
+
           {/* Action Buttons */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
@@ -240,7 +248,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF9E6",
     borderRadius: 10,
     padding: 12,
-    marginBottom: 20,
+    marginBottom: 12,
     borderLeftWidth: 4,
     borderLeftColor: "#F5A623",
   },
@@ -250,6 +258,23 @@ const styles = StyleSheet.create({
     color: "#856404",
     marginLeft: 10,
     lineHeight: 18,
+  },
+  paymentNoticeContainer: {
+    flexDirection: "row",
+    backgroundColor: "#E8F5E9",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: "#2E6A2E",
+  },
+  paymentNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#1B5E20",
+    marginLeft: 10,
+    lineHeight: 18,
+    fontWeight: "500",
   },
   buttonContainer: {
     flexDirection: "row",
